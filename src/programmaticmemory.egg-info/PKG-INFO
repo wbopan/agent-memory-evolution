@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: programmaticmemory
+Version: 0.1.0
+Summary: A framework for optimizing text components using LLM-based reflection and edit-based mutation with memory stores.
+License: MIT
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: litellm>=1.81.5
+Requires-Dist: tenacity>=9.1.2
+Requires-Dist: rich>=13.0.0
+Requires-Dist: weave[litellm]>=0.51.0
+Requires-Dist: redis>=7.1.0
+Provides-Extra: full
+Requires-Dist: litellm[caching]>=1.81.5; extra == "full"
+Requires-Dist: datasets>=2.14.6; extra == "full"
+Requires-Dist: tqdm>=4.66.1; extra == "full"
+Requires-Dist: tiktoken>=0.12.0; extra == "full"
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pyright; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Requires-Dist: ruff>=0.3.0; extra == "dev"

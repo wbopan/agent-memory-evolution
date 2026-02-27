@@ -33,11 +33,11 @@ def configure_cache(
 
     if backend == "disk":
         cache_dir = kwargs.pop("disk_cache_dir", os.path.expanduser("~/.cache/litellm"))
-        litellm.cache = Cache(type="disk", disk_cache_dir=cache_dir, **kwargs)
+        litellm.cache = Cache(type="disk", disk_cache_dir=cache_dir, **kwargs)  # type: ignore[arg-type]
 
     elif backend == "r2":
         litellm.cache = Cache(
-            type="s3",
+            type="s3",  # type: ignore[arg-type]
             s3_bucket_name=kwargs.pop("s3_bucket_name", os.environ["R2_BUCKET_NAME"]),
             s3_endpoint_url=kwargs.pop("s3_endpoint_url", os.environ["R2_ENDPOINT_URL"]),
             s3_aws_access_key_id=kwargs.pop("s3_aws_access_key_id", os.environ["R2_ACCESS_KEY_ID"]),
@@ -51,7 +51,7 @@ def configure_cache(
         from redis.retry import Retry
 
         litellm.cache = Cache(
-            type="redis",
+            type="redis",  # type: ignore[arg-type]
             host=kwargs.pop("host", os.environ.get("REDIS_HOST")),
             port=kwargs.pop("port", int(os.environ.get("REDIS_PORT", "6379"))),
             password=kwargs.pop("password", os.environ.get("REDIS_PASSWORD")),
@@ -63,7 +63,7 @@ def configure_cache(
         )
 
     elif backend == "s3":
-        litellm.cache = Cache(type="s3", **kwargs)
+        litellm.cache = Cache(type="s3", **kwargs)  # type: ignore[arg-type]
 
     else:
         raise ValueError(f"Unknown cache backend: {backend}")

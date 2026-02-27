@@ -14,7 +14,12 @@ from typing_extensions import NotRequired
 
 from programmaticmemory.core.adapter import Adapter, EvaluationBatch
 from programmaticmemory.logging import get_logger
-from programmaticmemory.memory.memory_store import EditOperation, apply_edit, format_memory_as_markdown, parse_memory_xml
+from programmaticmemory.memory.memory_store import (
+    EditOperation,
+    apply_edit,
+    format_memory_as_markdown,
+    parse_memory_xml,
+)
 
 logger = get_logger()
 
