@@ -102,6 +102,32 @@ class TestRunOutputManager:
         manager.close()
         manager.close()  # Should not raise
 
+    def test_write_program_creates_py_file(self, tmp_path):
+        """write_program should save source code to programs/iter_N.py."""
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_program(iteration=1, source_code="class Memory: pass", accepted=True, score=0.75)
+
+            prog_path = manager.run_dir / "programs" / "iter_1.py"
+            assert prog_path.exists()
+            content = prog_path.read_text(encoding="utf-8")
+            assert "class Memory: pass" in content
+            assert "accepted" in content
+            assert "0.75" in content
+        finally:
+            manager.close()
+
+    def test_write_program_iter_0(self, tmp_path):
+        """write_program at iteration 0 should be labelled 'initial'."""
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_program(iteration=0, source_code="# initial", accepted=True, score=0.5)
+            prog_path = manager.run_dir / "programs" / "iter_0.py"
+            assert prog_path.exists()
+            assert "initial" in prog_path.read_text(encoding="utf-8")
+        finally:
+            manager.close()
+
 
 class TestLLMCallLogger:
     """Tests for LLMCallLogger."""

@@ -163,6 +163,17 @@ class RunOutputManager:
         """
         (self.run_dir / "summary.json").write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
 
+    def write_program(self, iteration: int, source_code: str, accepted: bool, score: float) -> None:
+        """Save a Memory Program's source code to programs/iter_N.py."""
+        try:
+            programs_dir = self.run_dir / "programs"
+            programs_dir.mkdir(exist_ok=True)
+            label = "initial" if iteration == 0 else ("accepted" if accepted else "rejected")
+            header = f"# iter={iteration}  score={score:.4f}  {label}\n\n"
+            (programs_dir / f"iter_{iteration}.py").write_text(header + source_code, encoding="utf-8")
+        except Exception:
+            pass  # logging must never crash the evolution loop
+
     def get_log_path(self) -> Path:
         """Return the path for the run's log file."""
         return self.run_dir / "run.log"
