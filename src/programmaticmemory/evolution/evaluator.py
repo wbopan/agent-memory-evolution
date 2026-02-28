@@ -6,6 +6,7 @@ matching the design document's specified interaction pattern.
 
 from __future__ import annotations
 
+import collections
 import json
 import re
 from typing import Literal, Protocol
@@ -49,6 +50,29 @@ class ExactMatchScorer:
         text = re.sub(r"[^\w\s]", "", text)
         text = re.sub(r"\s+", " ", text)
         return text
+
+
+class TokenF1Scorer:
+    """Token-level F1 with SQuAD-style normalization (no stemming)."""
+
+    def __call__(self, output: str, expected: str) -> float:
+        out_tok = self._normalize_and_tokenize(output)
+        exp_tok = self._normalize_and_tokenize(expected)
+        if not exp_tok or not out_tok:
+            return float(out_tok == exp_tok)
+        common = collections.Counter(out_tok) & collections.Counter(exp_tok)
+        num = sum(common.values())
+        if num == 0:
+            return 0.0
+        p, r = num / len(out_tok), num / len(exp_tok)
+        return 2 * p * r / (p + r)
+
+    @staticmethod
+    def _normalize_and_tokenize(text: str) -> list[str]:
+        text = text.lower()
+        text = re.sub(r"\b(a|an|the)\b", " ", text)
+        text = re.sub(r"[^\w\s]", "", text)
+        return text.split()
 
 
 class LLMJudgeScorer:
