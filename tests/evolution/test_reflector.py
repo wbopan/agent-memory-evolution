@@ -1,0 +1,201 @@
+"""Tests for evolution/reflector.py — code extraction and reflection."""
+
+from unittest.mock import MagicMock, patch
+
+from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
+from programmaticmemory.evolution.types import EvalResult, FailedCase, MemoryProgram
+
+
+class TestExtractCodeBlock:
+    def test_single_block(self):
+        text = "Some analysis.\n```python\nclass A: pass\n```\nDone."
+        assert _extract_code_block(text) == "class A: pass"
+
+    def test_multiple_blocks_takes_last(self):
+        text = """\
+Here's a helper:
+```python
+def helper(): pass
+```
+
+And the full code:
+```python
+class Memory: pass
+```
+"""
+        assert _extract_code_block(text) == "class Memory: pass"
+
+    def test_no_code_block_returns_none(self):
+        text = "No code here, just analysis."
+        assert _extract_code_block(text) is None
+
+    def test_multiline_code(self):
+        text = """\
+Analysis done.
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class Observation:
+    raw: str
+    category: str = "general"
+
+@dataclass
+class Query:
+    raw: str
+
+class Memory:
+    def __init__(self, toolkit):
+        self.store = []
+
+    def write(self, obs):
+        self.store.append(obs.raw)
+
+    def read(self, query):
+        return "\\n".join(self.store)
+```
+"""
+        code = _extract_code_block(text)
+        assert code is not None
+        assert "class Observation" in code
+        assert "class Query" in code
+        assert "class Memory" in code
+        assert "@dataclass" in code
+
+    def test_non_python_block_ignored(self):
+        text = "```json\n{}\n```"
+        assert _extract_code_block(text) is None
+
+
+class TestReflector:
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_successful_reflection(self, mock_litellm):
+        """Reflector should produce a new MemoryProgram with incremented generation."""
+        new_code = """\
+from dataclasses import dataclass
+
+@dataclass
+class Observation:
+    raw: str
+
+@dataclass
+class Query:
+    raw: str
+
+class Memory:
+    def __init__(self, toolkit):
+        self.store = {}
+
+    def write(self, obs):
+        self.store[obs.raw[:20]] = obs.raw
+
+    def read(self, query):
+        return self.store.get(query.raw, "Not found")
+"""
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = f"Diagnosis: using dict.\n\n```python\n{new_code}\n```"
+        mock_litellm.completion.return_value = mock_resp
+
+        current = MemoryProgram(source_code="old code", generation=2)
+        eval_result = EvalResult(
+            score=0.3,
+            failed_cases=[
+                FailedCase(question="q", output="wrong", expected="right", score=0.0),
+            ],
+        )
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(current, eval_result, iteration=3)
+
+        assert child is not None
+        assert child.generation == 3
+        assert child.parent_hash == current.hash
+        assert "class Memory" in child.source_code
+        assert "self.store" in child.source_code
+
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_reflection_no_code_block_returns_none(self, mock_litellm):
+        """If LLM output has no code block, return None."""
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = "I analyzed the code but can't suggest improvements."
+        mock_litellm.completion.return_value = mock_resp
+
+        current = MemoryProgram(source_code="x")
+        eval_result = EvalResult(score=0.5)
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(current, eval_result, iteration=1)
+
+        assert child is None
+
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_reflection_passes_failed_cases(self, mock_litellm):
+        """Verify the reflection prompt includes failed case info."""
+        captured_messages = []
+
+        def capture_completion(*args, **kwargs):
+            captured_messages.append(kwargs.get("messages", []))
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = "No code."
+            return mock_resp
+
+        mock_litellm.completion = capture_completion
+
+        current = MemoryProgram(source_code="code here")
+        eval_result = EvalResult(
+            score=0.2,
+            failed_cases=[
+                FailedCase(
+                    question="What is X?",
+                    output="unknown",
+                    expected="42",
+                    score=0.0,
+                    memory_logs=["Stored: X=42"],
+                ),
+            ],
+        )
+
+        reflector = Reflector(model="mock/model")
+        reflector.reflect_and_mutate(current, eval_result, iteration=5)
+
+        assert len(captured_messages) == 1
+        messages = captured_messages[0]
+        # System prompt should contain interface spec
+        assert "Observation" in messages[0]["content"]
+        # User prompt should contain code, score, failed cases
+        user_content = messages[1]["content"]
+        assert "code here" in user_content
+        assert "0.200" in user_content
+        assert "What is X?" in user_content
+        assert "42" in user_content
+        assert "Stored: X=42" in user_content
+
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_reflection_uses_configured_model_and_temperature(self, mock_litellm):
+        """Verify model and temperature are passed to litellm."""
+        captured_kwargs = []
+
+        def capture_completion(*args, **kwargs):
+            captured_kwargs.append(kwargs)
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[
+                0
+            ].message.content = "```python\nclass Observation: pass\nclass Query: pass\nclass Memory: pass\n```"
+            return mock_resp
+
+        mock_litellm.completion = capture_completion
+
+        reflector = Reflector(model="custom/reflect-model", temperature=0.9)
+        reflector.reflect_and_mutate(
+            MemoryProgram(source_code="x"),
+            EvalResult(score=0.0),
+            iteration=1,
+        )
+
+        assert captured_kwargs[0]["model"] == "custom/reflect-model"
+        assert captured_kwargs[0]["temperature"] == 0.9

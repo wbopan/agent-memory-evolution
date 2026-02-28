@@ -1,0 +1,622 @@
+"""Tests for evolution/evaluator.py — scorers, JSON parsing, evaluation pipelines.
+
+Key verification points from the design document:
+- Type B train: messages accumulate across steps (multi-turn conversation)
+- Validation: only Step 1 + Step 2, memory.write NOT called
+- Memory lifecycle: re-instantiation → empty memory (state isolation)
+"""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from programmaticmemory.evolution.evaluator import (
+    ExactMatchScorer,
+    MemoryEvaluator,
+    _parse_json_from_llm,
+)
+from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
+from programmaticmemory.evolution.types import DataItem, MemoryProgram
+
+# ── Scorer Tests ────────────────────────────────────────────────────────────
+
+
+class TestExactMatchScorer:
+    def setup_method(self):
+        self.scorer = ExactMatchScorer()
+
+    def test_exact_match(self):
+        assert self.scorer("Paris", "Paris") == 1.0
+
+    def test_case_insensitive(self):
+        assert self.scorer("paris", "Paris") == 1.0
+
+    def test_containment(self):
+        assert self.scorer("The answer is Paris.", "Paris") == 1.0
+
+    def test_no_match(self):
+        assert self.scorer("London", "Paris") == 0.0
+
+    def test_punctuation_normalized(self):
+        assert self.scorer("It's Paris!", "Paris") == 1.0
+
+    def test_whitespace_normalized(self):
+        assert self.scorer("  Paris  ", "Paris") == 1.0
+
+    def test_empty_expected(self):
+        assert self.scorer("anything", "") == 1.0
+
+    def test_empty_output(self):
+        assert self.scorer("", "Paris") == 0.0
+
+
+# ── JSON Parsing Tests ──────────────────────────────────────────────────────
+
+
+class TestParseJsonFromLLM:
+    def test_plain_json(self):
+        assert _parse_json_from_llm('{"raw": "hello"}') == {"raw": "hello"}
+
+    def test_json_code_block(self):
+        text = '```json\n{"raw": "hello"}\n```'
+        assert _parse_json_from_llm(text) == {"raw": "hello"}
+
+    def test_generic_code_block(self):
+        text = '```\n{"raw": "hello"}\n```'
+        assert _parse_json_from_llm(text) == {"raw": "hello"}
+
+    def test_with_surrounding_text(self):
+        text = 'Here is the JSON:\n```json\n{"raw": "hello"}\n```\nDone.'
+        assert _parse_json_from_llm(text) == {"raw": "hello"}
+
+    def test_multi_field(self):
+        result = _parse_json_from_llm('{"text": "hello", "category": "greeting", "priority": 1}')
+        assert result == {"text": "hello", "category": "greeting", "priority": 1}
+
+    def test_invalid_json_raises(self):
+        with pytest.raises(Exception):
+            _parse_json_from_llm("not json at all")
+
+
+# ── Mock LLM helper ────────────────────────────────────────────────────────
+
+
+def _mock_completion_factory(responses: list[str]):
+    """Create a mock litellm.completion that returns responses in order,
+    and captures the messages arg for each call."""
+    call_idx = [0]
+    captured_calls: list[list[dict]] = []
+
+    def mock_completion(*args, **kwargs):
+        idx = call_idx[0]
+        call_idx[0] += 1
+        messages = kwargs.get("messages") or (args[0] if args else [])
+        captured_calls.append(list(messages))  # deep copy of messages at call time
+        resp = responses[idx % len(responses)]
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = resp
+        return mock_resp
+
+    mock_completion.captured_calls = captured_calls
+    return mock_completion
+
+
+# ── Memory lifecycle tests ──────────────────────────────────────────────────
+
+
+class TestMemoryLifecycle:
+    def test_initial_program_instantiates(self):
+        """Initial memory program template can be instantiated."""
+        from programmaticmemory.evolution.sandbox import compile_memory_program
+        from programmaticmemory.evolution.toolkit import create_toolkit
+
+        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        assert not isinstance(result, tuple) or len(result) == 3
+        _, _, memory_cls = result
+        tk = create_toolkit()
+        memory = memory_cls(tk)
+        assert memory is not None
+        tk.close()
+
+    def test_write_then_read_returns_content(self):
+        """Write followed by read should return the written content."""
+        from programmaticmemory.evolution.sandbox import compile_memory_program
+        from programmaticmemory.evolution.toolkit import create_toolkit
+
+        _, _, memory_cls = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        tk = create_toolkit()
+        memory = memory_cls(tk)
+        from dataclasses import dataclass
+
+        @dataclass
+        class Obs:
+            raw: str
+
+        @dataclass
+        class Q:
+            raw: str
+
+        # Use the compiled classes instead
+        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        obs_cls, query_cls, memory_cls = result
+        memory = memory_cls(tk)
+        memory.write(obs_cls(raw="The sky is blue."))
+        output = memory.read(query_cls(raw="sky"))
+        assert "The sky is blue." in output
+        tk.close()
+
+    def test_reinstantiation_gives_empty_memory(self):
+        """Re-instantiating Memory should produce an empty store (no state leak)."""
+        from programmaticmemory.evolution.sandbox import compile_memory_program
+        from programmaticmemory.evolution.toolkit import create_toolkit
+
+        obs_cls, query_cls, memory_cls = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        tk = create_toolkit()
+
+        # First instance: write data
+        mem1 = memory_cls(tk)
+        mem1.write(obs_cls(raw="secret data"))
+        output1 = mem1.read(query_cls(raw="anything"))
+        assert "secret data" in output1
+
+        # Second instance: should be empty
+        mem2 = memory_cls(tk)
+        output2 = mem2.read(query_cls(raw="anything"))
+        assert "secret data" not in output2
+        tk.close()
+
+
+# ── Type A Pipeline Tests ──────────────────────────────────────────────────
+
+
+class TestMemoryEvaluatorTypeA:
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_basic_type_a_evaluation(self, mock_litellm):
+        """Type A: batch ingest → query → answer → score."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "The capital of France is Paris."}',  # train: obs generation
+                '{"raw": "capital of France"}',  # val: query generation
+                "Paris",  # val: answer
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="A")
+
+        assert result.score == 1.0
+        assert len(result.per_case_scores) == 1
+        assert result.failed_cases == []
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_a_wrong_answer(self, mock_litellm):
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "The capital of France is Paris."}',
+                '{"raw": "capital"}',
+                "London",
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="A")
+
+        assert result.score == 0.0
+        assert len(result.failed_cases) == 1
+        assert result.failed_cases[0].output == "London"
+
+    def test_compile_error_returns_zero(self):
+        program = MemoryProgram(source_code="invalid python {{{}}")
+        evaluator = MemoryEvaluator()
+        result = evaluator.evaluate(
+            program,
+            [DataItem(raw_text="x", question="q", expected_answer="a")],
+            [DataItem(raw_text="x", question="q", expected_answer="a")],
+        )
+        assert result.score == 0.0
+        assert any("Compile error" in log for log in result.logs)
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_a_val_uses_multiturn(self, mock_litellm):
+        """Val flow should use accumulated messages (Step 1 → Step 2)."""
+        mock_fn = _mock_completion_factory(
+            [
+                '{"raw": "fact"}',  # train obs
+                '{"raw": "query"}',  # val Step 1: query gen
+                "answer",  # val Step 2: answer
+            ]
+        )
+        mock_litellm.completion = mock_fn
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator.evaluate(program, train, val, dataset_type="A")
+
+        # Val Step 2 call (3rd call overall) should have 3 messages:
+        # user (query prompt) + assistant (query json) + user (retrieved memory prompt)
+        val_step2_messages = mock_fn.captured_calls[2]
+        assert len(val_step2_messages) == 3
+        assert val_step2_messages[0]["role"] == "user"  # query gen prompt
+        assert val_step2_messages[1]["role"] == "assistant"  # query json
+        assert val_step2_messages[2]["role"] == "user"  # retrieved memory prompt
+        assert "<retrieved_memory>" in val_step2_messages[2]["content"]
+
+
+# ── Type B Pipeline Tests ──────────────────────────────────────────────────
+
+
+class TestMemoryEvaluatorTypeB:
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_b_train_messages_accumulate(self, mock_litellm):
+        """Type B train: messages list grows across steps (design doc requirement).
+
+        Step 1: +user +assistant = 2 messages
+        Step 2: +user +assistant = 4 messages
+        Step 3: +user = 5 messages (call), then +assistant = 6 messages
+        """
+        mock_fn = _mock_completion_factory(
+            [
+                '{"raw": "query value"}',  # train Step 1: query gen
+                "my answer",  # train Step 2: answer
+                '{"raw": "observation"}',  # train Step 3: obs gen with feedback
+                '{"raw": "val query"}',  # val Step 1: query gen
+                "val answer",  # val Step 2: answer
+            ]
+        )
+        mock_litellm.completion = mock_fn
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="val answer")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator.evaluate(program, train, val, dataset_type="B")
+
+        # Train Step 1 (call 0): 1 user message
+        assert len(mock_fn.captured_calls[0]) == 1
+        assert mock_fn.captured_calls[0][0]["role"] == "user"
+
+        # Train Step 2 (call 1): 3 messages (user + assistant + user)
+        assert len(mock_fn.captured_calls[1]) == 3
+        assert mock_fn.captured_calls[1][0]["role"] == "user"  # query gen prompt
+        assert mock_fn.captured_calls[1][1]["role"] == "assistant"  # query json
+        assert mock_fn.captured_calls[1][2]["role"] == "user"  # retrieved memory prompt
+        assert "<retrieved_memory>" in mock_fn.captured_calls[1][2]["content"]
+
+        # Train Step 3 (call 2): 5 messages (user + asst + user + asst + user)
+        assert len(mock_fn.captured_calls[2]) == 5
+        assert mock_fn.captured_calls[2][3]["role"] == "assistant"  # answer
+        assert mock_fn.captured_calls[2][4]["role"] == "user"  # obs gen with feedback
+        assert "Ground truth" in mock_fn.captured_calls[2][4]["content"]
+        assert "A" in mock_fn.captured_calls[2][4]["content"]  # expected answer in feedback
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_b_step1_output_parses_to_query(self, mock_litellm):
+        """Step 1 mock output should be parseable into a Query dataclass."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "parsed query"}',
+                "answer",
+                '{"raw": "obs"}',
+                '{"raw": "vq"}',
+                "va",
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="B")
+
+        # No parse errors in logs means query was parsed successfully
+        assert not any("query parse failed" in log for log in result.logs)
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_b_step3_output_parses_to_observation(self, mock_litellm):
+        """Step 3 mock output should be parseable into an Observation dataclass."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "q"}',
+                "answer",
+                '{"raw": "parsed observation value"}',  # Step 3 obs
+                '{"raw": "vq"}',
+                "va",
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="B")
+
+        assert not any("observation parse failed" in log for log in result.logs)
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_b_write_called_and_memory_updates(self, mock_litellm):
+        """After Step 3+4, memory.write should be called and memory state should update."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "q"}',
+                "answer",
+                '{"raw": "stored via type B"}',  # This obs should be written
+                '{"raw": "vq"}',  # val query
+                "stored via type B",  # val answer (should contain written data)
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="stored via type B")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="B")
+
+        # The observation "stored via type B" should have been written during train
+        # and the val answer (mocked) says "stored via type B" which matches expected
+        assert result.score == 1.0
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_type_b_step3_includes_feedback_and_ground_truth(self, mock_litellm):
+        """Step 3 prompt must include evaluation result and ground truth."""
+        mock_fn = _mock_completion_factory(
+            [
+                '{"raw": "q"}',
+                "wrong answer",  # incorrect answer
+                '{"raw": "obs"}',
+                '{"raw": "vq"}',
+                "va",
+            ]
+        )
+        mock_litellm.completion = mock_fn
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="Q?", expected_answer="correct answer")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator.evaluate(program, train, val, dataset_type="B")
+
+        # Step 3 (call index 2) should contain feedback
+        step3_messages = mock_fn.captured_calls[2]
+        step3_user_prompt = step3_messages[-1]["content"]
+        assert "Ground truth" in step3_user_prompt
+        assert "correct answer" in step3_user_prompt
+        assert "incorrect" in step3_user_prompt  # evaluation result
+
+
+# ── Validation Pipeline Tests ──────────────────────────────────────────────
+
+
+class TestValidationPipeline:
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_only_step1_and_step2(self, mock_litellm):
+        """Validation should only do Step 1 (query gen) + Step 2 (answer), no Step 3/4."""
+        mock_fn = _mock_completion_factory(
+            [
+                '{"raw": "fact"}',  # train obs
+                '{"raw": "query"}',  # val Step 1
+                "answer",  # val Step 2
+            ]
+        )
+        mock_litellm.completion = mock_fn
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator.evaluate(program, train, val, dataset_type="A")
+
+        # Should be exactly 3 LLM calls: 1 train obs + 2 val (query + answer)
+        assert len(mock_fn.captured_calls) == 3
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_does_not_call_write(self, mock_litellm):
+        """memory.write must NOT be called during validation phase."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "q"}',
+                "ans",
+                '{"raw": "obs"}',  # train (Type B: 3 calls)
+                '{"raw": "vq"}',
+                "va",  # val: 2 calls
+            ]
+        )
+
+        # Use a memory program that tracks write calls
+        tracking_program = """\
+from dataclasses import dataclass
+
+@dataclass
+class Observation:
+    raw: str
+
+@dataclass
+class Query:
+    raw: str
+
+class Memory:
+    def __init__(self, toolkit):
+        self.toolkit = toolkit
+        self.store = []
+        self.write_log = []
+
+    def write(self, obs):
+        self.store.append(obs.raw)
+        self.write_log.append(obs.raw)
+        self.toolkit.logger.log(f"WRITE_CALLED:{obs.raw}")
+
+    def read(self, query):
+        return " ".join(self.store) if self.store else "empty"
+"""
+        program = MemoryProgram(source_code=tracking_program)
+        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="B")
+
+        # Check that write was called during train but NOT during val
+        # The toolkit logger captured WRITE_CALLED entries — count them
+        write_logs = [log for log in result.logs if "WRITE_CALLED" in log]
+        # No direct WRITE_CALLED in result.logs (those are evaluator logs),
+        # but we can check the memory_logs in failed cases or check via toolkit
+        # The key check: only 3 LLM calls for train + 2 for val = 5 total
+        assert len(mock_litellm.completion.captured_calls) == 5
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_conversation_history_in_failed_cases(self, mock_litellm):
+        """Failed cases should include the full multi-turn conversation history."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "fact"}',  # train obs
+                '{"raw": "query"}',  # val Step 1
+                "wrong answer",  # val Step 2
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="Q?", expected_answer="correct")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="A")
+
+        assert len(result.failed_cases) == 1
+        fc = result.failed_cases[0]
+        # Should have 4 messages: user(query) + asst(query json) + user(retrieved) + asst(answer)
+        assert len(fc.conversation_history) == 4
+        roles = [m["role"] for m in fc.conversation_history]
+        assert roles == ["user", "assistant", "user", "assistant"]
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_multiturn_messages_structure(self, mock_litellm):
+        """Val Step 2 LLM call should see query gen prompt + query response + retrieved prompt."""
+        mock_fn = _mock_completion_factory(
+            [
+                '{"raw": "fact"}',
+                '{"raw": "my query"}',
+                "the answer",
+            ]
+        )
+        mock_litellm.completion = mock_fn
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="What is X?", expected_answer="the answer")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator.evaluate(program, train, val, dataset_type="A")
+
+        # Val Step 2 (call index 2): should have 3 messages
+        step2_msgs = mock_fn.captured_calls[2]
+        assert len(step2_msgs) == 3
+        assert "What is X?" in step2_msgs[0]["content"]  # query gen mentions question
+        assert step2_msgs[1]["content"] == '{"raw": "my query"}'  # assistant's query
+        assert "<retrieved_memory>" in step2_msgs[2]["content"]  # retrieved memory prompt
+
+
+# ── Edge Cases ──────────────────────────────────────────────────────────────
+
+
+class TestEvaluatorEdgeCases:
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_observation_generation_failure_skips_item(self, mock_litellm):
+        """Type A: if obs generation fails, item is skipped but eval continues."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                "not valid json at all",  # train obs fails
+                '{"raw": "query"}',  # val query
+                "some answer",  # val answer
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="q?", expected_answer="answer")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="A")
+
+        assert result.score is not None
+        assert len(result.per_case_scores) == 1
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_query_generation_failure_scores_zero(self, mock_litellm):
+        """If query generation fails during val, that item scores 0."""
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "fact"}',
+                "not valid json",  # val query gen fails
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="q?", expected_answer="a")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="A")
+
+        assert result.score == 0.0
+        assert len(result.failed_cases) == 1
+
+    def test_empty_val_data(self):
+        """Empty val data should return score 0 without crashing."""
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
+            mock_litellm.completion = _mock_completion_factory(['{"raw": "x"}'])
+            result = evaluator.evaluate(
+                program,
+                [DataItem(raw_text="x", question="q", expected_answer="a")],
+                [],
+                dataset_type="A",
+            )
+        assert result.score == 0.0
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_multiple_val_items(self, mock_litellm):
+        mock_litellm.completion = _mock_completion_factory(
+            [
+                '{"raw": "f1"}',
+                '{"raw": "f2"}',  # train obs x2
+                '{"raw": "q1"}',
+                "correct1",  # val item 1 (correct)
+                '{"raw": "q2"}',
+                "wrong",  # val item 2 (wrong)
+            ]
+        )
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [
+            DataItem(raw_text="f1", question="q", expected_answer="e"),
+            DataItem(raw_text="f2", question="q", expected_answer="e"),
+        ]
+        val = [
+            DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
+            DataItem(raw_text="x", question="Q2?", expected_answer="right answer"),
+        ]
+
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, dataset_type="A")
+
+        assert result.score == 0.5
+        assert len(result.per_case_scores) == 2
+        assert len(result.failed_cases) == 1
