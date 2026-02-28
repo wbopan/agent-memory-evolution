@@ -164,7 +164,14 @@ class RunOutputManager:
         (self.run_dir / "summary.json").write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
 
     def write_program(self, iteration: int, source_code: str, accepted: bool, score: float) -> None:
-        """Save a Memory Program's source code to programs/iter_N.py."""
+        """Save a Memory Program's source code to programs/iter_N.py.
+
+        Args:
+            iteration: Evolution iteration number. 0 is labelled "initial".
+            source_code: Full Python source of the Memory Program.
+            accepted: Whether the program was accepted as the new best. Ignored at iteration 0.
+            score: Evaluation score to embed in the file header comment.
+        """
         try:
             programs_dir = self.run_dir / "programs"
             programs_dir.mkdir(exist_ok=True)

@@ -111,9 +111,8 @@ class TestRunOutputManager:
             prog_path = manager.run_dir / "programs" / "iter_1.py"
             assert prog_path.exists()
             content = prog_path.read_text(encoding="utf-8")
+            assert content.startswith("# iter=1  score=0.7500  accepted\n")
             assert "class Memory: pass" in content
-            assert "accepted" in content
-            assert "0.75" in content
         finally:
             manager.close()
 

@@ -93,6 +93,8 @@ class EvolutionLoop:
             child = self.reflector.reflect_and_mutate(current, eval_result, i)
             if child is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
+                if self.output_manager:
+                    self.output_manager.write_program(i, current.source_code, accepted=False, score=best_score)
                 state.history.append(EvolutionRecord(iteration=i, program=current, score=best_score, accepted=False))
                 state.total_iterations = i
                 continue
