@@ -221,8 +221,9 @@ class TestExtractDataclassSchema:
         obs_cls, _, _ = result
         schema = extract_dataclass_schema(obs_cls)
         assert "Observation" in schema
-        assert "raw" in schema
+        assert '"raw"' in schema
         assert "str" in schema
+        assert "{" in schema  # JSON object
 
     def test_multi_field_dataclass(self):
         code = """\
@@ -248,9 +249,9 @@ class Memory:
         assert not isinstance(result, CompileError)
         obs_cls, _, _ = result
         schema = extract_dataclass_schema(obs_cls)
-        assert "text" in schema
-        assert "category" in schema
-        assert "priority" in schema
+        assert '"text"' in schema
+        assert '"category"' in schema
+        assert '"priority"' in schema
         assert "general" in schema  # default value shown
 
     def test_non_dataclass(self):

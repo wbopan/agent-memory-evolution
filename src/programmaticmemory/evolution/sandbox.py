@@ -167,27 +167,57 @@ def compile_memory_program(
     return (obs_cls, query_cls, memory_cls)
 
 
+def _type_to_json_example(type_str: str) -> str:
+    """Map a Python type annotation string to a JSON example value."""
+    t = type_str.strip().lower()
+    if t in ("str", "string"):
+        return '"..."'
+    if t in ("int", "integer"):
+        return "0"
+    if t in ("float", "number"):
+        return "0.0"
+    if t in ("bool", "boolean"):
+        return "true"
+    if "list" in t:
+        return "[]"
+    if "dict" in t:
+        return "{}"
+    if "optional" in t:
+        return "null"
+    return '"..."'
+
+
 def extract_dataclass_schema(cls: type) -> str:
     """Extract a JSON schema description from a dataclass for LLM prompting.
 
-    Returns a human-readable schema string describing fields, types, and defaults.
+    Returns a commented JSON example showing field names, types, and defaults.
     """
     if not dataclasses.is_dataclass(cls):
         return f"{cls.__name__} is not a dataclass. Construct it with: {cls.__name__}(raw=<string>)"
 
-    lines = [f"Class: {cls.__name__}"]
+    lines: list[str] = []
     doc = cls.__doc__
     if doc:
-        lines.append(f"Description: {doc.strip()}")
-    lines.append("Fields:")
-    for f in dataclasses.fields(cls):
+        lines.append(f"// {cls.__name__}: {doc.strip()}")
+    else:
+        lines.append(f"// {cls.__name__}")
+    lines.append("{")
+
+    fields = dataclasses.fields(cls)
+    for i, f in enumerate(fields):
         type_str = f.type if isinstance(f.type, str) else getattr(f.type, "__name__", str(f.type))
-        default_info = ""
+        example = _type_to_json_example(type_str)
+
+        comment_parts = [type_str]
         if f.default is not dataclasses.MISSING:
-            default_info = f" (default: {f.default!r})"
+            comment_parts.append(f"default: {f.default!r}")
         elif f.default_factory is not dataclasses.MISSING:
-            default_info = " (has default factory)"
-        lines.append(f"  - {f.name}: {type_str}{default_info}")
+            comment_parts.append("optional")
+
+        comma = "," if i < len(fields) - 1 else ""
+        lines.append(f'  "{f.name}": {example}{comma}  // {", ".join(comment_parts)}')
+
+    lines.append("}")
     return "\n".join(lines)
 
 

@@ -16,10 +16,10 @@
       Text: The capital of France is Paris.
       
       The Observation must conform to this schema:
-      Class: Observation
-      Description: Raw text observation to store in memory.
-      Fields:
-        - raw: str
+      // Observation: Raw text observation to store in memory.
+      {
+        "raw": "..."  // str
+      }
       
       Output ONLY a valid JSON object matching the schema fields. No explanation.
     ''',
@@ -29,7 +29,7 @@
   dict({
     'output': '''
       {
-        "raw": "The model's answer '0.0 (incorrect)' for a question where the correct answer was 'Paris' indicates a factual error in the model's knowledge or reasoning for this specific query. The feedback explicitly states the answer was wrong."
+        "raw": "The answer 'Paris' was marked incorrect, indicating a potential misunderstanding of the question or an error in the provided information."
       }
     ''',
     'prompt': '''
@@ -39,10 +39,10 @@
       Based on this feedback, generate an observation to write into memory.
       
       The observation must be a JSON object matching this schema:
-      Class: Observation
-      Description: Raw text observation to store in memory.
-      Fields:
-        - raw: str
+      // Observation: Raw text observation to store in memory.
+      {
+        "raw": "..."  // str
+      }
       
       Respond with the JSON only.
     ''',
@@ -50,17 +50,23 @@
 # ---
 # name: test_query_generation
   dict({
-    'output': '{"raw": "capital of France"}',
+    'output': '''
+      ```json
+      {
+          "raw": "capital of France"
+      }
+      ```
+    ''',
     'prompt': '''
       Given the following question, generate a query to retrieve relevant memory.
       
       Question: What is the capital of France?
       
       The query must be a JSON object matching this schema:
-      Class: Query
-      Description: Raw text query to retrieve from memory.
-      Fields:
-        - raw: str
+      // Query: Raw text query to retrieve from memory.
+      {
+        "raw": "..."  // str
+      }
       
       Respond with the JSON only.
     ''',
@@ -469,17 +475,23 @@
 # ---
 # name: test_retrieved_memory_answer
   dict({
-    'step1_output': '{"raw": "capital of France"}',
+    'step1_output': '''
+      ```json
+      {
+          "raw": "capital of France"
+      }
+      ```
+    ''',
     'step1_prompt': '''
       Given the following question, generate a query to retrieve relevant memory.
       
       Question: What is the capital of France?
       
       The query must be a JSON object matching this schema:
-      Class: Query
-      Description: Raw text query to retrieve from memory.
-      Fields:
-        - raw: str
+      // Query: Raw text query to retrieve from memory.
+      {
+        "raw": "..."  // str
+      }
       
       Respond with the JSON only.
     ''',
