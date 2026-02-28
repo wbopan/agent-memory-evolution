@@ -1,7 +1,7 @@
 """LLM integration tests — verify prompt → LLM → parse end-to-end with real Deepseek V3.2.
 
 Uses litellm disk cache so repeated runs don't incur API costs.
-Snapshots are human-readable via syrupy and committed to git.
+Snapshots capture both prompts and outputs for human review.
 """
 
 from __future__ import annotations
@@ -46,16 +46,16 @@ def test_query_generation(snapshot: SnapshotAssertion):
     """LLM generates a valid Query JSON from a natural-language question."""
     _, query_schema = _get_obs_query_schema()
     prompt = build_query_generation_prompt("What is the capital of France?", query_schema)
+    messages = [{"role": "user", "content": prompt}]
 
-    raw_output = _llm_call(MODEL, [{"role": "user", "content": prompt}])
+    output = _llm_call(MODEL, messages)
 
-    # Parse must succeed and match Query dataclass fields
-    parsed = _parse_json_from_llm(raw_output)
+    parsed = _parse_json_from_llm(output)
     assert "raw" in parsed
     assert isinstance(parsed["raw"], str)
     assert len(parsed["raw"]) > 0
 
-    assert raw_output == snapshot
+    assert {"prompt": prompt, "output": output} == snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -68,15 +68,16 @@ def test_observation_generation(snapshot: SnapshotAssertion):
     """LLM generates a valid Observation JSON from raw text."""
     obs_schema, _ = _get_obs_query_schema()
     prompt = build_observation_generation_prompt("The capital of France is Paris.", obs_schema)
+    messages = [{"role": "user", "content": prompt}]
 
-    raw_output = _llm_call(MODEL, [{"role": "user", "content": prompt}])
+    output = _llm_call(MODEL, messages)
 
-    parsed = _parse_json_from_llm(raw_output)
+    parsed = _parse_json_from_llm(output)
     assert "raw" in parsed
     assert isinstance(parsed["raw"], str)
     assert len(parsed["raw"]) > 0
 
-    assert raw_output == snapshot
+    assert {"prompt": prompt, "output": output} == snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -89,20 +90,20 @@ def test_observation_with_feedback(snapshot: SnapshotAssertion):
     """LLM generates an Observation informed by evaluation feedback."""
     obs_schema, _ = _get_obs_query_schema()
     prompt = build_observation_with_feedback_prompt("Score: 0.0 (incorrect)", "Paris", obs_schema)
+    messages = [{"role": "user", "content": prompt}]
 
-    raw_output = _llm_call(MODEL, [{"role": "user", "content": prompt}])
+    output = _llm_call(MODEL, messages)
 
-    parsed = _parse_json_from_llm(raw_output)
+    parsed = _parse_json_from_llm(output)
     assert "raw" in parsed
     assert isinstance(parsed["raw"], str)
-    # The observation should contain Paris-related information
-    assert "paris" in parsed["raw"].lower() or "paris" in raw_output.lower()
+    assert "paris" in parsed["raw"].lower() or "paris" in output.lower()
 
-    assert raw_output == snapshot
+    assert {"prompt": prompt, "output": output} == snapshot
 
 
 # ---------------------------------------------------------------------------
-# 3d. Retrieved Memory Answer (read → answer)
+# 3d. Retrieved Memory Answer (multi-turn: query → answer)
 # ---------------------------------------------------------------------------
 
 
@@ -111,21 +112,27 @@ def test_retrieved_memory_answer(snapshot: SnapshotAssertion):
     """LLM answers a question using retrieved memory in a multi-turn conversation."""
     _, query_schema = _get_obs_query_schema()
 
-    # Build Step 1 messages (query generation)
-    query_prompt = build_query_generation_prompt("What is the capital of France?", query_schema)
-    query_json = _llm_call(MODEL, [{"role": "user", "content": query_prompt}])
+    # Step 1: query generation
+    step1_prompt = build_query_generation_prompt("What is the capital of France?", query_schema)
+    step1_output = _llm_call(MODEL, [{"role": "user", "content": step1_prompt}])
 
-    # Build Step 2 messages (answer from retrieved memory)
+    # Step 2: answer from retrieved memory
+    step2_prompt = build_retrieved_memory_prompt("The capital of France is Paris.")
     messages = [
-        {"role": "user", "content": query_prompt},
-        {"role": "assistant", "content": query_json},
-        {"role": "user", "content": build_retrieved_memory_prompt("The capital of France is Paris.")},
+        {"role": "user", "content": step1_prompt},
+        {"role": "assistant", "content": step1_output},
+        {"role": "user", "content": step2_prompt},
     ]
-    answer = _llm_call(MODEL, messages)
+    step2_output = _llm_call(MODEL, messages)
 
-    assert "paris" in answer.lower()
+    assert "paris" in step2_output.lower()
 
-    assert answer == snapshot
+    assert {
+        "step1_prompt": step1_prompt,
+        "step1_output": step1_output,
+        "step2_prompt": step2_prompt,
+        "step2_output": step2_output,
+    } == snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +165,7 @@ def test_reflection(snapshot: SnapshotAssertion):
         iteration=1,
     )
 
-    raw_output = _llm_call(
+    output = _llm_call(
         MODEL,
         [
             {"role": "system", "content": system_prompt},
@@ -167,18 +174,22 @@ def test_reflection(snapshot: SnapshotAssertion):
     )
 
     # Must extract a Python code block
-    code = _extract_code_block(raw_output)
+    code = _extract_code_block(output)
     assert code is not None, "Failed to extract code block from reflection output"
 
     # Code must compile and define all three classes
     compile_result = compile_memory_program(code)
-    assert isinstance(compile_result, tuple) is not False, f"Compile failed: {compile_result}"
+    assert isinstance(compile_result, tuple), f"Compile failed: {compile_result}"
     obs_cls, query_cls, memory_cls = compile_result
     assert obs_cls.__name__ == "Observation"
     assert query_cls.__name__ == "Query"
     assert memory_cls.__name__ == "Memory"
 
-    assert raw_output == snapshot
+    assert {
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "output": output,
+    } == snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -194,12 +205,12 @@ def test_response_generation(snapshot: SnapshotAssertion):
         "The capital of France is Paris.",
     )
 
-    answer = _llm_call(MODEL, [{"role": "user", "content": prompt}])
+    output = _llm_call(MODEL, [{"role": "user", "content": prompt}])
 
-    assert "paris" in answer.lower()
-    assert len(answer) < 500  # Should be concise
+    assert "paris" in output.lower()
+    assert len(output) < 500
 
-    assert answer == snapshot
+    assert {"prompt": prompt, "output": output} == snapshot
 
 
 # ---------------------------------------------------------------------------
@@ -210,7 +221,11 @@ def test_response_generation(snapshot: SnapshotAssertion):
 @pytest.mark.llm
 @pytest.mark.uses_chroma
 def test_end_to_end_type_a(snapshot: SnapshotAssertion):
-    """Full Type A pipeline: ingest → query → answer → score with real LLM."""
+    """Full Type A pipeline: ingest → query → answer → score with real LLM.
+
+    Prompts are generated internally by MemoryEvaluator; this test snapshots
+    the evaluation results only.
+    """
     program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
     train_data = [
         DataItem(
@@ -219,16 +234,15 @@ def test_end_to_end_type_a(snapshot: SnapshotAssertion):
             expected_answer="Paris",
         ),
     ]
-    val_data = list(train_data)  # Same data for simplicity
+    val_data = list(train_data)
 
     evaluator = MemoryEvaluator(task_model=MODEL)
     result = evaluator.evaluate(program, train_data, val_data, dataset_type="A")
 
     assert result.score > 0, f"Expected positive score, got {result.score}"
     assert len(result.per_case_outputs) > 0
-    assert len(result.per_case_outputs[0]) > 0  # Non-empty answer
+    assert len(result.per_case_outputs[0]) > 0
 
-    # Snapshot key fields (not the full object, which includes non-deterministic logs)
     snapshot_data = {
         "score": result.score,
         "num_outputs": len(result.per_case_outputs),

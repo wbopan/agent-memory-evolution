@@ -8,306 +8,488 @@
   })
 # ---
 # name: test_observation_generation
-  '{"raw": "The capital of France is Paris."}'
+  dict({
+    'output': '{"raw": "The capital of France is Paris."}',
+    'prompt': '''
+      Given the following text, create an Observation object to store this information in memory.
+      
+      Text: The capital of France is Paris.
+      
+      The Observation must conform to this schema:
+      Class: Observation
+      Description: Raw text observation to store in memory.
+      Fields:
+        - raw: str
+      
+      Output ONLY a valid JSON object matching the schema fields. No explanation.
+    ''',
+  })
 # ---
 # name: test_observation_with_feedback
-  '''
-  {
-    "raw": "The model's answer '0.0 (incorrect)' for a question where the correct answer was 'Paris' indicates a factual error in the model's knowledge or reasoning for this specific query. The feedback explicitly states the answer was wrong."
-  }
-  '''
+  dict({
+    'output': '''
+      {
+        "raw": "The model's answer '0.0 (incorrect)' for a question where the correct answer was 'Paris' indicates a factual error in the model's knowledge or reasoning for this specific query. The feedback explicitly states the answer was wrong."
+      }
+    ''',
+    'prompt': '''
+      Evaluation result: Score: 0.0 (incorrect)
+      Ground truth: Paris
+      
+      Based on this feedback, generate an observation to write into memory.
+      
+      The observation must be a JSON object matching this schema:
+      Class: Observation
+      Description: Raw text observation to store in memory.
+      Fields:
+        - raw: str
+      
+      Respond with the JSON only.
+    ''',
+  })
 # ---
 # name: test_query_generation
-  '{"raw": "capital of France"}'
+  dict({
+    'output': '{"raw": "capital of France"}',
+    'prompt': '''
+      Given the following question, generate a query to retrieve relevant memory.
+      
+      Question: What is the capital of France?
+      
+      The query must be a JSON object matching this schema:
+      Class: Query
+      Description: Raw text query to retrieve from memory.
+      Fields:
+        - raw: str
+      
+      Respond with the JSON only.
+    ''',
+  })
 # ---
 # name: test_reflection
-  '''
-  ## Diagnosis
-  
-  The current Memory Program fails because:
-  
-  1. **No information is ever stored**: The memory system only stores observations when `write()` is called, but in the failed case, there's no prior write operation before the query. The conversation shows only a user question and assistant response, but no factual information was ever written to memory.
-  
-  2. **Observation/Query design is too simplistic**: Both classes only capture raw text, lacking structure to differentiate between types of information (facts, events, questions, etc.) or metadata like timestamps, importance, or categories.
-  
-  3. **Memory retrieval is naive**: The `read()` method simply returns all stored text concatenated, with no relevance filtering, ranking, or semantic search. This would perform poorly even with stored information.
-  
-  4. **No use of provided toolkit**: The program doesn't utilize the powerful tools available:
-     - `toolkit.db` (SQLite) for structured storage
-     - `toolkit.chroma` for semantic search/embeddings
-     - `toolkit.llm_completion` for processing/understanding content
-  
-  ## Improvements
-  
-  1. **Enrich Observation/Query structure**:
-     - Add metadata: timestamp, category, importance score
-     - Add fields for entities, relationships, and confidence
-  
-  2. **Implement proper storage**:
-     - Use SQLite for structured storage of observations
-     - Use ChromaDB for semantic search capabilities
-     - Store embeddings for better retrieval
-  
-  3. **Implement intelligent retrieval**:
-     - Use semantic search to find relevant information
-     - Rank results by relevance and importance
-     - Use LLM to synthesize answers when needed
-  
-  4. **Handle different information types**:
-     - Distinguish between facts, events, questions, and answers
-     - Track relationships between observations
-  
-  Here's the improved Memory Program:
-  
-  ```python
-  import json
-  import sqlite3
-  import datetime
-  from dataclasses import dataclass, field
-  from typing import List, Optional, Dict, Any
-  import chromadb
-  from chromadb.utils import embedding_functions
-  
-  
-  @dataclass
-  class Observation:
-      """Structured observation with metadata for intelligent storage."""
-      content: str  # The main text content
-      category: str = "fact"  # fact, event, question, answer, etc.
-      importance: float = 1.0  # 0.0-10.0 scale
-      entities: List[str] = field(default_factory=list)  # Named entities mentioned
-      relationships: Dict[str, Any] = field(default_factory=dict)  # Structured relationships
-      source: str = "user"  # user, assistant, system
-      confidence: float = 1.0  # How confident we are in this information
-      timestamp: datetime.datetime = field(default_factory=datetime.datetime.now)
-  
-  
-  @dataclass
-  class Query:
-      """Structured query for intelligent retrieval."""
-      content: str  # The query text
-      category_filter: Optional[str] = None  # Filter by observation category
-      min_importance: float = 0.0  # Minimum importance threshold
-      max_results: int = 5  # Maximum number of results to return
-      require_entities: List[str] = field(default_factory=list)  # Required entities
-      time_range: Optional[tuple] = None  # (start_time, end_time)
-  
-  
-  class Memory:
-      """Intelligent memory system with semantic search and structured storage."""
-  
-      def __init__(self, toolkit):
-          self.toolkit = toolkit
-          self.setup_database()
-          self.setup_chroma()
-          
-      def setup_database(self):
-          """Initialize SQLite database for structured storage."""
-          self.db = self.toolkit.db
-          cursor = self.db.cursor()
-          
-          # Create observations table
-          cursor.execute('''
-              CREATE TABLE IF NOT EXISTS observations (
-                  id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  content TEXT NOT NULL,
-                  category TEXT NOT NULL,
-                  importance REAL DEFAULT 1.0,
-                  entities TEXT,  # JSON list
-                  relationships TEXT,  # JSON dict
-                  source TEXT DEFAULT 'user',
-                  confidence REAL DEFAULT 1.0,
-                  timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+  dict({
+    'output': '''
+      ## Diagnosis
+      
+      The current Memory Program fails because:
+      
+      1. **No information is ever stored**: The memory system only stores observations when `write()` is called, but in the failed case, there's no prior write operation before the query. The conversation shows only a user question and assistant response, but no factual information was ever written to memory.
+      
+      2. **Observation/Query design is too simplistic**: Both classes only capture raw text, lacking structure to differentiate between types of information (facts, events, questions, etc.) or metadata like timestamps, importance, or categories.
+      
+      3. **Memory retrieval is naive**: The `read()` method simply returns all stored text concatenated, with no relevance filtering, ranking, or semantic search. This would perform poorly even with stored information.
+      
+      4. **No use of provided toolkit**: The program doesn't utilize the powerful tools available:
+         - `toolkit.db` (SQLite) for structured storage
+         - `toolkit.chroma` for semantic search/embeddings
+         - `toolkit.llm_completion` for processing/understanding content
+      
+      ## Improvements
+      
+      1. **Enrich Observation/Query structure**:
+         - Add metadata: timestamp, category, importance score
+         - Add fields for entities, relationships, and confidence
+      
+      2. **Implement proper storage**:
+         - Use SQLite for structured storage of observations
+         - Use ChromaDB for semantic search capabilities
+         - Store embeddings for better retrieval
+      
+      3. **Implement intelligent retrieval**:
+         - Use semantic search to find relevant information
+         - Rank results by relevance and importance
+         - Use LLM to synthesize answers when needed
+      
+      4. **Handle different information types**:
+         - Distinguish between facts, events, questions, and answers
+         - Track relationships between observations
+      
+      Here's the improved Memory Program:
+      
+      ```python
+      import json
+      import sqlite3
+      import datetime
+      from dataclasses import dataclass, field
+      from typing import List, Optional, Dict, Any
+      import chromadb
+      from chromadb.utils import embedding_functions
+      
+      
+      @dataclass
+      class Observation:
+          """Structured observation with metadata for intelligent storage."""
+          content: str  # The main text content
+          category: str = "fact"  # fact, event, question, answer, etc.
+          importance: float = 1.0  # 0.0-10.0 scale
+          entities: List[str] = field(default_factory=list)  # Named entities mentioned
+          relationships: Dict[str, Any] = field(default_factory=dict)  # Structured relationships
+          source: str = "user"  # user, assistant, system
+          confidence: float = 1.0  # How confident we are in this information
+          timestamp: datetime.datetime = field(default_factory=datetime.datetime.now)
+      
+      
+      @dataclass
+      class Query:
+          """Structured query for intelligent retrieval."""
+          content: str  # The query text
+          category_filter: Optional[str] = None  # Filter by observation category
+          min_importance: float = 0.0  # Minimum importance threshold
+          max_results: int = 5  # Maximum number of results to return
+          require_entities: List[str] = field(default_factory=list)  # Required entities
+          time_range: Optional[tuple] = None  # (start_time, end_time)
+      
+      
+      class Memory:
+          """Intelligent memory system with semantic search and structured storage."""
+      
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.setup_database()
+              self.setup_chroma()
+              
+          def setup_database(self):
+              """Initialize SQLite database for structured storage."""
+              self.db = self.toolkit.db
+              cursor = self.db.cursor()
+              
+              # Create observations table
+              cursor.execute('''
+                  CREATE TABLE IF NOT EXISTS observations (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      content TEXT NOT NULL,
+                      category TEXT NOT NULL,
+                      importance REAL DEFAULT 1.0,
+                      entities TEXT,  # JSON list
+                      relationships TEXT,  # JSON dict
+                      source TEXT DEFAULT 'user',
+                      confidence REAL DEFAULT 1.0,
+                      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+                  )
+              ''')
+              
+              # Create indexes for faster queries
+              cursor.execute('CREATE INDEX IF NOT EXISTS idx_category ON observations(category)')
+              cursor.execute('CREATE INDEX IF NOT EXISTS idx_importance ON observations(importance)')
+              cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON observations(timestamp)')
+              
+              self.db.commit()
+              
+          def setup_chroma(self):
+              """Initialize ChromaDB for semantic search."""
+              self.chroma_client = self.toolkit.chroma
+              # Use default embedding function
+              self.collection = self.chroma_client.get_or_create_collection(
+                  name="observations",
+                  metadata={"hnsw:space": "cosine"}
               )
-          ''')
-          
-          # Create indexes for faster queries
-          cursor.execute('CREATE INDEX IF NOT EXISTS idx_category ON observations(category)')
-          cursor.execute('CREATE INDEX IF NOT EXISTS idx_importance ON observations(importance)')
-          cursor.execute('CREATE INDEX IF NOT EXISTS idx_timestamp ON observations(timestamp)')
-          
-          self.db.commit()
-          
-      def setup_chroma(self):
-          """Initialize ChromaDB for semantic search."""
-          self.chroma_client = self.toolkit.chroma
-          # Use default embedding function
-          self.collection = self.chroma_client.get_or_create_collection(
-              name="observations",
-              metadata={"hnsw:space": "cosine"}
-          )
-          
-      def write(self, observation: Observation) -> None:
-          """Store observation in both SQLite and ChromaDB."""
-          # Store in SQLite
-          cursor = self.db.cursor()
-          cursor.execute('''
-              INSERT INTO observations 
-              (content, category, importance, entities, relationships, source, confidence, timestamp)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-          ''', (
-              observation.content,
-              observation.category,
-              observation.importance,
-              json.dumps(observation.entities),
-              json.dumps(observation.relationships),
-              observation.source,
-              observation.confidence,
-              observation.timestamp.isoformat()
-          ))
-          
-          obs_id = cursor.lastrowid
-          self.db.commit()
-          
-          # Store embedding in ChromaDB
-          self.collection.add(
-              documents=[observation.content],
-              metadatas=[{
-                  "id": obs_id,
-                  "category": observation.category,
-                  "importance": observation.importance,
-                  "source": observation.source,
-                  "timestamp": observation.timestamp.isoformat()
-              }],
-              ids=[str(obs_id)]
-          )
-          
-          self.toolkit.logger.log(f"Stored observation {obs_id}: {observation.content[:80]}...")
-          
-      def read(self, query: Query) -> str:
-          """Retrieve relevant information using semantic search and structured filters."""
-          self.toolkit.logger.log(f"Query: {query.content[:80]}...")
-          
-          # First, try semantic search with ChromaDB
-          results = self.collection.query(
-              query_texts=[query.content],
-              n_results=query.max_results * 2  # Get extra for filtering
-          )
-          
-          if not results['documents'] or not results['documents'][0]:
-              return self._get_fallback_response(query)
-          
-          # Get IDs from semantic search results
-          chroma_ids = results['ids'][0]
-          if not chroma_ids:
-              return self._get_fallback_response(query)
-          
-          # Convert to integers for SQL query
-          try:
-              ids = [int(id_str) for id_str in chroma_ids]
-          except (ValueError, TypeError):
-              ids = []
               
-          if not ids:
-              return self._get_fallback_response(query)
-          
-          # Build SQL query with filters
-          sql_query = '''
-              SELECT content, category, importance, timestamp 
-              FROM observations 
-              WHERE id IN ({}) 
-              AND importance >= ?
-          '''.format(','.join(['?'] * len(ids)))
-          
-          params = ids + [query.min_importance]
-          
-          if query.category_filter:
-              sql_query += " AND category = ?"
-              params.append(query.category_filter)
+          def write(self, observation: Observation) -> None:
+              """Store observation in both SQLite and ChromaDB."""
+              # Store in SQLite
+              cursor = self.db.cursor()
+              cursor.execute('''
+                  INSERT INTO observations 
+                  (content, category, importance, entities, relationships, source, confidence, timestamp)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+              ''', (
+                  observation.content,
+                  observation.category,
+                  observation.importance,
+                  json.dumps(observation.entities),
+                  json.dumps(observation.relationships),
+                  observation.source,
+                  observation.confidence,
+                  observation.timestamp.isoformat()
+              ))
               
-          if query.time_range:
-              sql_query += " AND timestamp BETWEEN ? AND ?"
-              params.extend(query.time_range)
+              obs_id = cursor.lastrowid
+              self.db.commit()
               
-          sql_query += " ORDER BY importance DESC, timestamp DESC LIMIT ?"
-          params.append(query.max_results)
+              # Store embedding in ChromaDB
+              self.collection.add(
+                  documents=[observation.content],
+                  metadatas=[{
+                      "id": obs_id,
+                      "category": observation.category,
+                      "importance": observation.importance,
+                      "source": observation.source,
+                      "timestamp": observation.timestamp.isoformat()
+                  }],
+                  ids=[str(obs_id)]
+              )
+              
+              self.toolkit.logger.log(f"Stored observation {obs_id}: {observation.content[:80]}...")
+              
+          def read(self, query: Query) -> str:
+              """Retrieve relevant information using semantic search and structured filters."""
+              self.toolkit.logger.log(f"Query: {query.content[:80]}...")
+              
+              # First, try semantic search with ChromaDB
+              results = self.collection.query(
+                  query_texts=[query.content],
+                  n_results=query.max_results * 2  # Get extra for filtering
+              )
+              
+              if not results['documents'] or not results['documents'][0]:
+                  return self._get_fallback_response(query)
+              
+              # Get IDs from semantic search results
+              chroma_ids = results['ids'][0]
+              if not chroma_ids:
+                  return self._get_fallback_response(query)
+              
+              # Convert to integers for SQL query
+              try:
+                  ids = [int(id_str) for id_str in chroma_ids]
+              except (ValueError, TypeError):
+                  ids = []
+                  
+              if not ids:
+                  return self._get_fallback_response(query)
+              
+              # Build SQL query with filters
+              sql_query = '''
+                  SELECT content, category, importance, timestamp 
+                  FROM observations 
+                  WHERE id IN ({}) 
+                  AND importance >= ?
+              '''.format(','.join(['?'] * len(ids)))
+              
+              params = ids + [query.min_importance]
+              
+              if query.category_filter:
+                  sql_query += " AND category = ?"
+                  params.append(query.category_filter)
+                  
+              if query.time_range:
+                  sql_query += " AND timestamp BETWEEN ? AND ?"
+                  params.extend(query.time_range)
+                  
+              sql_query += " ORDER BY importance DESC, timestamp DESC LIMIT ?"
+              params.append(query.max_results)
+              
+              cursor = self.db.cursor()
+              cursor.execute(sql_query, params)
+              rows = cursor.fetchall()
+              
+              if not rows:
+                  return self._get_fallback_response(query)
+              
+              # Format results
+              results_text = []
+              for content, category, importance, timestamp in rows:
+                  results_text.append(f"- {content} (Category: {category}, Importance: {importance:.1f})")
+              
+              # If we have multiple results, use LLM to synthesize a concise answer
+              if len(rows) > 1 and len(query.content) > 10:  # Only for substantial queries
+                  return self._synthesize_answer(query.content, results_text)
+              
+              return "\n".join(results_text)
           
-          cursor = self.db.cursor()
-          cursor.execute(sql_query, params)
-          rows = cursor.fetchall()
+          def _get_fallback_response(self, query: Query) -> str:
+              """Fallback when no relevant information is found."""
+              # Try a broader search without semantic filtering
+              cursor = self.db.cursor()
+              cursor.execute('''
+                  SELECT content FROM observations 
+                  WHERE importance >= ? 
+                  ORDER BY importance DESC 
+                  LIMIT 3
+              ''', (query.min_importance,))
+              
+              rows = cursor.fetchall()
+              if rows:
+                  contents = [row[0] for row in rows]
+                  return f"Relevant information not found. Some stored facts:\n" + "\n".join([f"- {c}" for c in contents])
+              
+              return "No relevant information found in memory."
           
-          if not rows:
-              return self._get_fallback_response(query)
-          
-          # Format results
-          results_text = []
-          for content, category, importance, timestamp in rows:
-              results_text.append(f"- {content} (Category: {category}, Importance: {importance:.1f})")
-          
-          # If we have multiple results, use LLM to synthesize a concise answer
-          if len(rows) > 1 and len(query.content) > 10:  # Only for substantial queries
-              return self._synthesize_answer(query.content, results_text)
-          
-          return "\n".join(results_text)
+          def _synthesize_answer(self, query: str, results: List[str]) -> str:
+              """Use LLM to synthesize a concise answer from multiple results."""
+              try:
+                  context = "\n".join(results)
+                  prompt = f"""Based on the following information, provide a concise answer to the query.
       
-      def _get_fallback_response(self, query: Query) -> str:
-          """Fallback when no relevant information is found."""
-          # Try a broader search without semantic filtering
-          cursor = self.db.cursor()
-          cursor.execute('''
-              SELECT content FROM observations 
-              WHERE importance >= ? 
-              ORDER BY importance DESC 
-              LIMIT 3
-          ''', (query.min_importance,))
-          
-          rows = cursor.fetchall()
-          if rows:
-              contents = [row[0] for row in rows]
-              return f"Relevant information not found. Some stored facts:\n" + "\n".join([f"- {c}" for c in contents])
-          
-          return "No relevant information found in memory."
+      Query: {query}
       
-      def _synthesize_answer(self, query: str, results: List[str]) -> str:
-          """Use LLM to synthesize a concise answer from multiple results."""
-          try:
-              context = "\n".join(results)
-              prompt = f"""Based on the following information, provide a concise answer to the query.
+      Relevant information:
+      {context}
+      
+      Please provide a direct, factual answer to the query. If the information is contradictory or insufficient, say so."""
+      
+                  response = self.toolkit.llm_completion([
+                      {"role": "system", "content": "You are a helpful assistant that synthesizes information from memory."},
+                      {"role": "user", "content": prompt}
+                  ])
+                  
+                  return response.strip()
+                  
+              except Exception as e:
+                  self.toolkit.logger.log(f"LLM synthesis failed: {e}")
+                  # Fall back to raw results
+                  return "Based on stored information:\n" + "\n".join(results)
+      ```
+      
+      ## Key Improvements
+      
+      1. **Rich Observation structure**: Captures metadata like category, importance, entities, and relationships for better organization.
+      
+      2. **Dual storage system**: Uses SQLite for structured querying and ChromaDB for semantic search.
+      
+      3. **Intelligent retrieval**: Combines semantic search with metadata filtering to find the most relevant information.
+      
+      4. **Fallback mechanisms**: Provides meaningful responses even when exact matches aren't found.
+      
+      5. **LLM synthesis**: Uses the toolkit's LLM to synthesize concise answers from multiple relevant pieces of information.
+      
+      6. **Scalable design**: The system can handle various types of information and complex queries.
+      
+      This improved system would handle the failed case by:
+      - Storing factual information when it becomes available
+      - Using semantic search to find relevant facts when queried
+      - Providing synthesized answers using LLM when appropriate
+      - Offering fallback responses when information is incomplete
+    ''',
+    'system_prompt': '''
+      You are an expert Python programmer specializing in memory system design.
+      
+      Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose issues and produce an improved version.
+      
+      You are designing a Memory Program that implements three classes:
+      
+      1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+         - Must be a @dataclass with typed fields
+         - The evaluator LLM will generate instances based on your field definitions
+      
+      2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+         - Must be a @dataclass with typed fields
+         - The evaluator LLM will generate instances based on your field definitions
+      
+      3. **Memory** (class): The core memory system.
+         - `__init__(self, toolkit)`: Receives a Toolkit with:
+           - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+           - `toolkit.chroma`: chromadb ephemeral client
+           - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+           - `toolkit.logger.log(message)`: Internal logging
+         - `write(self, observation: Observation) -> None`: Store information
+         - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+      
+      Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+      
+      
+      ## Rules
+      1. Output your diagnosis first, then the complete improved code in a ```python``` block.
+      2. The code must define exactly three classes: Observation, Query, Memory.
+      3. You may change Observation/Query field definitions to capture richer information.
+      4. You may use any allowed imports.
+      5. Memory.__init__ must accept a single `toolkit` argument.
+      6. Memory.write must accept a single Observation instance.
+      7. Memory.read must accept a single Query instance and return a str.
+      8. Be creative but practical — focus on fixing the actual failure patterns.
   
-  Query: {query}
+    ''',
+    'user_prompt': '''
+      ## Current Memory Program (iteration 1)
+      
+      ```python
+      from dataclasses import dataclass
+      
+      
+      @dataclass
+      class Observation:
+          """Raw text observation to store in memory."""
+          raw: str
+      
+      
+      @dataclass
+      class Query:
+          """Raw text query to retrieve from memory."""
+          raw: str
+      
+      
+      class Memory:
+          """Simple append-all / return-all memory."""
+      
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.store: list[str] = []
+      
+          def write(self, observation: Observation) -> None:
+              self.store.append(observation.raw)
+              self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+      
+          def read(self, query: Query) -> str:
+              self.toolkit.logger.log(f"Query: {query.raw[:80]}, store size: {len(self.store)}")
+              if not self.store:
+                  return "No information stored."
+              return "\n".join(self.store)
+      
+      ```
+      
+      ## Evaluation Score: 0.300
+      
+      ## Failed Cases
+      
+      ### Failed Case 1
+      Question: What is the capital of France?
+      Expected: Paris
+      Got: I don't know
+      Score: 0.0
+      Conversation:
+        [user]: What is the capital of France?
+        [assistant]: I don't know
+      Memory logs:
+        - Query: what is the capital of france, store size: 0
+      
+      
+      ## Task
+      1. Diagnose why these cases fail.
+      2. Propose specific improvements to the Memory Program.
+      3. Output the complete improved code in a ```python``` block.
   
-  Relevant information:
-  {context}
-  
-  Please provide a direct, factual answer to the query. If the information is contradictory or insufficient, say so."""
-  
-              response = self.toolkit.llm_completion([
-                  {"role": "system", "content": "You are a helpful assistant that synthesizes information from memory."},
-                  {"role": "user", "content": prompt}
-              ])
-              
-              return response.strip()
-              
-          except Exception as e:
-              self.toolkit.logger.log(f"LLM synthesis failed: {e}")
-              # Fall back to raw results
-              return "Based on stored information:\n" + "\n".join(results)
-  ```
-  
-  ## Key Improvements
-  
-  1. **Rich Observation structure**: Captures metadata like category, importance, entities, and relationships for better organization.
-  
-  2. **Dual storage system**: Uses SQLite for structured querying and ChromaDB for semantic search.
-  
-  3. **Intelligent retrieval**: Combines semantic search with metadata filtering to find the most relevant information.
-  
-  4. **Fallback mechanisms**: Provides meaningful responses even when exact matches aren't found.
-  
-  5. **LLM synthesis**: Uses the toolkit's LLM to synthesize concise answers from multiple relevant pieces of information.
-  
-  6. **Scalable design**: The system can handle various types of information and complex queries.
-  
-  This improved system would handle the failed case by:
-  - Storing factual information when it becomes available
-  - Using semantic search to find relevant facts when queried
-  - Providing synthesized answers using LLM when appropriate
-  - Offering fallback responses when information is incomplete
-  '''
+    ''',
+  })
 # ---
 # name: test_response_generation
-  'The capital of France is Paris.'
+  dict({
+    'output': 'The capital of France is Paris.',
+    'prompt': '''
+      Answer the following question using ONLY the retrieved information below.
+      Be concise and direct. If the information is insufficient, say so.
+      
+      Question: What is the capital of France?
+      
+      Retrieved information:
+      The capital of France is Paris.
+      
+      Answer:
+    ''',
+  })
 # ---
 # name: test_retrieved_memory_answer
-  'The capital of France is Paris.'
+  dict({
+    'step1_output': '{"raw": "capital of France"}',
+    'step1_prompt': '''
+      Given the following question, generate a query to retrieve relevant memory.
+      
+      Question: What is the capital of France?
+      
+      The query must be a JSON object matching this schema:
+      Class: Query
+      Description: Raw text query to retrieve from memory.
+      Fields:
+        - raw: str
+      
+      Respond with the JSON only.
+    ''',
+    'step2_output': 'The capital of France is Paris.',
+    'step2_prompt': '''
+      <retrieved_memory>
+      The capital of France is Paris.
+      </retrieved_memory>
+      
+      Based on the above memory and the original question, provide your answer.
+    ''',
+  })
 # ---
