@@ -192,16 +192,33 @@ class MemoryEvaluator:
         """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
         logs: list[str] = []
 
-        # Train: generate observations via LLM and write
-        for item in train_data:
-            obs = self._generate_observation_standalone(item.raw_text, obs_cls, obs_schema)
-            if obs is None:
-                logs.append(f"Failed to generate observation for: {item.raw_text[:60]}")
-                continue
-            try:
-                memory.write(obs)
-            except Exception as e:
-                logs.append(f"Write failed: {e}")
+        if self.batch_process:
+            # Batch all observation generation prompts in one call
+            all_messages = [
+                [{"role": "user", "content": build_observation_generation_prompt(item.raw_text, obs_schema)}]
+                for item in train_data
+            ]
+            responses = self._batch_llm_call(all_messages)
+            for item, content in zip(train_data, responses, strict=True):
+                if content is None:
+                    logs.append(f"Failed to generate observation for: {item.raw_text[:60]}")
+                    continue
+                try:
+                    obs = obs_cls(**_parse_json_from_llm(content))
+                    memory.write(obs)
+                except Exception as e:
+                    logs.append(f"Obs parse/write failed: {e}")
+        else:
+            # Train: generate observations via LLM and write
+            for item in train_data:
+                obs = self._generate_observation_standalone(item.raw_text, obs_cls, obs_schema)
+                if obs is None:
+                    logs.append(f"Failed to generate observation for: {item.raw_text[:60]}")
+                    continue
+                try:
+                    memory.write(obs)
+                except Exception as e:
+                    logs.append(f"Write failed: {e}")
 
         # Val: multi-turn query → read → answer → score
         return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
@@ -452,3 +469,21 @@ class MemoryEvaluator:
         except Exception as e:
             self.logger.log(f"Observation generation failed: {e}", header="EVAL")
             return None
+
+    def _batch_llm_call(self, all_messages: list[list[dict]]) -> list[str | None]:
+        """Fan out independent LLM calls via litellm.batch_completion.
+
+        Returns a list of content strings (same length as all_messages).
+        Failed entries are None (error already logged).
+        """
+        if not all_messages:
+            return []
+        responses = litellm.batch_completion(model=self.task_model, messages=all_messages)
+        results: list[str | None] = []
+        for resp in responses:
+            if isinstance(resp, Exception):
+                self.logger.log(f"Batch LLM call failed: {resp}", header="EVAL")
+                results.append(None)
+            else:
+                results.append(resp.choices[0].message.content)
+        return results

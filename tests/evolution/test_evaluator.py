@@ -648,3 +648,102 @@ class TestEvaluatorEdgeCases:
         assert len(result.per_case_scores) == 2
         assert len(result.failed_cases) == 1
         assert mock_fn.captured_calls == snapshot
+
+
+# ── Batch Process Tests ──────────────────────────────────────────────────────
+
+
+class TestMemoryEvaluatorBatch:
+    """Tests for batch_process=True path (default)."""
+
+    def _make_batch_mock(self, response_batches: list[list[str]]):
+        """Create a mock for litellm.batch_completion.
+
+        response_batches: one list of strings per expected call to batch_completion.
+        Each inner list maps 1:1 to the messages passed in that call.
+        captured_calls stores the messages argument for each call.
+        """
+        call_idx = [0]
+        captured_calls: list[list[list[dict]]] = []
+
+        def mock_batch_completion(*args, **kwargs):
+            idx = call_idx[0]
+            call_idx[0] += 1
+            messages = kwargs.get("messages", [])
+            captured_calls.append([list(m) for m in messages])
+            batch = response_batches[idx % len(response_batches)]
+            results = []
+            for text in batch:
+                mock_resp = MagicMock()
+                mock_resp.choices = [MagicMock()]
+                mock_resp.choices[0].message.content = text
+                results.append(mock_resp)
+            return results
+
+        mock_batch_completion.captured_calls = captured_calls
+        return mock_batch_completion
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_offline_train_single_batch_call(self, mock_litellm, snapshot: SnapshotAssertion):
+        """Offline train: all obs prompts go in ONE batch_completion call."""
+        batch_mock = self._make_batch_mock(
+            [
+                ['{"raw": "France capital is Paris."}', '{"raw": "Germany capital is Berlin."}'],  # train batch
+                ['{"raw": "capital of France"}', '{"raw": "capital of Germany"}'],  # val round 1: queries
+                ["Paris", "Berlin"],  # val round 2: answers
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [
+            DataItem(raw_text="France capital is Paris.", question="q", expected_answer="e"),
+            DataItem(raw_text="Germany capital is Berlin.", question="q", expected_answer="e"),
+        ]
+        val = [
+            DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris"),
+            DataItem(raw_text="x", question="Capital of Germany?", expected_answer="Berlin"),
+        ]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
+        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+
+        # Train should be exactly 1 call with 2 messages
+        assert len(batch_mock.captured_calls) == 3  # train + val round1 + val round2
+        assert len(batch_mock.captured_calls[0]) == 2  # 2 train items in one batch
+        assert result.score == 1.0
+        assert batch_mock.captured_calls == snapshot
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_offline_train_exception_in_batch_skips_item(self, mock_litellm):
+        """If one batch response is an Exception, that item is skipped gracefully."""
+        call_idx = [0]
+
+        def mock_batch_completion(*args, **kwargs):
+            call_idx[0] += 1
+            if call_idx[0] == 1:  # train batch
+                mock_resp = MagicMock()
+                mock_resp.choices = [MagicMock()]
+                mock_resp.choices[0].message.content = '{"raw": "Paris is the capital of France."}'
+                return [ValueError("API error"), mock_resp]
+            # val batch calls
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = '{"raw": "q"}' if call_idx[0] == 2 else "Paris"
+            return [mock_resp]
+
+        mock_litellm.batch_completion = mock_batch_completion
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [
+            DataItem(raw_text="bad item", question="q", expected_answer="e"),
+            DataItem(raw_text="France capital Paris.", question="q", expected_answer="e"),
+        ]
+        val = [DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
+        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+
+        # Should still complete; only 1 item written to memory
+        assert result.score is not None
+        assert len(result.per_case_scores) == 1
