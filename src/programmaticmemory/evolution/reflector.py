@@ -68,6 +68,7 @@ class Reflector:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
+            caching=True,
         )
         output = response.choices[0].message.content
         return _extract_code_block(output)
@@ -115,6 +116,7 @@ class Reflector:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
+            caching=True,
         )
         output = response.choices[0].message.content
 

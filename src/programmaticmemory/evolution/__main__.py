@@ -62,6 +62,11 @@ def main() -> None:
 
     random.seed(args.seed)
 
+    # Enable disk cache so repeated runs hit cache
+    from programmaticmemory.cache import configure_cache
+
+    configure_cache("disk")
+
     # Load dataset (includes scorer, eval_mode, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
     dataset = load_dataset(args.dataset, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs)

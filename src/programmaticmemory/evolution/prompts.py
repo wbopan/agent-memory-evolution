@@ -53,10 +53,10 @@ class Memory:
 
     def write(self, observation: Observation) -> None:
         self.store.append(observation.raw)
-        self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+        self.toolkit.logger.log(f"Stored: {observation.raw}")
 
     def read(self, query: Query) -> str:
-        self.toolkit.logger.log(f"Query: {query.raw[:80]}, store size: {len(self.store)}")
+        self.toolkit.logger.log(f"Query: {query.raw}, store size: {len(self.store)}")
         if not self.store:
             return "No information stored."
         return "\\n".join(self.store)
@@ -88,7 +88,7 @@ def build_reflection_user_prompt(
 ) -> str:
     """Build the user prompt for the reflection LLM."""
     failed_section = ""
-    for i, case in enumerate(failed_cases[:5], 1):
+    for i, case in enumerate(failed_cases, 1):
         failed_section += f"\n### Failed Case {i}\n"
         failed_section += f"Question: {case.get('question', 'N/A')}\n"
         failed_section += f"Expected: {case.get('expected', 'N/A')}\n"
@@ -97,10 +97,10 @@ def build_reflection_user_prompt(
         if case.get("conversation_history"):
             failed_section += "Conversation:\n"
             for msg in case["conversation_history"]:
-                failed_section += f"  [{msg.get('role', '?')}]: {msg.get('content', '')[:200]}\n"
+                failed_section += f"  [{msg.get('role', '?')}]: {msg.get('content', '')}\n"
         if case.get("memory_logs"):
             failed_section += "Memory logs:\n"
-            for log in case["memory_logs"][:10]:
+            for log in case["memory_logs"]:
                 failed_section += f"  - {log}\n"
 
     return f"""\

@@ -9,7 +9,7 @@ from __future__ import annotations
 import collections
 import json
 import re
-from typing import Any
+from typing import Any, NamedTuple
 
 import litellm
 import weave
@@ -94,6 +94,7 @@ class LLMJudgeScorer:
                 },
             ],
             temperature=0.0,
+            caching=True,
         )
         text = response.choices[0].message.content.strip()
         try:
@@ -113,8 +114,18 @@ def _parse_json_from_llm(text: str) -> dict:
 
 def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str:
     """Task agent LLM call (separate from Toolkit's LLM)."""
-    response = litellm.completion(model=model, messages=messages, temperature=temperature)
+    response = litellm.completion(model=model, messages=messages, temperature=temperature, caching=True)
     return response.choices[0].message.content
+
+
+class _QuerySlot(NamedTuple):
+    """Parsed result from a query generation + memory read step."""
+
+    query: Any
+    query_json: str  # raw assistant response
+    retrieved_str: str  # str(memory.read(query)) or error message
+    query_prompt: str  # built user prompt for query generation
+    retrieved_prompt: str  # built user prompt for retrieved memory
 
 
 class MemoryEvaluator:
@@ -201,7 +212,7 @@ class MemoryEvaluator:
             responses = self._batch_llm_call(all_messages)
             for item, content in zip(train_data, responses, strict=True):
                 if content is None:
-                    logs.append(f"Failed to generate observation for: {item.raw_text[:60]}")
+                    logs.append(f"Failed to generate observation for: {item.raw_text}")
                     continue
                 try:
                     obs = obs_cls(**_parse_json_from_llm(content))
@@ -213,7 +224,7 @@ class MemoryEvaluator:
             for item in train_data:
                 obs = self._generate_observation_standalone(item.raw_text, obs_cls, obs_schema)
                 if obs is None:
-                    logs.append(f"Failed to generate observation for: {item.raw_text[:60]}")
+                    logs.append(f"Failed to generate observation for: {item.raw_text}")
                     continue
                 try:
                     memory.write(obs)
@@ -363,56 +374,32 @@ class MemoryEvaluator:
         round1_responses = self._batch_llm_call(round1_messages)
 
         # Parse queries + serial reads
-        # slot[i] = (query_obj, query_json_str, retrieved_str) or None
-        slots: list[tuple | None] = []
-        for _item, content in zip(train_data, round1_responses, strict=True):
-            if content is None:
-                logs.append("Train query generation failed (batch error)")
-                slots.append(None)
-                continue
-            try:
-                query = query_cls(**_parse_json_from_llm(content))
-            except Exception as e:
-                logs.append(f"Train query parse failed: {e}")
-                slots.append(None)
-                continue
-            try:
-                retrieved = memory.read(query)
-                retrieved_str = str(retrieved) if retrieved is not None else ""
-            except Exception as e:
-                retrieved_str = f"Read error: {e}"
-                logs.append(f"Train read failed: {e}")
-            slots.append((query, content, retrieved_str))
+        slots = self._parse_queries_and_read(
+            query_cls, query_schema, memory, train_data, round1_responses, logs, log_prefix="Train"
+        )
 
         # Round 2: answer generation for valid slots
         valid = [(i, s) for i, s in enumerate(slots) if s is not None]
         round2_messages = [
             [
-                {"role": "user", "content": build_query_generation_prompt(train_data[i].question, query_schema)},
-                {"role": "assistant", "content": s[1]},
-                {"role": "user", "content": build_retrieved_memory_prompt(s[2])},
+                {"role": "user", "content": s.query_prompt},
+                {"role": "assistant", "content": s.query_json},
+                {"role": "user", "content": s.retrieved_prompt},
             ]
-            for i, s in valid
+            for _i, s in valid
         ]
         round2_responses = self._batch_llm_call(round2_messages)
 
-        # Score answers for feedback; build tuples for round 3
-        # (item, slot, msgs_so_far, answer, score, evaluation_result)
-        answered: list[tuple] = []
-        for (i, s), answer in zip(valid, round2_responses, strict=True):
-            item = train_data[i]
+        # Score answers for feedback; build context for round 3
+        round3_items: list[tuple[DataItem, list[dict], str]] = []
+        for (i, _s), r2_msgs, answer in zip(valid, round2_messages, round2_responses, strict=True):
             if answer is None:
                 logs.append("Train answer generation failed (batch error)")
                 continue
-            score = self.scorer(answer, item.expected_answer)
+            score = self.scorer(answer, train_data[i].expected_answer)
             evaluation_result = f"Score: {score:.1f} ({'correct' if score >= 1.0 else 'incorrect'})"
-            msgs_so_far = [
-                {"role": "user", "content": build_query_generation_prompt(item.question, query_schema)},
-                {"role": "assistant", "content": s[1]},
-                {"role": "user", "content": build_retrieved_memory_prompt(s[2])},
-                {"role": "assistant", "content": answer},
-            ]
-            answered.append((item, s, msgs_so_far, answer, score, evaluation_result))
+            msgs_so_far = r2_msgs + [{"role": "assistant", "content": answer}]
+            round3_items.append((train_data[i], msgs_so_far, evaluation_result))
 
         # Round 3: observation generation with feedback
         round3_messages = [
@@ -425,14 +412,12 @@ class MemoryEvaluator:
                     ),
                 }
             ]
-            for item, s, msgs_so_far, answer, score, evaluation_result in answered
+            for item, msgs_so_far, evaluation_result in round3_items
         ]
         round3_responses = self._batch_llm_call(round3_messages)
 
         # Serial writes
-        for (_item, _s, _msgs_so_far, _answer, _score, _ev), obs_content in zip(
-            answered, round3_responses, strict=True
-        ):
+        for obs_content in round3_responses:
             if obs_content is None:
                 logs.append("Train observation generation failed (batch error)")
                 continue
@@ -441,6 +426,60 @@ class MemoryEvaluator:
                 memory.write(obs)
             except Exception as e:
                 logs.append(f"Train observation parse/write failed: {e}")
+
+    # ── Shared helpers ─────────────────────────────────────────────────────
+
+    def _parse_queries_and_read(
+        self,
+        query_cls: type,
+        query_schema: str,
+        memory: Any,
+        data: list[DataItem],
+        responses: list[str | None],
+        logs: list[str],
+        log_prefix: str = "Val",
+    ) -> list[_QuerySlot | None]:
+        """Parse batch query responses, read memory for each. Returns slots aligned with data."""
+        slots: list[_QuerySlot | None] = []
+        for item, content in zip(data, responses, strict=True):
+            if content is None:
+                logs.append(f"{log_prefix} query generation failed (batch error)")
+                slots.append(None)
+                continue
+            try:
+                query = query_cls(**_parse_json_from_llm(content))
+            except Exception as e:
+                logs.append(f"{log_prefix} query parse failed: {e}")
+                slots.append(None)
+                continue
+            try:
+                retrieved = memory.read(query)
+                retrieved_str = str(retrieved) if retrieved is not None else ""
+            except Exception as e:
+                retrieved_str = f"Read error: {e}"
+                logs.append(f"{log_prefix} read failed: {e}")
+            query_prompt = build_query_generation_prompt(item.question, query_schema)
+            retrieved_prompt = build_retrieved_memory_prompt(retrieved_str)
+            slots.append(_QuerySlot(query, content, retrieved_str, query_prompt, retrieved_prompt))
+        return slots
+
+    @staticmethod
+    def _build_eval_result(
+        scores: list[float],
+        outputs: list[str],
+        failed_cases: list[FailedCase],
+        logs: list[str],
+    ) -> EvalResult:
+        """Assemble the final EvalResult with average score logging."""
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+        logs.append(f"Val score: {avg_score:.3f} ({len(scores)} cases)")
+        return EvalResult(
+            score=avg_score,
+            per_case_scores=scores,
+            per_case_outputs=outputs,
+            failed_cases=failed_cases,
+            logs=logs,
+        )
 
     # ── Shared validation ───────────────────────────────────────────────────
 
@@ -575,15 +614,7 @@ class MemoryEvaluator:
                     )
                 )
 
-        avg_score = sum(scores) / len(scores) if scores else 0.0
-        logs.append(f"Val score: {avg_score:.3f} ({len(scores)} cases)")
-        return EvalResult(
-            score=avg_score,
-            per_case_scores=scores,
-            per_case_outputs=outputs,
-            failed_cases=failed_cases,
-            logs=logs,
-        )
+        return self._build_eval_result(scores, outputs, failed_cases, logs)
 
     def _evaluate_val_batched(
         self,
@@ -596,8 +627,7 @@ class MemoryEvaluator:
     ) -> EvalResult:
         """Two-round batched val: all query prompts → serial reads → all answer prompts."""
         if not val_data:
-            logs.append("Val score: 0.000 (0 cases)")
-            return EvalResult(score=0.0, per_case_scores=[], per_case_outputs=[], failed_cases=[], logs=logs)
+            return self._build_eval_result([], [], [], logs)
 
         # Round 1: batch all query generation
         round1_messages = [
@@ -607,35 +637,19 @@ class MemoryEvaluator:
         round1_responses = self._batch_llm_call(round1_messages)
 
         # Parse queries and do serial memory reads
-        # slot[i] = (query_obj, query_json_str, retrieved_str) or None if failed
-        slots: list[tuple | None] = []
-        for _item, content in zip(val_data, round1_responses, strict=True):
-            if content is None:
-                slots.append(None)
-                continue
-            try:
-                query = query_cls(**_parse_json_from_llm(content))
-            except Exception as e:
-                self.logger.log(f"Val query parse failed: {e}", header="EVAL")
-                slots.append(None)
-                continue
-            try:
-                retrieved = memory.read(query)
-                retrieved_str = str(retrieved) if retrieved is not None else ""
-            except Exception as e:
-                retrieved_str = f"Read error: {e}"
-                logs.append(f"Val read failed: {e}")
-            slots.append((query, content, retrieved_str))
+        slots = self._parse_queries_and_read(
+            query_cls, query_schema, memory, val_data, round1_responses, logs, log_prefix="Val"
+        )
 
         # Round 2: batch answer generation only for successful slots
         valid = [(i, s) for i, s in enumerate(slots) if s is not None]
         round2_messages = [
             [
-                {"role": "user", "content": build_query_generation_prompt(val_data[i].question, query_schema)},
-                {"role": "assistant", "content": s[1]},
-                {"role": "user", "content": build_retrieved_memory_prompt(s[2])},
+                {"role": "user", "content": s.query_prompt},
+                {"role": "assistant", "content": s.query_json},
+                {"role": "user", "content": s.retrieved_prompt},
             ]
-            for i, s in valid
+            for _i, s in valid
         ]
         round2_responses = self._batch_llm_call(round2_messages)
 
@@ -665,7 +679,7 @@ class MemoryEvaluator:
             valid_idx += 1
 
             if answer is None:
-                self.logger.log("Val answer generation failed (batch error)", header="EVAL")
+                logs.append("Val answer generation failed (batch error)")
                 scores.append(0.0)
                 outputs.append("")
                 failed_cases.append(
@@ -684,9 +698,9 @@ class MemoryEvaluator:
             scores.append(score)
             if score < 1.0:
                 conv = [
-                    {"role": "user", "content": build_query_generation_prompt(item.question, query_schema)},
-                    {"role": "assistant", "content": slot[1]},
-                    {"role": "user", "content": build_retrieved_memory_prompt(slot[2])},
+                    {"role": "user", "content": slot.query_prompt},
+                    {"role": "assistant", "content": slot.query_json},
+                    {"role": "user", "content": slot.retrieved_prompt},
                     {"role": "assistant", "content": answer},
                 ]
                 failed_cases.append(
@@ -700,15 +714,7 @@ class MemoryEvaluator:
                     )
                 )
 
-        avg_score = sum(scores) / len(scores) if scores else 0.0
-        logs.append(f"Val score: {avg_score:.3f} ({len(scores)} cases)")
-        return EvalResult(
-            score=avg_score,
-            per_case_scores=scores,
-            per_case_outputs=outputs,
-            failed_cases=failed_cases,
-            logs=logs,
-        )
+        return self._build_eval_result(scores, outputs, failed_cases, logs)
 
     # ── Standalone helpers (offline only) ────────────────────────────────────
 
@@ -734,7 +740,9 @@ class MemoryEvaluator:
         """
         if not all_messages:
             return []
-        responses = litellm.batch_completion(model=self.task_model, messages=all_messages)
+        responses = litellm.batch_completion(
+            model=self.task_model, messages=all_messages, temperature=0.0, caching=True
+        )
         results: list[str | None] = []
         for resp in responses:
             if isinstance(resp, Exception):
