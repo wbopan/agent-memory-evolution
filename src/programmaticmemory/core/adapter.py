@@ -1,8 +1,8 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Generic, Protocol, TypeVar
+from typing import Any, Protocol, TypeVar
 
-# Generic type aliases
+# Generic type aliases — still needed for Protocol[...] parameterization
 RolloutOutput = TypeVar("RolloutOutput")
 Trajectory = TypeVar("Trajectory")
 DataInst = TypeVar("DataInst")
@@ -10,7 +10,7 @@ Candidate = dict[str, str]
 
 
 @dataclass
-class EvaluationBatch(Generic[Trajectory, RolloutOutput]):
+class EvaluationBatch[Trajectory, RolloutOutput]:
     """Container for the result of evaluating a proposed candidate on a batch of data.
 
     - outputs: raw per-example outputs from upon executing the candidate.

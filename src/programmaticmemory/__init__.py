@@ -5,14 +5,14 @@ import warnings
 
 warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
 
-import litellm
+import litellm  # noqa: E402
 
 litellm.suppress_debug_info = True
 
-from programmaticmemory.cache import configure_cache, disable_cache
-from programmaticmemory.core.adapter import EvaluationBatch
-from programmaticmemory.datasets import load_dataset, register_dataset
-from programmaticmemory.logging.logger import get_logger
+from programmaticmemory.cache import configure_cache, disable_cache  # noqa: E402
+from programmaticmemory.core.adapter import EvaluationBatch  # noqa: E402
+from programmaticmemory.datasets import load_dataset, register_dataset  # noqa: E402
+from programmaticmemory.logging.logger import get_logger  # noqa: E402
 
 __all__ = [
     "configure_cache",

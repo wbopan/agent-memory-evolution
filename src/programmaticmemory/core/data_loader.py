@@ -66,9 +66,9 @@ class ListDataLoader(MutableDataLoader[int, DataInst]):
         self.items.extend(items)
 
 
-def ensure_loader(data_or_loader: Sequence[DataInst] | DataLoader[DataId, DataInst]) -> DataLoader[DataId, DataInst]:
+def ensure_loader[D: ComparableHashable, I](data_or_loader: Sequence[I] | DataLoader[D, I]) -> DataLoader[D, I]:
     if isinstance(data_or_loader, DataLoader):
         return data_or_loader
     if isinstance(data_or_loader, Sequence):
-        return cast(DataLoader[DataId, DataInst], ListDataLoader(data_or_loader))
+        return cast(DataLoader[D, I], ListDataLoader(data_or_loader))
     raise TypeError(f"Unable to cast to a DataLoader type: {type(data_or_loader)}")
