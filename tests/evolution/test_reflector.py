@@ -1,8 +1,11 @@
 """Tests for evolution/reflector.py — code extraction and reflection."""
 
+from __future__ import annotations
+
 from unittest.mock import MagicMock, patch
 
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
+from programmaticmemory.evolution.sandbox import CompileError, SmokeTestResult
 from programmaticmemory.evolution.types import EvalResult, FailedCase, MemoryProgram
 
 
@@ -69,9 +72,14 @@ class Memory:
 
 
 class TestReflector:
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_successful_reflection(self, mock_litellm):
+    def test_successful_reflection(self, mock_litellm, mock_compile, mock_smoke):
         """Reflector should produce a new MemoryProgram with incremented generation."""
+        mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
         new_code = """\
 from dataclasses import dataclass
 
@@ -174,9 +182,14 @@ class Memory:
         assert "42" in user_content
         assert "Stored: X=42" in user_content
 
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_reflection_uses_configured_model_and_temperature(self, mock_litellm):
+    def test_reflection_uses_configured_model_and_temperature(self, mock_litellm, mock_compile, mock_smoke):
         """Verify model and temperature are passed to litellm."""
+        mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
         captured_kwargs = []
 
         def capture_completion(*args, **kwargs):
@@ -199,3 +212,184 @@ class Memory:
 
         assert captured_kwargs[0]["model"] == "custom/reflect-model"
         assert captured_kwargs[0]["temperature"] == 0.9
+
+
+class TestReflectorCompileFixLoop:
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_valid_code_returns_immediately(self, mock_litellm, mock_compile, mock_smoke):
+        """When code compiles and passes smoke test, return without fix attempts."""
+        new_code = "from dataclasses import dataclass\n\n@dataclass\nclass Observation:\n    raw: str\n\n@dataclass\nclass Query:\n    raw: str\n\nclass Memory:\n    def __init__(self, toolkit): pass\n    def write(self, obs): pass\n    def read(self, query): return ''"
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = f"Analysis.\n\n```python\n{new_code}\n```"
+        mock_litellm.completion.return_value = mock_resp
+
+        mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            MemoryProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert mock_litellm.completion.call_count == 1  # Only the reflection call, no fix calls
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_compile_error_triggers_fix_and_succeeds(self, mock_litellm, mock_compile, mock_smoke):
+        """CompileError triggers fix loop; fixed code is returned."""
+        good_code = "class Observation: pass\nclass Query: pass\nclass Memory: pass"
+
+        reflection_resp = MagicMock()
+        reflection_resp.choices = [MagicMock()]
+        reflection_resp.choices[0].message.content = "```python\nbad code\n```"
+
+        fix_resp = MagicMock()
+        fix_resp.choices = [MagicMock()]
+        fix_resp.choices[0].message.content = f"```python\n{good_code}\n```"
+
+        mock_litellm.completion.side_effect = [reflection_resp, fix_resp]
+
+        # First compile fails, second succeeds
+        mock_compile.side_effect = [
+            CompileError(message="Syntax error", details="invalid syntax"),
+            (MagicMock(), MagicMock(), MagicMock()),
+        ]
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            MemoryProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert mock_litellm.completion.call_count == 2  # reflection + 1 fix
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_smoke_test_failure_triggers_fix(self, mock_litellm, mock_compile, mock_smoke):
+        """Smoke test failure triggers fix loop."""
+        good_code = "class Observation: pass\nclass Query: pass\nclass Memory: pass"
+
+        reflection_resp = MagicMock()
+        reflection_resp.choices = [MagicMock()]
+        reflection_resp.choices[0].message.content = "```python\ncode v1\n```"
+
+        fix_resp = MagicMock()
+        fix_resp.choices = [MagicMock()]
+        fix_resp.choices[0].message.content = f"```python\n{good_code}\n```"
+
+        mock_litellm.completion.side_effect = [reflection_resp, fix_resp]
+
+        # Both compile fine
+        mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
+        # First smoke fails, second succeeds
+        mock_smoke.side_effect = [
+            SmokeTestResult(success=False, error="Runtime: KeyError"),
+            SmokeTestResult(success=True),
+        ]
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            MemoryProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert mock_litellm.completion.call_count == 2
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_max_fix_attempts_exhausted_returns_none(self, mock_litellm, mock_compile, mock_smoke):
+        """After max_fix_attempts, return None."""
+        bad_resp = MagicMock()
+        bad_resp.choices = [MagicMock()]
+        bad_resp.choices[0].message.content = "```python\nbad\n```"
+        mock_litellm.completion.return_value = bad_resp
+
+        mock_compile.return_value = CompileError(message="Syntax error", details="bad")
+
+        reflector = Reflector(model="mock/model", max_fix_attempts=3)
+        child = reflector.reflect_and_mutate(
+            MemoryProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is None
+        # 1 reflection + 3 fix attempts = 4
+        assert mock_litellm.completion.call_count == 4
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_fix_code_extraction_failure_counts_as_attempt(self, mock_litellm, mock_compile, mock_smoke):
+        """If fix LLM returns no code block, it still counts as an attempt."""
+        reflection_resp = MagicMock()
+        reflection_resp.choices = [MagicMock()]
+        reflection_resp.choices[0].message.content = "```python\nbad\n```"
+
+        no_code_resp = MagicMock()
+        no_code_resp.choices = [MagicMock()]
+        no_code_resp.choices[0].message.content = "I cannot fix this."
+
+        mock_litellm.completion.side_effect = [reflection_resp, no_code_resp, no_code_resp, no_code_resp]
+        mock_compile.return_value = CompileError(message="Syntax error", details="bad")
+
+        reflector = Reflector(model="mock/model", max_fix_attempts=3)
+        child = reflector.reflect_and_mutate(
+            MemoryProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is None
+        assert mock_litellm.completion.call_count == 4  # 1 reflection + 3 fix attempts
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_fix_succeeds_on_second_attempt(self, mock_litellm, mock_compile, mock_smoke):
+        """First fix attempt fails, second succeeds — verifies code forwarding between attempts."""
+        reflection_resp = MagicMock()
+        reflection_resp.choices = [MagicMock()]
+        reflection_resp.choices[0].message.content = "```python\noriginal bad\n```"
+
+        fix1_resp = MagicMock()
+        fix1_resp.choices = [MagicMock()]
+        fix1_resp.choices[0].message.content = "```python\nstill bad\n```"
+
+        fix2_resp = MagicMock()
+        fix2_resp.choices = [MagicMock()]
+        fix2_resp.choices[0].message.content = "```python\nfinally good\n```"
+
+        mock_litellm.completion.side_effect = [reflection_resp, fix1_resp, fix2_resp]
+
+        mock_compile.side_effect = [
+            CompileError(message="Syntax error", details="line 1"),  # initial
+            CompileError(message="Syntax error", details="line 2"),  # fix attempt 1
+            (MagicMock(), MagicMock(), MagicMock()),  # fix attempt 2
+        ]
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            MemoryProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert child.source_code == "finally good"
+        assert mock_litellm.completion.call_count == 3  # reflection + 2 fix attempts

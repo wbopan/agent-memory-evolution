@@ -55,7 +55,6 @@ def main() -> None:
             val_data=val,
             dataset_type=args.dataset_type,
             max_iterations=args.iterations,
-            toolkit_config=toolkit_config,
             tracker=tracker,
         )
         state = loop.run()

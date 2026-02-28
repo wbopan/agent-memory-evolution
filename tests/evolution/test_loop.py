@@ -1,6 +1,8 @@
 """Tests for evolution/loop.py — evolution loop logic."""
 
-from unittest.mock import MagicMock, patch
+from __future__ import annotations
+
+from unittest.mock import MagicMock
 
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
@@ -40,10 +42,8 @@ class TestEvolutionLoop:
         assert evaluator.evaluate.call_count == 1
         assert reflector.reflect_and_mutate.call_count == 0
 
-    @patch("programmaticmemory.evolution.loop.smoke_test")
-    def test_child_accepted_when_better(self, mock_smoke):
+    def test_child_accepted_when_better(self):
         """Child program replaces current when it scores higher."""
-        mock_smoke.return_value = MagicMock(success=True)
         train, val = _make_train_val()
 
         child_program = MemoryProgram(source_code="improved", generation=1)
@@ -71,10 +71,8 @@ class TestEvolutionLoop:
         assert state.best_program == child_program
         assert state.history[-1].accepted is True
 
-    @patch("programmaticmemory.evolution.loop.smoke_test")
-    def test_child_rejected_when_worse(self, mock_smoke):
+    def test_child_rejected_when_worse(self):
         """Child program is rejected when it scores lower."""
-        mock_smoke.return_value = MagicMock(success=True)
         train, val = _make_train_val()
 
         initial = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
@@ -102,31 +100,6 @@ class TestEvolutionLoop:
         assert state.best_score == 0.7
         assert state.best_program == initial
         assert state.history[-1].accepted is False
-
-    @patch("programmaticmemory.evolution.loop.smoke_test")
-    def test_smoke_test_failure_skips_evaluation(self, mock_smoke):
-        """If smoke test fails, child is skipped without full evaluation."""
-        mock_smoke.return_value = MagicMock(success=False, error="runtime crash")
-        train, val = _make_train_val()
-
-        evaluator = MagicMock(spec=MemoryEvaluator)
-        evaluator.evaluate.return_value = EvalResult(score=0.5, failed_cases=[])
-
-        reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = MemoryProgram(source_code="bad", generation=1)
-
-        loop = EvolutionLoop(
-            evaluator=evaluator,
-            reflector=reflector,
-            train_data=train,
-            val_data=val,
-            max_iterations=1,
-        )
-        state = loop.run()
-
-        # Evaluator called only once (initial), not for the child
-        assert evaluator.evaluate.call_count == 1
-        assert state.best_score == 0.5
 
     def test_reflection_failure_skips_iteration(self):
         """If reflector returns None, iteration is skipped."""
@@ -177,10 +150,8 @@ class TestEvolutionLoop:
         assert state.total_iterations == 0
         assert reflector.reflect_and_mutate.call_count == 0
 
-    @patch("programmaticmemory.evolution.loop.smoke_test")
-    def test_tracker_receives_metrics(self, mock_smoke):
+    def test_tracker_receives_metrics(self):
         """ExperimentTracker should receive log_metrics calls."""
-        mock_smoke.return_value = MagicMock(success=True)
         train, val = _make_train_val()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
