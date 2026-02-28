@@ -181,6 +181,19 @@ class RunOutputManager:
         except Exception:
             pass  # logging must never crash the evolution loop
 
+    def write_failed_cases(self, iteration: int, cases: list[dict]) -> None:
+        """Save failed evaluation cases to llm_calls/iter_N/failed_cases.json.
+
+        Args:
+            iteration: Evolution iteration number.
+            cases: List of dicts, each with question/output/expected/score/memory_logs.
+        """
+        try:
+            out_path = self._callback._iter_dir(self.run_dir, iteration) / "failed_cases.json"
+            out_path.write_text(json.dumps(cases, indent=2, default=str), encoding="utf-8")
+        except Exception:
+            pass  # logging must never crash the evolution loop
+
     def get_log_path(self) -> Path:
         """Return the path for the run's log file."""
         return self.run_dir / "run.log"

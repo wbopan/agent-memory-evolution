@@ -66,6 +66,20 @@ class EvolutionLoop:
 
         if self.output_manager:
             self.output_manager.write_program(0, current.source_code, accepted=True, score=best_score)
+        if self.output_manager and eval_result.failed_cases:
+            self.output_manager.write_failed_cases(
+                0,
+                [
+                    {
+                        "question": fc.question,
+                        "output": fc.output,
+                        "expected": fc.expected,
+                        "score": fc.score,
+                        "memory_logs": fc.memory_logs,
+                    }
+                    for fc in eval_result.failed_cases
+                ],
+            )
 
         if self.tracker:
             self.tracker.log_metrics({"score": best_score, "accepted": 1}, iteration=0)
@@ -112,6 +126,20 @@ class EvolutionLoop:
             accepted = child_score > best_score
             if self.output_manager:
                 self.output_manager.write_program(i, child.source_code, accepted=accepted, score=child_score)
+            if self.output_manager and child_result.failed_cases:
+                self.output_manager.write_failed_cases(
+                    i,
+                    [
+                        {
+                            "question": fc.question,
+                            "output": fc.output,
+                            "expected": fc.expected,
+                            "score": fc.score,
+                            "memory_logs": fc.memory_logs,
+                        }
+                        for fc in child_result.failed_cases
+                    ],
+                )
             if accepted:
                 self.logger.log(
                     f"Accepted! {best_score:.3f} -> {child_score:.3f}",
