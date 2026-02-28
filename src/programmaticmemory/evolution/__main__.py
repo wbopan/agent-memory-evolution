@@ -1,14 +1,16 @@
 """Entry point: python -m programmaticmemory.evolution
 
-Runs evolution on the kv_memory benchmark for a quick end-to-end test.
+Runs evolution on a chosen dataset. Benchmark-specific kwargs are passed as
+positional `key=value` args (e.g. `num_items=10 difficulty=simple`).
 """
 
 from __future__ import annotations
 
 import argparse
 import random
+import sys
 
-from programmaticmemory.benchmarks.kv_memory import load_kv_memory
+from programmaticmemory.datasets import get_benchmark_config, load_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.reflector import Reflector
@@ -16,30 +18,55 @@ from programmaticmemory.evolution.toolkit import ToolkitConfig
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 
 
+def _parse_extra_kwargs(extra: list[str]) -> dict:
+    """Parse `key=value` positional args into a dict with auto-coerced types."""
+    kwargs: dict = {}
+    for arg in extra:
+        if "=" not in arg:
+            print(f"Error: unrecognized argument: {arg}", file=sys.stderr)
+            print("Benchmark-specific args must be key=value (e.g. num_items=10)", file=sys.stderr)
+            sys.exit(1)
+        key, value = arg.split("=", 1)
+        # Auto-coerce: int > float > str
+        for coerce in (int, float):
+            try:
+                value = coerce(value)
+                break
+            except ValueError:
+                continue
+        kwargs[key] = value
+    return kwargs
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Memory Program evolution")
+    parser = argparse.ArgumentParser(
+        description="Run Memory Program evolution",
+        epilog="Benchmark-specific args: pass as key=value after flags (e.g. num_items=10 difficulty=simple)",
+    )
+    parser.add_argument("--dataset", default="kv_memory", help="Dataset name (default: kv_memory)")
     parser.add_argument("--iterations", type=int, default=5, help="Max evolution iterations")
-    parser.add_argument("--num-items", type=int, default=10, help="Number of benchmark items")
-    parser.add_argument("--difficulty", choices=["simple", "compound"], default="simple")
-    parser.add_argument("--dataset-type", choices=["A", "B"], default="A")
-    parser.add_argument("--task-model", default="openai/gpt-4o-mini", help="Model for task agent")
-    parser.add_argument("--reflect-model", default="openai/gpt-4o", help="Model for reflection")
-    parser.add_argument("--toolkit-model", default="openai/gpt-4o-mini", help="Model for toolkit LLM")
+    parser.add_argument("--train-size", type=int, default=None, help="Limit train set size")
+    parser.add_argument("--val-size", type=int, default=None, help="Limit val set size")
+    parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
+    parser.add_argument("--reflect-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for reflection")
+    parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--weave-project", default="programmaticmemory", help="Weave project name")
-    args = parser.parse_args()
+    args, extra = parser.parse_known_args()
 
-    # Set seed
     random.seed(args.seed)
 
-    # Load data
-    train, val, _ = load_kv_memory(num_items=args.num_items, difficulty=args.difficulty)
+    # Load benchmark config (scorer, etc.) and dataset
+    config = get_benchmark_config(args.dataset)
+    dataset_kwargs = _parse_extra_kwargs(extra)
+    dataset = load_dataset(args.dataset, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs)
 
     # Configure
+    scorer = config.scorer or ExactMatchScorer()
     toolkit_config = ToolkitConfig(llm_model=args.toolkit_model)
     evaluator = MemoryEvaluator(
-        scorer=ExactMatchScorer(),
+        scorer=scorer,
         task_model=args.task_model,
         toolkit_config=toolkit_config,
     )
@@ -51,9 +78,7 @@ def main() -> None:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
-            dataset_type=args.dataset_type,
+            dataset=dataset,
             max_iterations=args.iterations,
             tracker=tracker,
         )

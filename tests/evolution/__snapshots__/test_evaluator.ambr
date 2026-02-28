@@ -1,0 +1,1651 @@
+# serializer version: 1
+# name: TestEvaluatorEdgeCases.test_empty_val_data
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: x
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestEvaluatorEdgeCases.test_multiple_val_items
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: f1
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: f2
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q1?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q1?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q1"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          f1
+          f2
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q2?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q2?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q2"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          f1
+          f2
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestEvaluatorEdgeCases.test_observation_generation_failure_skips_item
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: fact
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestEvaluatorEdgeCases.test_query_generation_failure_scores_zero
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: fact
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOffline.test_basic_offline_evaluation
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: The capital of France is Paris.
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: What is the capital of France?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: What is the capital of France?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "capital of France"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          The capital of France is Paris.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOffline.test_offline_val_uses_multiturn
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: fact
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          fact
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOffline.test_offline_wrong_answer
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: The capital of France is Paris.
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: What is the capital of France?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: What is the capital of France?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "capital"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          The capital of France is Paris.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOnline.test_online_step1_output_parses_to_query
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "parsed query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "parsed query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': 'answer',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          Evaluation result: Score: 1.0 (correct)
+          Ground truth: A
+          
+          Based on this feedback, generate an observation to write into memory.
+          
+          The observation must be a JSON object matching this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "vq"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          obs
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOnline.test_online_step3_includes_feedback_and_ground_truth
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': 'wrong answer',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          Evaluation result: Score: 0.0 (incorrect)
+          Ground truth: correct answer
+          
+          Based on this feedback, generate an observation to write into memory.
+          
+          The observation must be a JSON object matching this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "vq"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          obs
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOnline.test_online_step3_output_parses_to_observation
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': 'answer',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          Evaluation result: Score: 1.0 (correct)
+          Ground truth: A
+          
+          Based on this feedback, generate an observation to write into memory.
+          
+          The observation must be a JSON object matching this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "vq"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          parsed observation value
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOnline.test_online_train_messages_accumulate
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "query value"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "query value"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': 'my answer',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          Evaluation result: Score: 1.0 (correct)
+          Ground truth: A
+          
+          Based on this feedback, generate an observation to write into memory.
+          
+          The observation must be a JSON object matching this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "val query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          observation
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorOnline.test_online_write_called_and_memory_updates
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          No information stored.
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': 'answer',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          Evaluation result: Score: 1.0 (correct)
+          Ground truth: A
+          
+          Based on this feedback, generate an observation to write into memory.
+          
+          The observation must be a JSON object matching this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "vq"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          stored via online
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestValidationPipeline.test_val_conversation_history_in_failed_cases
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: fact
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          fact
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestValidationPipeline.test_val_does_not_call_write
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Query(raw: 'str')
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Query(raw: 'str')
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          empty
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Query(raw: 'str')
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "q"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          empty
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': 'ans',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          Evaluation result: Score: 1.0 (correct)
+          Ground truth: A
+          
+          Based on this feedback, generate an observation to write into memory.
+          
+          The observation must be a JSON object matching this schema:
+          // Observation: Observation(raw: 'str')
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Query(raw: 'str')
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: VQ?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Query(raw: 'str')
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "vq"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          obs
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestValidationPipeline.test_val_multiturn_messages_structure
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: fact
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: What is X?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: What is X?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "my query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          fact
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestValidationPipeline.test_val_only_step1_and_step2
+  list([
+    list([
+      dict({
+        'content': '''
+          Given the following text, create an Observation object to store this information in memory.
+          
+          Text: fact
+          
+          The Observation must conform to this schema:
+          // Observation: Raw text observation to store in memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Output ONLY a valid JSON object matching the schema fields. No explanation.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': '''
+          Given the following question, generate a query to retrieve relevant memory.
+          
+          Question: Q?
+          
+          The query must be a JSON object matching this schema:
+          // Query: Raw text query to retrieve from memory.
+          {
+            "raw": "..."  // str
+          }
+          
+          Respond with the JSON only.
+        ''',
+        'role': 'user',
+      }),
+      dict({
+        'content': '{"raw": "query"}',
+        'role': 'assistant',
+      }),
+      dict({
+        'content': '''
+          <retrieved_memory>
+          fact
+          </retrieved_memory>
+          
+          Based on the above memory and the original question, provide your answer.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---

@@ -6,65 +6,64 @@ from pathlib import Path
 import pytest
 
 from programmaticmemory.benchmarks.kv_memory import load_kv_memory
-from programmaticmemory.evolution.types import DataItem
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
 
 
 class TestKVMemoryBenchmark:
     def test_simple_loads(self):
-        train, val, test = load_kv_memory(num_items=5, difficulty="simple")
-        assert len(train) == 5
-        assert len(val) == 5
-        assert len(test) == 0
+        ds = load_kv_memory(num_items=5, difficulty="simple")
+        assert isinstance(ds, Dataset)
+        assert len(ds.train) == 5
+        assert len(ds.val) == 5
+        assert len(ds.test) == 0
+        assert ds.eval_mode == EvalMode.OFFLINE
 
     def test_compound_loads(self):
-        train, val, test = load_kv_memory(num_items=3, difficulty="compound")
-        assert len(train) == 3
-        assert len(val) == 3
-        assert len(test) == 0
+        ds = load_kv_memory(num_items=3, difficulty="compound")
+        assert len(ds.train) == 3
+        assert len(ds.val) == 3
+        assert len(ds.test) == 0
 
     def test_items_are_dataitems(self):
-        train, _, _ = load_kv_memory(num_items=3)
-        for item in train:
+        ds = load_kv_memory(num_items=3)
+        for item in ds.train:
             assert isinstance(item, DataItem)
             assert item.raw_text
             assert item.question
             assert item.expected_answer
 
     def test_deterministic_with_same_seed(self):
-        t1, _, _ = load_kv_memory(num_items=5, seed=42)
-        t2, _, _ = load_kv_memory(num_items=5, seed=42)
-        assert [i.question for i in t1] == [i.question for i in t2]
+        d1 = load_kv_memory(num_items=5, seed=42)
+        d2 = load_kv_memory(num_items=5, seed=42)
+        assert [i.question for i in d1.train] == [i.question for i in d2.train]
 
     def test_different_seed_gives_different_order(self):
-        t1, _, _ = load_kv_memory(num_items=10, seed=42)
-        t2, _, _ = load_kv_memory(num_items=10, seed=99)
-        # Different order (extremely unlikely to be the same)
-        q1 = [i.question for i in t1]
-        q2 = [i.question for i in t2]
+        d1 = load_kv_memory(num_items=10, seed=42)
+        d2 = load_kv_memory(num_items=10, seed=99)
+        q1 = [i.question for i in d1.train]
+        q2 = [i.question for i in d2.train]
         assert q1 != q2
 
     def test_max_simple_items(self):
-        train, _, _ = load_kv_memory(num_items=20, difficulty="simple")
-        assert len(train) == 20
+        ds = load_kv_memory(num_items=20, difficulty="simple")
+        assert len(ds.train) == 20
 
     def test_max_compound_items(self):
-        train, _, _ = load_kv_memory(num_items=5, difficulty="compound")
-        assert len(train) == 5
+        ds = load_kv_memory(num_items=5, difficulty="compound")
+        assert len(ds.train) == 5
 
     def test_compound_raw_text_combines_facts(self):
-        train, _, _ = load_kv_memory(num_items=1, difficulty="compound")
-        # Compound items have multi-sentence raw_text
-        assert len(train[0].raw_text.split(".")) >= 2
+        ds = load_kv_memory(num_items=1, difficulty="compound")
+        assert len(ds.train[0].raw_text.split(".")) >= 2
 
-    def test_train_and_val_are_same_for_type_a(self):
-        """For Type A, same items serve as both train (ingest) and val (query)."""
-        train, val, _ = load_kv_memory(num_items=5)
-        assert train == val
+    def test_train_and_val_are_same_for_offline(self):
+        """For offline eval, same items serve as both train (ingest) and val (query)."""
+        ds = load_kv_memory(num_items=5)
+        assert ds.train == ds.val
 
     def test_simple_answers_are_concise(self):
-        train, _, _ = load_kv_memory(num_items=20, difficulty="simple")
-        for item in train:
-            # Answers should be concise factual responses
+        ds = load_kv_memory(num_items=20, difficulty="simple")
+        for item in ds.train:
             assert len(item.expected_answer) < 100
 
 
@@ -108,50 +107,50 @@ class TestLoComoBenchmark:
     def test_train_has_sessions(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
-        train, val, test = load_locomo(data_dir=locomo_data_dir)
-        # 2 sessions → 2 train items
-        assert len(train) == 2
-        assert all(isinstance(i, DataItem) for i in train)
-        assert all(i.raw_text for i in train)
-        assert "[2023-01-15 14:30]" in train[0].raw_text
-        assert "Alice: Hey Bob!" in train[0].raw_text
+        ds = load_locomo(data_dir=locomo_data_dir)
+        assert isinstance(ds, Dataset)
+        assert ds.eval_mode == EvalMode.OFFLINE
+        assert len(ds.train) == 2
+        assert all(isinstance(i, DataItem) for i in ds.train)
+        assert all(i.raw_text for i in ds.train)
+        assert "[2023-01-15 14:30]" in ds.train[0].raw_text
+        assert "Alice: Hey Bob!" in ds.train[0].raw_text
 
     def test_val_has_qa_pairs(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
-        _, val, _ = load_locomo(data_dir=locomo_data_dir)
-        # 2 QAs with category 1,3 (category 5 excluded)
-        assert len(val) == 2
-        assert val[0].question == "Where did Bob go hiking?"
-        assert val[0].expected_answer == "Mt. Rainier"
+        ds = load_locomo(data_dir=locomo_data_dir)
+        assert len(ds.val) == 2
+        assert ds.val[0].question == "Where did Bob go hiking?"
+        assert ds.val[0].expected_answer == "Mt. Rainier"
 
     def test_category_5_excluded(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
-        _, val, _ = load_locomo(data_dir=locomo_data_dir)
-        questions = [v.question for v in val]
+        ds = load_locomo(data_dir=locomo_data_dir)
+        questions = [v.question for v in ds.val]
         assert "Obscure meta question" not in questions
 
     def test_category_filter(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
-        _, val, _ = load_locomo(data_dir=locomo_data_dir, categories=(1,))
-        assert len(val) == 1
-        assert val[0].question == "Where did Bob go hiking?"
+        ds = load_locomo(data_dir=locomo_data_dir, categories=(1,))
+        assert len(ds.val) == 1
+        assert ds.val[0].question == "Where did Bob go hiking?"
 
     def test_deterministic_with_seed(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
-        t1, v1, _ = load_locomo(data_dir=locomo_data_dir, seed=42)
-        t2, v2, _ = load_locomo(data_dir=locomo_data_dir, seed=42)
-        assert [i.raw_text for i in t1] == [i.raw_text for i in t2]
-        assert [i.question for i in v1] == [i.question for i in v2]
+        d1 = load_locomo(data_dir=locomo_data_dir, seed=42)
+        d2 = load_locomo(data_dir=locomo_data_dir, seed=42)
+        assert [i.raw_text for i in d1.train] == [i.raw_text for i in d2.train]
+        assert [i.question for i in d1.val] == [i.question for i in d2.val]
 
     def test_test_set_empty(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
-        _, _, test = load_locomo(data_dir=locomo_data_dir)
-        assert test == []
+        ds = load_locomo(data_dir=locomo_data_dir)
+        assert ds.test == []
 
 
 # ── tau-bench ─────────────────────────────────────────────────────────────────
@@ -191,9 +190,11 @@ class TestTauBenchBenchmark:
     def test_loads_correct_count(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import load_tau_bench
 
-        train, val, test = load_tau_bench(data_dir=tau_data_dir, train_ratio=0.7)
-        assert len(train) + len(val) == 3
-        assert len(test) == 0
+        ds = load_tau_bench(data_dir=tau_data_dir, train_ratio=0.7)
+        assert isinstance(ds, Dataset)
+        assert ds.eval_mode == EvalMode.ONLINE
+        assert len(ds.train) + len(ds.val) == 3
+        assert len(ds.test) == 0
 
     def test_expected_from_outputs(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import _derive_expected
@@ -210,25 +211,25 @@ class TestTauBenchBenchmark:
     def test_raw_text_empty(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import load_tau_bench
 
-        train, val, _ = load_tau_bench(data_dir=tau_data_dir)
-        for item in train + val:
+        ds = load_tau_bench(data_dir=tau_data_dir)
+        for item in ds.train + ds.val:
             assert item.raw_text == ""
 
     def test_train_val_non_overlapping(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import load_tau_bench
 
-        train, val, _ = load_tau_bench(data_dir=tau_data_dir)
-        train_q = {i.question for i in train}
-        val_q = {i.question for i in val}
+        ds = load_tau_bench(data_dir=tau_data_dir)
+        train_q = {i.question for i in ds.train}
+        val_q = {i.question for i in ds.val}
         assert train_q.isdisjoint(val_q)
 
     def test_deterministic_with_seed(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import load_tau_bench
 
-        t1, v1, _ = load_tau_bench(data_dir=tau_data_dir, seed=42)
-        t2, v2, _ = load_tau_bench(data_dir=tau_data_dir, seed=42)
-        assert [i.question for i in t1] == [i.question for i in t2]
-        assert [i.question for i in v1] == [i.question for i in v2]
+        d1 = load_tau_bench(data_dir=tau_data_dir, seed=42)
+        d2 = load_tau_bench(data_dir=tau_data_dir, seed=42)
+        assert [i.question for i in d1.train] == [i.question for i in d2.train]
+        assert [i.question for i in d1.val] == [i.question for i in d2.val]
 
 
 # ── ALFWorld ──────────────────────────────────────────────────────────────────
@@ -312,7 +313,6 @@ class TestALFWorldBenchmark:
 
         base = alfworld_data_dir / "alfworld" / "json_2.1.1" / "valid_unseen"
         items = _parse_trials(base)
-        # 4 solvable, 1 unsolvable filtered
         assert len(items) == 4
         questions = [i.question for i in items]
         assert "Clean the cup." not in questions
@@ -320,21 +320,23 @@ class TestALFWorldBenchmark:
     def test_loads_solvable_tasks(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
-        train, val, test = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
-        assert len(train) == 2
-        assert len(val) == 2
-        assert len(test) == 0
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        assert isinstance(ds, Dataset)
+        assert ds.eval_mode == EvalMode.ONLINE
+        assert len(ds.train) == 2
+        assert len(ds.val) == 2
+        assert len(ds.test) == 0
 
     def test_raw_text_empty(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
-        train, val, _ = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
-        for item in train + val:
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        for item in ds.train + ds.val:
             assert item.raw_text == ""
 
     def test_deterministic_with_seed(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
-        t1, _, _ = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
-        t2, _, _ = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
-        assert [i.question for i in t1] == [i.question for i in t2]
+        d1 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
+        d2 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
+        assert [i.question for i in d1.train] == [i.question for i in d2.train]

@@ -8,7 +8,8 @@ from pathlib import Path
 
 from programmaticmemory.benchmarks._download import download_and_extract_zip, get_data_dir
 from programmaticmemory.datasets import register_dataset
-from programmaticmemory.evolution.types import DataItem
+from programmaticmemory.evolution.evaluator import ExactMatchScorer
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
 
 _GH_RELEASE = "https://github.com/alfworld/alfworld/releases/download/0.2.2"
 _JSON_URL = f"{_GH_RELEASE}/json_2.1.1_json.zip"
@@ -104,14 +105,14 @@ def _parse_trials(base_dir: Path) -> list[DataItem]:
     return items
 
 
-@register_dataset("alfworld")
+@register_dataset("alfworld", scorer=ExactMatchScorer())
 def load_alfworld(
     *,
     num_train: int = 50,
     num_val: int | None = None,
     seed: int = 42,
     data_dir: str | Path | None = None,
-) -> tuple[list[DataItem], list[DataItem], list[DataItem]]:
+) -> Dataset:
     """Load ALFWorld benchmark.
 
     Args:
@@ -121,7 +122,7 @@ def load_alfworld(
         data_dir: Override data directory.
 
     Returns:
-        (train, val, test) — test is empty.
+        Dataset with eval_mode=ONLINE.
     """
     dest_dir = ensure_data(data_dir)
 
@@ -138,4 +139,4 @@ def load_alfworld(
     remaining = items[num_train:]
     val = remaining[:num_val] if num_val is not None else remaining
 
-    return train, val, []
+    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE)

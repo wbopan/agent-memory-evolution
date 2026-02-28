@@ -1,4 +1,4 @@
-"""Evaluator — Type A and Type B evaluation pipelines for Memory Programs.
+"""Evaluator — offline and online evaluation pipelines for Memory Programs.
 
 Both pipelines use multi-turn conversations where messages accumulate across steps,
 matching the design document's specified interaction pattern.
@@ -9,7 +9,7 @@ from __future__ import annotations
 import collections
 import json
 import re
-from typing import Literal, Protocol
+from typing import Protocol
 
 import litellm
 import weave
@@ -26,7 +26,7 @@ from programmaticmemory.evolution.sandbox import (
     extract_dataclass_schema,
 )
 from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
-from programmaticmemory.evolution.types import DataItem, EvalResult, FailedCase, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, EvalMode, EvalResult, FailedCase, MemoryProgram
 from programmaticmemory.logging.logger import get_logger
 
 
@@ -78,7 +78,7 @@ class TokenF1Scorer:
 class LLMJudgeScorer:
     """LLM-as-judge scorer, returns 0.0 or 1.0."""
 
-    def __init__(self, model: str = "openai/gpt-4o-mini") -> None:
+    def __init__(self, model: str = "openrouter/deepseek/deepseek-v3.2") -> None:
         self.model = model
 
     def __call__(self, output: str, expected: str) -> float:
@@ -122,7 +122,7 @@ def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str
 
 
 class MemoryEvaluator:
-    """Evaluates a MemoryProgram on a dataset using Type A or Type B pipeline.
+    """Evaluates a MemoryProgram on a dataset using offline or online pipeline.
 
     Both pipelines use multi-turn conversations where messages accumulate
     across steps within each sample, as specified in the design document.
@@ -131,7 +131,7 @@ class MemoryEvaluator:
     def __init__(
         self,
         scorer: Scorer | None = None,
-        task_model: str = "openai/gpt-4o-mini",
+        task_model: str = "openrouter/deepseek/deepseek-v3.2",
         toolkit_config: ToolkitConfig | None = None,
     ) -> None:
         self.scorer = scorer or ExactMatchScorer()
@@ -145,7 +145,7 @@ class MemoryEvaluator:
         program: MemoryProgram,
         train_data: list[DataItem],
         val_data: list[DataItem],
-        dataset_type: Literal["A", "B"] = "A",
+        eval_mode: EvalMode = EvalMode.OFFLINE,
     ) -> EvalResult:
         """Run evaluation pipeline and return results."""
         compile_result = compile_memory_program(program.source_code)
@@ -167,20 +167,20 @@ class MemoryEvaluator:
             return EvalResult(score=0.0, logs=[f"Memory instantiation failed: {e}"])
 
         try:
-            if dataset_type == "A":
-                return self._evaluate_type_a(
+            if eval_mode == EvalMode.OFFLINE:
+                return self._evaluate_offline(
                     memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
                 )
             else:
-                return self._evaluate_type_b(
+                return self._evaluate_online(
                     memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
                 )
         finally:
             toolkit.close()
 
-    # ── Type A ──────────────────────────────────────────────────────────────
+    # ── Offline ─────────────────────────────────────────────────────────────
 
-    def _evaluate_type_a(
+    def _evaluate_offline(
         self,
         memory: object,
         obs_cls: type,
@@ -191,7 +191,7 @@ class MemoryEvaluator:
         val_data: list[DataItem],
         toolkit: object,
     ) -> EvalResult:
-        """Type A: Batch ingest train (LLM generates observations), then evaluate val."""
+        """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
         logs: list[str] = []
 
         # Train: generate observations via LLM and write
@@ -208,9 +208,9 @@ class MemoryEvaluator:
         # Val: multi-turn query → read → answer → score
         return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
 
-    # ── Type B ──────────────────────────────────────────────────────────────
+    # ── Online ──────────────────────────────────────────────────────────────
 
-    def _evaluate_type_b(
+    def _evaluate_online(
         self,
         memory: object,
         obs_cls: type,
@@ -221,7 +221,7 @@ class MemoryEvaluator:
         val_data: list[DataItem],
         toolkit: object,
     ) -> EvalResult:
-        """Type B: Interleaved multi-turn train, then evaluate val.
+        """Online: Interleaved multi-turn train, then evaluate val.
 
         Each train sample is a multi-turn conversation:
           Step 1: generate query (user → assistant)
@@ -439,12 +439,12 @@ class MemoryEvaluator:
             logs=logs,
         )
 
-    # ── Standalone helpers (Type A only) ────────────────────────────────────
+    # ── Standalone helpers (offline only) ────────────────────────────────────
 
     def _generate_observation_standalone(self, raw_text: str, obs_cls: type, obs_schema: str) -> object | None:
         """Generate an Observation from raw text via a single LLM call.
 
-        Used only for Type A train (batch ingest). Type B uses the multi-turn flow.
+        Used only for offline train (batch ingest). Online uses the multi-turn flow.
         """
         prompt = build_observation_generation_prompt(raw_text, obs_schema)
         try:

@@ -5,7 +5,8 @@ from __future__ import annotations
 import random
 
 from programmaticmemory.datasets import register_dataset
-from programmaticmemory.evolution.types import DataItem
+from programmaticmemory.evolution.evaluator import ExactMatchScorer
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
 
 # Factual statements and corresponding QA pairs
 _FACTS = [
@@ -81,13 +82,13 @@ _COMPOUND_FACTS = [
 ]
 
 
-@register_dataset("kv_memory")
+@register_dataset("kv_memory", scorer=ExactMatchScorer())
 def load_kv_memory(
     *,
     num_items: int = 15,
     difficulty: str = "simple",
     seed: int = 42,
-) -> tuple[list[DataItem], list[DataItem], list[DataItem]]:
+) -> Dataset:
     """Load KV memory benchmark.
 
     Args:
@@ -96,7 +97,7 @@ def load_kv_memory(
         seed: Random seed for shuffling.
 
     Returns:
-        (train, val, test) — test is empty for this benchmark.
+        Dataset with eval_mode=OFFLINE.
     """
     rng = random.Random(seed)
 
@@ -112,10 +113,5 @@ def load_kv_memory(
         rng.shuffle(facts)
         data = [DataItem(raw_text=r, question=q, expected_answer=a) for r, q, a in facts]
 
-    # Split: all items are both train (ingest) and val (query) for Type A
-    # For Type A, train provides raw_text for ingestion, val provides questions for retrieval
-    train = data
-    val = data
-    test: list[DataItem] = []
-
-    return train, val, test
+    # All items are both train (ingest) and val (query) for offline eval
+    return Dataset(train=data, val=data, test=[], eval_mode=EvalMode.OFFLINE)

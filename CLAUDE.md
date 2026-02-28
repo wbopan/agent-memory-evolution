@@ -31,9 +31,12 @@ uv run ruff check src/
 uv run ruff format src/
 
 # Run evolution on kv_memory benchmark
-uv run python -m programmaticmemory.evolution --iterations 5 --num-items 10
+uv run python -m programmaticmemory.evolution --iterations 5 num_items=10
+# Benchmark-specific kwargs passed as positional key=value args
+# --train-size / --val-size to limit dataset size
 # Weave/wandb tracing is ON by default; disable with --no-weave
 # --seed 42 (default), --weave-project programmaticmemory (default)
+# --dataset locomo/tau_bench/alfworld for other benchmarks
 ```
 
 ## Architecture

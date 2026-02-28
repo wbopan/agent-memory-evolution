@@ -33,7 +33,7 @@ class Reflector:
 
     def __init__(
         self,
-        model: str = "openai/gpt-4o",
+        model: str = "openrouter/deepseek/deepseek-v3.2",
         temperature: float = 0.7,
         max_fix_attempts: int = 3,
         toolkit_config: ToolkitConfig | None = None,

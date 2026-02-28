@@ -8,20 +8,22 @@ from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
-from programmaticmemory.evolution.types import DataItem, EvalResult, FailedCase, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode, EvalResult, FailedCase, MemoryProgram
 
 
-def _make_train_val():
-    return (
-        [DataItem(raw_text="Fact 1", question="Q1?", expected_answer="A1")],
-        [DataItem(raw_text="x", question="Q1?", expected_answer="A1")],
+def _make_dataset():
+    return Dataset(
+        train=[DataItem(raw_text="Fact 1", question="Q1?", expected_answer="A1")],
+        val=[DataItem(raw_text="x", question="Q1?", expected_answer="A1")],
+        test=[],
+        eval_mode=EvalMode.OFFLINE,
     )
 
 
 class TestEvolutionLoop:
     def test_initial_evaluation_only(self):
         """With max_iterations=0, only initial program is evaluated."""
-        train, val = _make_train_val()
+        dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.return_value = EvalResult(score=0.5, per_case_scores=[0.5])
@@ -31,8 +33,7 @@ class TestEvolutionLoop:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
+            dataset=dataset,
             max_iterations=0,
         )
         state = loop.run()
@@ -44,7 +45,7 @@ class TestEvolutionLoop:
 
     def test_child_accepted_when_better(self):
         """Child program replaces current when it scores higher."""
-        train, val = _make_train_val()
+        dataset = _make_dataset()
 
         child_program = MemoryProgram(source_code="improved", generation=1)
 
@@ -61,8 +62,7 @@ class TestEvolutionLoop:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
+            dataset=dataset,
             max_iterations=1,
         )
         state = loop.run()
@@ -73,7 +73,7 @@ class TestEvolutionLoop:
 
     def test_child_rejected_when_worse(self):
         """Child program is rejected when it scores lower."""
-        train, val = _make_train_val()
+        dataset = _make_dataset()
 
         initial = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         child = MemoryProgram(source_code="worse", generation=1)
@@ -90,8 +90,7 @@ class TestEvolutionLoop:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
+            dataset=dataset,
             initial_program=initial,
             max_iterations=1,
         )
@@ -103,7 +102,7 @@ class TestEvolutionLoop:
 
     def test_reflection_failure_skips_iteration(self):
         """If reflector returns None, iteration is skipped."""
-        train, val = _make_train_val()
+        dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.return_value = EvalResult(score=0.5, failed_cases=[])
@@ -114,8 +113,7 @@ class TestEvolutionLoop:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
+            dataset=dataset,
             max_iterations=2,
         )
         state = loop.run()
@@ -126,7 +124,7 @@ class TestEvolutionLoop:
 
     def test_stop_condition_halts_loop(self):
         """Stop condition should terminate the loop early."""
-        train, val = _make_train_val()
+        dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.return_value = EvalResult(score=0.5, failed_cases=[])
@@ -140,8 +138,7 @@ class TestEvolutionLoop:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
+            dataset=dataset,
             max_iterations=10,
             stop_condition=stop,
         )
@@ -152,7 +149,7 @@ class TestEvolutionLoop:
 
     def test_tracker_receives_metrics(self):
         """ExperimentTracker should receive log_metrics calls."""
-        train, val = _make_train_val()
+        dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
@@ -168,8 +165,7 @@ class TestEvolutionLoop:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
-            train_data=train,
-            val_data=val,
+            dataset=dataset,
             max_iterations=1,
             tracker=tracker,
         )

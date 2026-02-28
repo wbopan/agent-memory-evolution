@@ -9,7 +9,8 @@ from pathlib import Path
 
 from programmaticmemory.benchmarks._download import download_file, get_data_dir
 from programmaticmemory.datasets import register_dataset
-from programmaticmemory.evolution.types import DataItem
+from programmaticmemory.evolution.evaluator import TokenF1Scorer
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
 
 _LOCOMO_URL = "https://raw.githubusercontent.com/snap-research/locomo/main/data/locomo10.json"
 
@@ -32,14 +33,14 @@ def _format_session(turns: list[dict], date_time: str) -> str:
 _SESSION_KEY_RE = re.compile(r"^session_(\d+)$")
 
 
-@register_dataset("locomo")
+@register_dataset("locomo", scorer=TokenF1Scorer())
 def load_locomo(
     *,
     num_conversations: int | None = None,
     categories: tuple[int, ...] = (1, 2, 3, 4),
     seed: int = 42,
     data_dir: str | Path | None = None,
-) -> tuple[list[DataItem], list[DataItem], list[DataItem]]:
+) -> Dataset:
     """Load LoCoMo benchmark.
 
     Args:
@@ -49,7 +50,7 @@ def load_locomo(
         data_dir: Override data directory.
 
     Returns:
-        (train, val, test) — test is empty.
+        Dataset with eval_mode=OFFLINE.
     """
     data_path = ensure_data(data_dir)
     samples = json.loads(data_path.read_text())
@@ -85,4 +86,4 @@ def load_locomo(
                 continue
             val.append(DataItem(raw_text="", question=qa["question"], expected_answer=qa["answer"]))
 
-    return train, val, []
+    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.OFFLINE)

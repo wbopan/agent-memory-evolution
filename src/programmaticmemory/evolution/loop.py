@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Literal
-
 import weave
 
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.types import (
-    DataItem,
+    Dataset,
     EvolutionRecord,
     EvolutionState,
     MemoryProgram,
@@ -27,20 +25,16 @@ class EvolutionLoop:
         self,
         evaluator: MemoryEvaluator,
         reflector: Reflector,
-        train_data: list[DataItem],
-        val_data: list[DataItem],
+        dataset: Dataset,
         initial_program: MemoryProgram | None = None,
-        dataset_type: Literal["A", "B"] = "A",
         max_iterations: int = 20,
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
-        self.train_data = train_data
-        self.val_data = val_data
+        self.dataset = dataset
         self.initial_program = initial_program or MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        self.dataset_type = dataset_type
         self.max_iterations = max_iterations
         self.stop_condition = stop_condition
         self.tracker = tracker
@@ -50,16 +44,17 @@ class EvolutionLoop:
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
         current = self.initial_program
+        ds = self.dataset
         self.logger.log(
             f"Starting evolution: max_iter={self.max_iterations}, "
-            f"train={len(self.train_data)}, val={len(self.val_data)}, "
-            f"type={self.dataset_type}",
+            f"train={len(ds.train)}, val={len(ds.val)}, "
+            f"eval_mode={ds.eval_mode.value}",
             header="EVOLUTION",
         )
 
         # Evaluate initial program
         self.logger.log(f"Evaluating initial program (hash={current.hash})", header="EVOLUTION")
-        eval_result = self.evaluator.evaluate(current, self.train_data, self.val_data, self.dataset_type)
+        eval_result = self.evaluator.evaluate(current, ds.train, ds.val, ds.eval_mode)
         best_score = eval_result.score
         best_program = current
         self.logger.log(f"Initial score: {best_score:.3f}", header="EVOLUTION")
@@ -93,7 +88,7 @@ class EvolutionLoop:
                 continue
 
             # Evaluate child
-            child_result = self.evaluator.evaluate(child, self.train_data, self.val_data, self.dataset_type)
+            child_result = self.evaluator.evaluate(child, ds.train, ds.val, ds.eval_mode)
             child_score = child_result.score
             self.logger.log(
                 f"Child score: {child_score:.3f} (best: {best_score:.3f})",

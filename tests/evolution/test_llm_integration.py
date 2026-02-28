@@ -24,7 +24,7 @@ from programmaticmemory.evolution.prompts import (
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import compile_memory_program, extract_dataclass_schema
 from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
-from programmaticmemory.evolution.types import DataItem, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, EvalMode, MemoryProgram
 
 MODEL = "openrouter/deepseek/deepseek-v3.2"
 
@@ -83,7 +83,7 @@ def test_query_generation(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3b. Observation Generation (write — Type A standalone)
+# 3b. Observation Generation (write — offline standalone)
 # ---------------------------------------------------------------------------
 
 
@@ -105,7 +105,7 @@ def test_observation_generation(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3c. Observation with Feedback (write — Type B with feedback)
+# 3c. Observation with Feedback (write — online with feedback)
 # ---------------------------------------------------------------------------
 
 
@@ -238,14 +238,14 @@ def test_response_generation(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3g. End-to-End Type A Pipeline
+# 3g. End-to-End Offline Pipeline
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.llm
 @pytest.mark.uses_chroma
-def test_end_to_end_type_a(snapshot: SnapshotAssertion):
-    """Full Type A pipeline: ingest → query → answer → score with real LLM.
+def test_end_to_end_offline(snapshot: SnapshotAssertion):
+    """Full offline pipeline: ingest → query → answer → score with real LLM.
 
     Prompts are generated internally by MemoryEvaluator; this test snapshots
     the evaluation results only.
@@ -261,7 +261,7 @@ def test_end_to_end_type_a(snapshot: SnapshotAssertion):
     val_data = list(train_data)
 
     evaluator = MemoryEvaluator(task_model=MODEL)
-    result = evaluator.evaluate(program, train_data, val_data, dataset_type="A")
+    result = evaluator.evaluate(program, train_data, val_data, eval_mode=EvalMode.OFFLINE)
 
     assert result.score > 0, f"Expected positive score, got {result.score}"
     assert len(result.per_case_outputs) > 0
@@ -277,14 +277,14 @@ def test_end_to_end_type_a(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3h. End-to-End Type B Pipeline (multi-turn train with feedback)
+# 3h. End-to-End Online Pipeline (multi-turn train with feedback)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.llm
 @pytest.mark.uses_chroma
-def test_end_to_end_type_b(snapshot: SnapshotAssertion):
-    """Full Type B pipeline: interleaved train with feedback → val.
+def test_end_to_end_online(snapshot: SnapshotAssertion):
+    """Full online pipeline: interleaved train with feedback → val.
 
     Train has 2 samples where the expected answers are ALL-CAPS (APPLE, GREEN),
     but the questions don't hint at this format. The model must learn the
@@ -318,7 +318,7 @@ def test_end_to_end_type_b(snapshot: SnapshotAssertion):
     ]
 
     evaluator = MemoryEvaluator(task_model=MODEL)
-    result = evaluator.evaluate(program, train_data, val_data, dataset_type="B")
+    result = evaluator.evaluate(program, train_data, val_data, eval_mode=EvalMode.ONLINE)
 
     assert len(result.per_case_outputs) == 1
     assert len(result.per_case_outputs[0]) > 0  # non-empty answer
@@ -392,7 +392,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     evaluator = MemoryEvaluator(task_model=MODEL)
 
     # Round 1: broken program should score 0
-    result1 = evaluator.evaluate(program, train_data, val_data, dataset_type="B")
+    result1 = evaluator.evaluate(program, train_data, val_data, eval_mode=EvalMode.ONLINE)
 
     # Reflect on failures
     reflector = Reflector(model=MODEL, temperature=0.0)
@@ -400,7 +400,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     assert child is not None, "Reflection failed to produce code"
 
     # Round 2: reflected program should improve
-    result2 = evaluator.evaluate(child, train_data, val_data, dataset_type="B")
+    result2 = evaluator.evaluate(child, train_data, val_data, eval_mode=EvalMode.ONLINE)
     assert result2.score > result1.score, (
         f"Expected improvement: round1={result1.score:.3f} -> round2={result2.score:.3f}\n"
         f"Reflected code:\n{child.source_code}\n"

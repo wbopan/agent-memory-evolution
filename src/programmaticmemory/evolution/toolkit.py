@@ -27,7 +27,7 @@ class MemoryLogger:
 class ToolkitConfig:
     """Configuration for Toolkit creation."""
 
-    llm_model: str = "openai/gpt-4o-mini"
+    llm_model: str = "openrouter/deepseek/deepseek-v3.2"
     llm_call_budget: int = 50
     llm_temperature: float = 0.0
 

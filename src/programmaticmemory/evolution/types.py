@@ -4,6 +4,18 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
+from enum import StrEnum
+
+
+class EvalMode(StrEnum):
+    """Evaluation mode — determines how training data is ingested.
+
+    OFFLINE: Batch ingest train data (generate observations), then read-only val.
+    ONLINE: Interleaved multi-turn train (query→answer→feedback→write), then read-only val.
+    """
+
+    OFFLINE = "offline"
+    ONLINE = "online"
 
 
 @dataclass(frozen=True)
@@ -27,13 +39,23 @@ class MemoryProgram:
 class DataItem:
     """A single benchmark data item.
 
-    For Type A: raw_text is ingested during train, question+expected_answer during val.
-    For Type B: all fields used in interleaved train/val.
+    For OFFLINE: raw_text is ingested during train, question+expected_answer during val.
+    For ONLINE: all fields used in interleaved train/val.
     """
 
     raw_text: str
     question: str
     expected_answer: str
+
+
+@dataclass
+class Dataset:
+    """A benchmark dataset with its associated evaluation mode."""
+
+    train: list[DataItem]
+    val: list[DataItem]
+    test: list[DataItem]
+    eval_mode: EvalMode
 
 
 @dataclass
