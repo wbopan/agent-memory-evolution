@@ -82,15 +82,12 @@ class LLMJudgeScorer:
             model=self.model,
             messages=[
                 {
-                    "role": "system",
+                    "role": "user",
                     "content": (
                         "You are a strict judge. Determine if the output answers the question correctly "
-                        "based on the expected answer. Reply ONLY with 1 (correct) or 0 (incorrect)."
+                        "based on the expected answer. Reply ONLY with 1 (correct) or 0 (incorrect).\n\n"
+                        f"Expected answer: {expected}\nActual output: {output}\n\nScore (0 or 1):"
                     ),
-                },
-                {
-                    "role": "user",
-                    "content": f"Expected answer: {expected}\nActual output: {output}\n\nScore (0 or 1):",
                 },
             ],
             temperature=0.0,

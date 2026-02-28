@@ -253,6 +253,31 @@ class Memory:
         assert '"priority"' in schema
         assert "general" in schema  # default value shown
 
+    def test_field_description_in_metadata(self):
+        code = """\
+from dataclasses import dataclass, field
+
+@dataclass
+class Observation:
+    text: str = field(metadata={"description": "The main content to store"})
+    tag: str = field(default="misc", metadata={"description": "Category tag"})
+
+@dataclass
+class Query:
+    raw: str
+
+class Memory:
+    def __init__(self, toolkit): pass
+    def write(self, obs): pass
+    def read(self, query): return ""
+"""
+        result = compile_memory_program(code)
+        assert not isinstance(result, CompileError)
+        obs_cls, _, _ = result
+        schema = extract_dataclass_schema(obs_cls)
+        assert "The main content to store" in schema
+        assert "Category tag" in schema
+
     def test_non_dataclass(self):
         result = compile_memory_program(VALID_PROGRAM)
         assert not isinstance(result, CompileError)

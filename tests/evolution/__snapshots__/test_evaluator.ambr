@@ -11,7 +11,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -33,7 +33,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -51,7 +51,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -69,7 +69,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -87,7 +87,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -120,7 +120,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -138,7 +138,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -175,7 +175,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -193,7 +193,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -211,7 +211,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -247,7 +247,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -265,7 +265,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -288,7 +288,7 @@
             The Observation must conform to this schema:
             // Observation: Raw text observation to store in memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The raw text to store
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -306,7 +306,7 @@
             The Observation must conform to this schema:
             // Observation: Raw text observation to store in memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The raw text to store
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -326,7 +326,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -344,7 +344,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -364,7 +364,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -397,7 +397,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -436,7 +436,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -456,7 +456,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -490,7 +490,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -525,7 +525,7 @@
             The observation must be a JSON object matching this schema:
             // Observation: Raw text observation to store in memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The raw text to store
             }
             
             Respond with the JSON only.
@@ -545,7 +545,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -565,7 +565,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -603,7 +603,7 @@
             The Observation must conform to this schema:
             // Observation: Raw text observation to store in memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The raw text to store
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -623,7 +623,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -641,7 +641,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -661,7 +661,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -693,7 +693,7 @@
             The query must be a JSON object matching this schema:
             // Query: Raw text query to retrieve from memory.
             {
-              "raw": "..."  // str
+              "raw": "..."  // str, The query text to search for
             }
             
             Respond with the JSON only.
@@ -730,7 +730,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -748,7 +748,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -766,7 +766,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -802,7 +802,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -820,7 +820,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -838,7 +838,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -874,7 +874,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -892,7 +892,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -910,7 +910,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -946,7 +946,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -964,7 +964,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -996,7 +996,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1031,7 +1031,7 @@
           The observation must be a JSON object matching this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Respond with the JSON only.
@@ -1049,7 +1049,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1067,7 +1067,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1103,7 +1103,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1121,7 +1121,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1153,7 +1153,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1188,7 +1188,7 @@
           The observation must be a JSON object matching this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Respond with the JSON only.
@@ -1206,7 +1206,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1224,7 +1224,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1260,7 +1260,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1278,7 +1278,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1310,7 +1310,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1345,7 +1345,7 @@
           The observation must be a JSON object matching this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Respond with the JSON only.
@@ -1363,7 +1363,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1381,7 +1381,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1417,7 +1417,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1435,7 +1435,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1467,7 +1467,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1502,7 +1502,7 @@
           The observation must be a JSON object matching this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Respond with the JSON only.
@@ -1520,7 +1520,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1538,7 +1538,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1574,7 +1574,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1592,7 +1592,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1624,7 +1624,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1659,7 +1659,7 @@
           The observation must be a JSON object matching this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Respond with the JSON only.
@@ -1677,7 +1677,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1695,7 +1695,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1731,7 +1731,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -1749,7 +1749,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1767,7 +1767,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1960,7 +1960,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -1978,7 +1978,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -1996,7 +1996,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -2032,7 +2032,7 @@
           The Observation must conform to this schema:
           // Observation: Raw text observation to store in memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The raw text to store
           }
           
           Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -2050,7 +2050,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.
@@ -2068,7 +2068,7 @@
           The query must be a JSON object matching this schema:
           // Query: Raw text query to retrieve from memory.
           {
-            "raw": "..."  // str
+            "raw": "..."  // str, The query text to search for
           }
           
           Respond with the JSON only.

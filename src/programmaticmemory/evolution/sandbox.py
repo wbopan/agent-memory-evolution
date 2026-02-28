@@ -196,6 +196,9 @@ def extract_dataclass_schema(cls: type) -> str:
             comment_parts.append(f"default: {f.default!r}")
         elif f.default_factory is not dataclasses.MISSING:
             comment_parts.append("optional")
+        description = f.metadata.get("description") if f.metadata else None
+        if description:
+            comment_parts.append(description)
 
         comma = "," if i < len(fields) - 1 else ""
         lines.append(f'  "{f.name}": {example}{comma}  // {", ".join(comment_parts)}')

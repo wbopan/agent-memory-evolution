@@ -10,18 +10,19 @@ You are designing a Memory Program that implements three classes:
    - An external LLM will populate instances by generating JSON matching your field definitions
    - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
    - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+   - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
 
 2. **Query** (dataclass): Defines what parameters are used when reading from memory.
    - Must be a @dataclass with typed fields
    - An external LLM will populate instances by generating JSON matching your field definitions
-   - Same JSON-compatible type restriction as Observation
+   - Same JSON-compatible type restriction and field description support as Observation
 
 3. **Memory** (class): The core memory system.
    - `__init__(self, toolkit)`: Receives a Toolkit with:
      - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
      - `toolkit.chroma`: chromadb ephemeral client
      - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
-     - `toolkit.logger.log(message)`: Internal logging
+     - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
    - `write(self, observation: Observation) -> None`: Store information
    - `read(self, query: Query) -> str`: Retrieve relevant information as a string
 
@@ -29,19 +30,19 @@ Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, date
 """
 
 INITIAL_MEMORY_PROGRAM = '''\
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
 class Observation:
     """Raw text observation to store in memory."""
-    raw: str
+    raw: str = field(metadata={"description": "The raw text to store"})
 
 
 @dataclass
 class Query:
     """Raw text query to retrieve from memory."""
-    raw: str
+    raw: str = field(metadata={"description": "The query text to search for"})
 
 
 class Memory:
@@ -53,31 +54,14 @@ class Memory:
 
     def write(self, observation: Observation) -> None:
         self.store.append(observation.raw)
-        self.toolkit.logger.log(f"Stored: {observation.raw}")
+        self.toolkit.logger.debug(f"Stored: {observation.raw}")
 
     def read(self, query: Query) -> str:
-        self.toolkit.logger.log(f"Query: {query.raw}, store size: {len(self.store)}")
+        self.toolkit.logger.debug(f"Query: {query.raw}, store size: {len(self.store)}")
         if not self.store:
             return "No information stored."
         return "\\n".join(self.store)
 '''
-
-REFLECTION_SYSTEM_PROMPT = """\
-You are an expert Python programmer specializing in memory system design.
-
-Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), \
-its evaluation score, and failed cases, diagnose issues and produce an improved version.
-
-{interface_spec}
-
-## Rules
-1. Output your diagnosis first, then the complete improved code in a ```python``` block.
-2. The code must define exactly three classes: Observation, Query, Memory.
-3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
-4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
-5. Most failures stem from the Memory class logic (write/read methods, storage strategy, indexing), \
-not from the Observation/Query schema. Prefer improving the Memory class over changing dataclass fields.
-"""
 
 
 def build_reflection_user_prompt(
@@ -104,6 +88,19 @@ def build_reflection_user_prompt(
                 failed_section += f"  - {log}\n"
 
     return f"""\
+You are an expert Python programmer specializing in memory system design.
+
+Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), \
+its evaluation score, and failed cases, diagnose the issues and fix them.
+
+{MEMORY_INTERFACE_SPEC}
+
+## Rules
+1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
+2. The code must define exactly three classes: Observation, Query, Memory.
+3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+4. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+
 ## Current Memory Program (iteration {iteration})
 
 ```python
@@ -186,23 +183,20 @@ The observation must be a JSON object matching this schema:
 Respond with the JSON only."""
 
 
-COMPILE_FIX_SYSTEM_PROMPT = """\
+def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> str:
+    """Build user prompt for fixing a compile/runtime error."""
+    return f"""\
 You are an expert Python programmer. A Memory Program failed to compile or run.
 Fix the error and output the complete corrected code in a ```python``` block.
 
-{interface_spec}
+{MEMORY_INTERFACE_SPEC}
 
 Rules:
 1. Output ONLY the corrected code in a ```python``` block. No explanation needed.
 2. The code must define exactly three classes: Observation, Query, Memory.
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
 4. Make minimal changes — fix only what's broken.
-"""
 
-
-def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> str:
-    """Build user prompt for fixing a compile/runtime error."""
-    return f"""\
 ## Broken Code
 
 ```python

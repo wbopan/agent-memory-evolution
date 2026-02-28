@@ -13,6 +13,7 @@ from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.evaluator import (
     ExactMatchScorer,
+    LLMJudgeScorer,
     MemoryEvaluator,
     _parse_json_from_llm,
 )
@@ -49,6 +50,26 @@ class TestExactMatchScorer:
 
     def test_empty_output(self):
         assert self.scorer("", "Paris") == 0.0
+
+
+class TestLLMJudgeScorer:
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_sends_user_only_message(self, mock_litellm):
+        """LLMJudgeScorer must not use system messages."""
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = "1"
+        mock_litellm.completion.return_value = mock_resp
+
+        scorer = LLMJudgeScorer()
+        score = scorer("Paris", "Paris")
+
+        assert score == 1.0
+        call_kwargs = mock_litellm.completion.call_args.kwargs
+        messages = call_kwargs["messages"]
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        assert "Paris" in messages[0]["content"]
 
 
 # ── JSON Parsing Tests ──────────────────────────────────────────────────────

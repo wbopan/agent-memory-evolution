@@ -176,10 +176,11 @@ class Memory:
 
         assert len(captured_messages) == 1
         messages = captured_messages[0]
-        # System prompt should contain interface spec
-        assert "Observation" in messages[0]["content"]
-        # User prompt should contain code, score, failed cases
-        user_content = messages[1]["content"]
+        # Single user message containing everything (interface spec + code + failed cases)
+        assert len(messages) == 1
+        assert messages[0]["role"] == "user"
+        user_content = messages[0]["content"]
+        assert "Observation" in user_content  # interface spec
         assert "code here" in user_content
         assert "0.200" in user_content
         assert "What is X?" in user_content

@@ -3,10 +3,8 @@
 from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.prompts import (
-    COMPILE_FIX_SYSTEM_PROMPT,
     INITIAL_MEMORY_PROGRAM,
     MEMORY_INTERFACE_SPEC,
-    REFLECTION_SYSTEM_PROMPT,
     build_compile_fix_prompt,
     build_observation_generation_prompt,
     build_observation_with_feedback_prompt,
@@ -43,17 +41,6 @@ class TestMemoryInterfaceSpec:
         assert "Toolkit" in MEMORY_INTERFACE_SPEC
         assert "write" in MEMORY_INTERFACE_SPEC
         assert "read" in MEMORY_INTERFACE_SPEC
-
-
-class TestReflectionSystemPrompt:
-    def test_has_interface_spec_placeholder(self):
-        assert "{interface_spec}" in REFLECTION_SYSTEM_PROMPT
-
-    def test_format_works(self, snapshot: SnapshotAssertion):
-        formatted = REFLECTION_SYSTEM_PROMPT.format(interface_spec=MEMORY_INTERFACE_SPEC)
-        assert "Observation" in formatted
-        assert "{interface_spec}" not in formatted
-        assert formatted == snapshot
 
 
 class TestBuildReflectionUserPrompt:
@@ -96,13 +83,44 @@ class TestBuildReflectionUserPrompt:
         assert "Query: What is X" in prompt
         assert prompt == snapshot
 
-    def test_limits_to_5_cases(self, snapshot: SnapshotAssertion):
+    def test_includes_all_cases(self, snapshot: SnapshotAssertion):
         cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
-        # Should only include first 5
+        # Should include all cases (caller controls the limit)
         assert "q4" in prompt
-        assert "q5" not in prompt
+        assert "q9" in prompt
         assert prompt == snapshot
+
+    def test_long_conversation_not_truncated(self):
+        long_content = "x" * 500
+        cases = [
+            {
+                "question": "q",
+                "expected": "a",
+                "output": "o",
+                "score": 0.0,
+                "conversation_history": [
+                    {"role": "user", "content": long_content},
+                ],
+            }
+        ]
+        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
+        assert long_content in prompt
+
+    def test_many_memory_logs_not_truncated(self):
+        logs = [f"log entry {i}" for i in range(20)]
+        cases = [
+            {
+                "question": "q",
+                "expected": "a",
+                "output": "o",
+                "score": 0.0,
+                "memory_logs": logs,
+            }
+        ]
+        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
+        assert "log entry 0" in prompt
+        assert "log entry 19" in prompt
 
     def test_handles_empty_optional_fields(self, snapshot: SnapshotAssertion):
         cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0}]
@@ -162,22 +180,6 @@ class TestBuildObservationWithFeedbackPrompt:
         assert "Ground truth" in prompt
         assert "42" in prompt
         assert prompt == snapshot
-
-
-class TestCompileFixSystemPrompt:
-    def test_contains_interface_spec_placeholder(self):
-        assert "{interface_spec}" in COMPILE_FIX_SYSTEM_PROMPT
-
-    def test_format_works(self, snapshot: SnapshotAssertion):
-        formatted = COMPILE_FIX_SYSTEM_PROMPT.format(interface_spec="spec here")
-        assert "spec here" in formatted
-        assert "{interface_spec}" not in formatted
-        assert formatted == snapshot
-
-    def test_instructs_fix(self, snapshot: SnapshotAssertion):
-        formatted = COMPILE_FIX_SYSTEM_PROMPT.format(interface_spec="spec")
-        assert "fix" in formatted.lower() or "correct" in formatted.lower()
-        assert formatted == snapshot
 
 
 class TestBuildCompileFixPrompt:

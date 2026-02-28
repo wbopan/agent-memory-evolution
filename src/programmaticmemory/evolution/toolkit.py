@@ -19,6 +19,9 @@ class MemoryLogger:
     def log(self, message: str) -> None:
         self.logs.append(message)
 
+    def debug(self, message: str) -> None:
+        self.logs.append(message)
+
     def clear(self) -> None:
         self.logs.clear()
 

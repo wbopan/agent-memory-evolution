@@ -12,8 +12,6 @@ from syrupy.assertion import SnapshotAssertion
 from programmaticmemory.evolution.evaluator import MemoryEvaluator, _llm_call, _parse_json_from_llm
 from programmaticmemory.evolution.prompts import (
     INITIAL_MEMORY_PROGRAM,
-    MEMORY_INTERFACE_SPEC,
-    REFLECTION_SYSTEM_PROMPT,
     build_observation_generation_prompt,
     build_observation_with_feedback_prompt,
     build_query_generation_prompt,
@@ -180,7 +178,6 @@ def test_reflection(snapshot: SnapshotAssertion):
         }
     ]
 
-    system_prompt = REFLECTION_SYSTEM_PROMPT.format(interface_spec=MEMORY_INTERFACE_SPEC)
     user_prompt = build_reflection_user_prompt(
         code=INITIAL_MEMORY_PROGRAM,
         score=0.3,
@@ -191,7 +188,6 @@ def test_reflection(snapshot: SnapshotAssertion):
     output = _llm_call(
         MODEL,
         [
-            {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
     )
@@ -209,8 +205,7 @@ def test_reflection(snapshot: SnapshotAssertion):
     assert memory_cls.__name__ == "Memory"
 
     assert {
-        "system_prompt": system_prompt,
-        "user_prompt": user_prompt,
+        "prompt": user_prompt,
         "output": output,
     } == snapshot
 

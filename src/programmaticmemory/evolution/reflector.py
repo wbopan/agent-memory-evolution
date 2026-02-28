@@ -8,9 +8,6 @@ import litellm
 import weave
 
 from programmaticmemory.evolution.prompts import (
-    COMPILE_FIX_SYSTEM_PROMPT,
-    MEMORY_INTERFACE_SPEC,
-    REFLECTION_SYSTEM_PROMPT,
     build_compile_fix_prompt,
     build_reflection_user_prompt,
 )
@@ -58,13 +55,11 @@ class Reflector:
 
     def _try_fix(self, code: str, error_type: str, error_details: str) -> str | None:
         """Ask LLM to fix broken code. Return fixed code or None."""
-        system_prompt = COMPILE_FIX_SYSTEM_PROMPT.format(interface_spec=MEMORY_INTERFACE_SPEC)
         user_prompt = build_compile_fix_prompt(code=code, error_type=error_type, error_details=error_details)
 
         response = litellm.completion(
             model=self.model,
             messages=[
-                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
@@ -99,7 +94,6 @@ class Reflector:
                 }
             )
 
-        system_prompt = REFLECTION_SYSTEM_PROMPT.format(interface_spec=MEMORY_INTERFACE_SPEC)
         user_prompt = build_reflection_user_prompt(
             code=current.source_code,
             score=eval_result.score,
@@ -112,7 +106,6 @@ class Reflector:
         response = litellm.completion(
             model=self.model,
             messages=[
-                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,

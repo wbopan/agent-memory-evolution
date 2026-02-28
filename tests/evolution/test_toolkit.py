@@ -22,6 +22,12 @@ class TestMemoryLogger:
         logger.clear()
         assert logger.logs == []
 
+    def test_debug_appends_to_logs(self):
+        logger = MemoryLogger()
+        logger.debug("debug msg")
+        logger.log("log msg")
+        assert logger.logs == ["debug msg", "log msg"]
+
     def test_empty_initially(self):
         logger = MemoryLogger()
         assert logger.logs == []
