@@ -336,6 +336,20 @@ class MemoryEvaluator:
         logs: list[str],
         toolkit: Toolkit,
     ) -> EvalResult:
+        """Validation: query → read → answer → score. No writes."""
+        if self.batch_process:
+            return self._evaluate_val_batched(memory, query_cls, query_schema, val_data, logs, toolkit)
+        return self._evaluate_val_sequential(memory, query_cls, query_schema, val_data, logs, toolkit)
+
+    def _evaluate_val_sequential(
+        self,
+        memory: Any,
+        query_cls: type,
+        query_schema: str,
+        val_data: list[DataItem],
+        logs: list[str],
+        toolkit: Toolkit,
+    ) -> EvalResult:
         """Validation: multi-turn query → read → answer → score. No writes.
 
         Each val sample is a multi-turn conversation:
@@ -440,6 +454,131 @@ class MemoryEvaluator:
                         expected=item.expected_answer,
                         score=score,
                         conversation_history=list(messages),
+                        memory_logs=list(toolkit.logger.logs),
+                    )
+                )
+
+        avg_score = sum(scores) / len(scores) if scores else 0.0
+        logs.append(f"Val score: {avg_score:.3f} ({len(scores)} cases)")
+        return EvalResult(
+            score=avg_score,
+            per_case_scores=scores,
+            per_case_outputs=outputs,
+            failed_cases=failed_cases,
+            logs=logs,
+        )
+
+    def _evaluate_val_batched(
+        self,
+        memory: Any,
+        query_cls: type,
+        query_schema: str,
+        val_data: list[DataItem],
+        logs: list[str],
+        toolkit: Toolkit,
+    ) -> EvalResult:
+        """Two-round batched val: all query prompts → serial reads → all answer prompts."""
+        if not val_data:
+            logs.append("Val score: 0.000 (0 cases)")
+            return EvalResult(score=0.0, per_case_scores=[], per_case_outputs=[], failed_cases=[], logs=logs)
+
+        # Round 1: batch all query generation
+        round1_messages = [
+            [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema)}]
+            for item in val_data
+        ]
+        round1_responses = self._batch_llm_call(round1_messages)
+
+        # Parse queries and do serial memory reads
+        # slot[i] = (query_obj, query_json_str, retrieved_str) or None if failed
+        slots: list[tuple | None] = []
+        for _item, content in zip(val_data, round1_responses, strict=True):
+            if content is None:
+                slots.append(None)
+                continue
+            try:
+                query = query_cls(**_parse_json_from_llm(content))
+            except Exception as e:
+                self.logger.log(f"Val query parse failed: {e}", header="EVAL")
+                slots.append(None)
+                continue
+            try:
+                retrieved = memory.read(query)
+                retrieved_str = str(retrieved) if retrieved is not None else ""
+            except Exception as e:
+                retrieved_str = f"Read error: {e}"
+                logs.append(f"Val read failed: {e}")
+            slots.append((query, content, retrieved_str))
+
+        # Round 2: batch answer generation only for successful slots
+        valid = [(i, s) for i, s in enumerate(slots) if s is not None]
+        round2_messages = [
+            [
+                {"role": "user", "content": build_query_generation_prompt(val_data[i].question, query_schema)},
+                {"role": "assistant", "content": s[1]},
+                {"role": "user", "content": build_retrieved_memory_prompt(s[2])},
+            ]
+            for i, s in valid
+        ]
+        round2_responses = self._batch_llm_call(round2_messages)
+
+        # Assemble results
+        scores: list[float] = []
+        outputs: list[str] = []
+        failed_cases: list[FailedCase] = []
+
+        valid_idx = 0
+        for i, item in enumerate(val_data):
+            slot = slots[i]
+            if slot is None:
+                scores.append(0.0)
+                outputs.append("")
+                failed_cases.append(
+                    FailedCase(
+                        question=item.question,
+                        output="",
+                        expected=item.expected_answer,
+                        score=0.0,
+                        memory_logs=list(toolkit.logger.logs),
+                    )
+                )
+                continue
+
+            answer = round2_responses[valid_idx]
+            valid_idx += 1
+
+            if answer is None:
+                self.logger.log("Val answer generation failed (batch error)", header="EVAL")
+                scores.append(0.0)
+                outputs.append("")
+                failed_cases.append(
+                    FailedCase(
+                        question=item.question,
+                        output="",
+                        expected=item.expected_answer,
+                        score=0.0,
+                        memory_logs=list(toolkit.logger.logs),
+                    )
+                )
+                continue
+
+            outputs.append(answer)
+            score = self.scorer(answer, item.expected_answer)
+            scores.append(score)
+            if score < 1.0:
+                conv = [
+                    {"role": "user", "content": build_query_generation_prompt(item.question, query_schema)},
+                    {"role": "assistant", "content": slot[1]},
+                    {"role": "user", "content": build_retrieved_memory_prompt(slot[2])},
+                    {"role": "assistant", "content": answer},
+                ]
+                failed_cases.append(
+                    FailedCase(
+                        question=item.question,
+                        output=answer,
+                        expected=item.expected_answer,
+                        score=score,
+                        conversation_history=conv,
                         memory_logs=list(toolkit.logger.logs),
                     )
                 )

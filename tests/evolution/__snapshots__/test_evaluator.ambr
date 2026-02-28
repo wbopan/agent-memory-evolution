@@ -275,6 +275,282 @@
     ]),
   ])
 # ---
+# name: TestMemoryEvaluatorBatch.test_offline_train_single_batch_call
+  list([
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following text, create an Observation object to store this information in memory.
+            
+            Text: France capital is Paris.
+            
+            The Observation must conform to this schema:
+            // Observation: Raw text observation to store in memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Output ONLY a valid JSON object matching the schema fields. No explanation.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following text, create an Observation object to store this information in memory.
+            
+            Text: Germany capital is Berlin.
+            
+            The Observation must conform to this schema:
+            // Observation: Raw text observation to store in memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Output ONLY a valid JSON object matching the schema fields. No explanation.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Capital of France?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Capital of Germany?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Capital of France?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "capital of France"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            France capital is Paris.
+            Germany capital is Berlin.
+            </retrieved_memory>
+            
+            Based on the above memory and the original question, provide your answer.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Capital of Germany?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "capital of Germany"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            France capital is Paris.
+            Germany capital is Berlin.
+            </retrieved_memory>
+            
+            Based on the above memory and the original question, provide your answer.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+  ])
+# ---
+# name: TestMemoryEvaluatorBatch.test_val_two_batch_rounds
+  list([
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following text, create an Observation object to store this information in memory.
+            
+            Text: fact
+            
+            The Observation must conform to this schema:
+            // Observation: Raw text observation to store in memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Output ONLY a valid JSON object matching the schema fields. No explanation.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q1?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q2?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q1?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "q1"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            obs1
+            </retrieved_memory>
+            
+            Based on the above memory and the original question, provide your answer.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q2?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "q2"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            obs1
+            </retrieved_memory>
+            
+            Based on the above memory and the original question, provide your answer.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+  ])
+# ---
 # name: TestMemoryEvaluatorOffline.test_basic_offline_evaluation
   list([
     list([

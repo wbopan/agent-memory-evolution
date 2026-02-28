@@ -715,6 +715,35 @@ class TestMemoryEvaluatorBatch:
         assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_two_batch_rounds(self, mock_litellm, snapshot: SnapshotAssertion):
+        """Val with batch_process=True uses exactly 2 batch_completion rounds."""
+        batch_mock = self._make_batch_mock(
+            [
+                ['{"raw": "obs1"}'],  # offline train (1 item)
+                ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
+                ["correct1", "correct2"],  # val round 2: both answers
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [
+            DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
+            DataItem(raw_text="x", question="Q2?", expected_answer="correct2"),
+        ]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
+        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+
+        assert result.score == 1.0
+        assert len(batch_mock.captured_calls) == 3  # train + 2 val rounds
+        assert len(batch_mock.captured_calls[1]) == 2  # round 1: 2 queries
+        assert len(batch_mock.captured_calls[2]) == 2  # round 2: 2 answers (3 msgs each)
+        assert len(batch_mock.captured_calls[2][0]) == 3  # each answer msg = query+response+retrieved
+        assert batch_mock.captured_calls == snapshot
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_offline_train_exception_in_batch_skips_item(self, mock_litellm):
         """If one batch response is an Exception, that item is skipped gracefully."""
         call_idx = [0]
