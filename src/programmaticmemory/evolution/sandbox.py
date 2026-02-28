@@ -9,6 +9,8 @@ import traceback
 from dataclasses import dataclass, field
 from typing import Any
 
+import weave
+
 from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
 
 ALLOWED_IMPORTS: set[str] = {
@@ -221,6 +223,7 @@ def extract_dataclass_schema(cls: type) -> str:
     return "\n".join(lines)
 
 
+@weave.op()
 def smoke_test(
     source_code: str,
     toolkit_config: ToolkitConfig | None = None,
