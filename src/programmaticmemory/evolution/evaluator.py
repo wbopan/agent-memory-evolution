@@ -129,10 +129,12 @@ class MemoryEvaluator:
         scorer: Scorer | None = None,
         task_model: str = "openrouter/deepseek/deepseek-v3.2",
         toolkit_config: ToolkitConfig | None = None,
+        batch_process: bool = True,
     ) -> None:
         self.scorer = scorer or ExactMatchScorer()
         self.task_model = task_model
         self.toolkit_config = toolkit_config
+        self.batch_process = batch_process
         self.logger = get_logger()
 
     @weave.op()
