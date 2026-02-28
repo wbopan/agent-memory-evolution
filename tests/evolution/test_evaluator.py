@@ -188,7 +188,7 @@ class TestMemoryEvaluatorOffline:
         train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 1.0
@@ -211,7 +211,7 @@ class TestMemoryEvaluatorOffline:
         train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 0.0
@@ -221,7 +221,7 @@ class TestMemoryEvaluatorOffline:
 
     def test_compile_error_returns_zero(self):
         program = MemoryProgram(source_code="invalid python {{{}}")
-        evaluator = MemoryEvaluator()
+        evaluator = MemoryEvaluator(batch_process=False)
         result = evaluator.evaluate(
             program,
             [DataItem(raw_text="x", question="q", expected_answer="a")],
@@ -246,7 +246,7 @@ class TestMemoryEvaluatorOffline:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         # Val Step 2 call (3rd call overall) should have 3 messages:
@@ -287,7 +287,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="val answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         # Train Step 1 (call 0): 1 user message
@@ -327,7 +327,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         # No parse errors in logs means query was parsed successfully
@@ -352,7 +352,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         assert not any("observation parse failed" in log for log in result.logs)
@@ -376,7 +376,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="stored via online")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         # The observation "stored via online" should have been written during train
@@ -402,7 +402,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="correct answer")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         # Step 3 (call index 2) should contain feedback
@@ -434,7 +434,7 @@ class TestValidationPipeline:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         # Should be exactly 3 LLM calls: 1 train obs + 2 val (query + answer)
@@ -485,7 +485,7 @@ class Memory:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         # Check that write was called during train but NOT during val
@@ -513,7 +513,7 @@ class Memory:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="correct")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert len(result.failed_cases) == 1
@@ -540,7 +540,7 @@ class Memory:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is X?", expected_answer="the answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         # Val Step 2 (call index 2): should have 3 messages
@@ -572,7 +572,7 @@ class TestEvaluatorEdgeCases:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score is not None
@@ -594,7 +594,7 @@ class TestEvaluatorEdgeCases:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="a")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 0.0
@@ -604,7 +604,7 @@ class TestEvaluatorEdgeCases:
     def test_empty_val_data(self, snapshot: SnapshotAssertion):
         """Empty val data should return score 0 without crashing."""
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
             mock_fn = _mock_completion_factory(['{"raw": "x"}'])
             mock_litellm.completion = mock_fn
@@ -641,7 +641,7 @@ class TestEvaluatorEdgeCases:
             DataItem(raw_text="x", question="Q2?", expected_answer="right answer"),
         ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 0.5
