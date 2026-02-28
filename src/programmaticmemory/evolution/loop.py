@@ -178,6 +178,10 @@ class EvolutionLoop:
             "total_iterations": state.total_iterations,
             "best_program_hash": state.best_program.hash,
             "best_program_generation": state.best_program.generation,
+            "score_history": [
+                {"iteration": r.iteration, "score": r.score, "accepted": r.accepted} for r in state.history
+            ],
+            "best_program_source": state.best_program.source_code,
         }
         if self.tracker:
             self.tracker.log_summary(summary)

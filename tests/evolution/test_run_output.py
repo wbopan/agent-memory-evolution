@@ -127,6 +127,22 @@ class TestRunOutputManager:
         finally:
             manager.close()
 
+    def test_write_summary_with_history(self, tmp_path):
+        """write_summary should persist arbitrary extra fields including score_history."""
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            metrics = {
+                "best_score": 0.9,
+                "score_history": [{"iteration": 0, "score": 0.5, "accepted": True}],
+                "best_program_source": "class Memory: pass",
+            }
+            manager.write_summary(metrics)
+            loaded = json.loads((manager.run_dir / "summary.json").read_text())
+            assert loaded["score_history"][0]["iteration"] == 0
+            assert "class Memory" in loaded["best_program_source"]
+        finally:
+            manager.close()
+
     def test_write_failed_cases_creates_json(self, tmp_path):
         """write_failed_cases should write failed_cases.json under llm_calls/iter_N/."""
         manager = RunOutputManager(tmp_path, config={})
