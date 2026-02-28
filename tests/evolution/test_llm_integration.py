@@ -23,6 +23,7 @@ from programmaticmemory.evolution.prompts import (
 )
 from programmaticmemory.evolution.reflector import _extract_code_block
 from programmaticmemory.evolution.sandbox import compile_memory_program, extract_dataclass_schema
+from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
 from programmaticmemory.evolution.types import DataItem, MemoryProgram
 
 MODEL = "openrouter/deepseek/deepseek-v3.2"
@@ -34,6 +35,29 @@ def _get_obs_query_schema() -> tuple[str, str]:
     assert not isinstance(result, Exception)
     obs_cls, query_cls, _ = result
     return extract_dataclass_schema(obs_cls), extract_dataclass_schema(query_cls)
+
+
+# ---------------------------------------------------------------------------
+# Toolkit LLM completion
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.llm
+def test_toolkit_llm_completion(snapshot: SnapshotAssertion):
+    """Toolkit.llm_completion() calls real LLM and returns a string answer."""
+    config = ToolkitConfig(llm_model=MODEL, llm_call_budget=5)
+    tk = create_toolkit(config)
+
+    messages = [{"role": "user", "content": "What is 2 + 3? Answer with just the number."}]
+    output = tk.llm_completion(messages)
+
+    assert isinstance(output, str)
+    assert "5" in output
+    assert tk._llm_calls_used == 1
+
+    tk.close()
+
+    assert {"prompt": messages[0]["content"], "output": output} == snapshot
 
 
 # ---------------------------------------------------------------------------

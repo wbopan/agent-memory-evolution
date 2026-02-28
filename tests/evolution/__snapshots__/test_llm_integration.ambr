@@ -516,3 +516,9 @@
     ''',
   })
 # ---
+# name: test_toolkit_llm_completion
+  dict({
+    'output': '5',
+    'prompt': 'What is 2 + 3? Answer with just the number.',
+  })
+# ---
