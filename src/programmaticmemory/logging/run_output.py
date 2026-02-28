@@ -181,6 +181,10 @@ class RunOutputManager:
         except Exception:
             pass  # logging must never crash the evolution loop
 
+    def _iter_dir(self, iteration: int) -> Path:
+        """Return (and create) the llm_calls/iter_N/ directory for the given iteration."""
+        return self._callback._iter_dir(self.run_dir, iteration)
+
     def write_failed_cases(self, iteration: int, cases: list[dict]) -> None:
         """Save failed evaluation cases to llm_calls/iter_N/failed_cases.json.
 
@@ -189,7 +193,7 @@ class RunOutputManager:
             cases: List of dicts, each with question/output/expected/score/memory_logs.
         """
         try:
-            out_path = self._callback._iter_dir(self.run_dir, iteration) / "failed_cases.json"
+            out_path = self._iter_dir(iteration) / "failed_cases.json"
             out_path.write_text(json.dumps(cases, indent=2, default=str), encoding="utf-8")
         except Exception:
             pass  # logging must never crash the evolution loop

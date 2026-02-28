@@ -147,7 +147,6 @@ class TestRunOutputManager:
         """write_failed_cases should write failed_cases.json under llm_calls/iter_N/."""
         manager = RunOutputManager(tmp_path, config={})
         try:
-            manager.set_phase(2, "train")  # ensure iter dir exists
             cases = [
                 {"question": "Q1", "output": "A", "expected": "B", "score": 0.0, "memory_logs": ["log1"]},
             ]

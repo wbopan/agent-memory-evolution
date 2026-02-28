@@ -11,12 +11,26 @@ from programmaticmemory.evolution.types import (
     Dataset,
     EvolutionRecord,
     EvolutionState,
+    FailedCase,
     MemoryProgram,
 )
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.logger import get_logger
 from programmaticmemory.logging.run_output import RunOutputManager
 from programmaticmemory.utils.stop_condition import StopperProtocol
+
+
+def _serialize_failed_cases(failed_cases: list[FailedCase]) -> list[dict]:
+    return [
+        {
+            "question": fc.question,
+            "output": fc.output,
+            "expected": fc.expected,
+            "score": fc.score,
+            "memory_logs": fc.memory_logs,
+        }
+        for fc in failed_cases
+    ]
 
 
 class EvolutionLoop:
@@ -67,19 +81,7 @@ class EvolutionLoop:
         if self.output_manager:
             self.output_manager.write_program(0, current.source_code, accepted=True, score=best_score)
         if self.output_manager and eval_result.failed_cases:
-            self.output_manager.write_failed_cases(
-                0,
-                [
-                    {
-                        "question": fc.question,
-                        "output": fc.output,
-                        "expected": fc.expected,
-                        "score": fc.score,
-                        "memory_logs": fc.memory_logs,
-                    }
-                    for fc in eval_result.failed_cases
-                ],
-            )
+            self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
 
         if self.tracker:
             self.tracker.log_metrics({"score": best_score, "accepted": 1}, iteration=0)
@@ -127,19 +129,7 @@ class EvolutionLoop:
             if self.output_manager:
                 self.output_manager.write_program(i, child.source_code, accepted=accepted, score=child_score)
             if self.output_manager and child_result.failed_cases:
-                self.output_manager.write_failed_cases(
-                    i,
-                    [
-                        {
-                            "question": fc.question,
-                            "output": fc.output,
-                            "expected": fc.expected,
-                            "score": fc.score,
-                            "memory_logs": fc.memory_logs,
-                        }
-                        for fc in child_result.failed_cases
-                    ],
-                )
+                self.output_manager.write_failed_cases(i, _serialize_failed_cases(child_result.failed_cases))
             if accepted:
                 self.logger.log(
                     f"Accepted! {best_score:.3f} -> {child_score:.3f}",
