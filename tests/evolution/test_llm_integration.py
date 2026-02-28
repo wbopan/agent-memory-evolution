@@ -21,7 +21,7 @@ from programmaticmemory.evolution.prompts import (
     build_response_prompt,
     build_retrieved_memory_prompt,
 )
-from programmaticmemory.evolution.reflector import _extract_code_block
+from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import compile_memory_program, extract_dataclass_schema
 from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
 from programmaticmemory.evolution.types import DataItem, MemoryProgram
@@ -329,5 +329,88 @@ def test_end_to_end_type_b(snapshot: SnapshotAssertion):
         "val_output": result.per_case_outputs[0] if result.per_case_outputs else "",
         "num_failed": len(result.failed_cases),
         "logs": result.logs,
+    }
+    assert snapshot_data == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3i. Reflection Recovery (broken program → reflect → working program)
+# ---------------------------------------------------------------------------
+
+BROKEN_MEMORY_PROGRAM = '''\
+from dataclasses import dataclass
+
+
+@dataclass
+class Observation:
+    """Raw text observation to store in memory."""
+    raw: str
+
+
+@dataclass
+class Query:
+    """Raw text query to retrieve from memory."""
+    raw: str
+
+
+class Memory:
+    """Memory with broken read — always reports empty."""
+
+    def __init__(self, toolkit):
+        self.toolkit = toolkit
+        self.store: list[str] = []
+
+    def write(self, observation: Observation) -> None:
+        self.store.append(observation.raw)
+        self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+
+    def read(self, query: Query) -> str:
+        self.toolkit.logger.log(f"Query: {query.raw[:80]}, store size: {len(self.store)}")
+        return "No information stored."
+'''
+
+
+@pytest.mark.llm
+@pytest.mark.uses_chroma
+def test_reflection_recovery(snapshot: SnapshotAssertion):
+    """Broken program → reflect → working program.
+
+    Starts with a program whose read() always returns empty (ignoring stored data),
+    evaluates it (score 0), reflects on the failure, and verifies the reflected
+    program scores higher.
+    """
+    program = MemoryProgram(source_code=BROKEN_MEMORY_PROGRAM)
+    train_data = [
+        DataItem(
+            raw_text="Project Zephyr's internal access code is DELTA-7742.",
+            question="What is Project Zephyr's access code?",
+            expected_answer="DELTA-7742",
+        ),
+    ]
+    val_data = list(train_data)
+
+    evaluator = MemoryEvaluator(task_model=MODEL)
+
+    # Round 1: broken program should score 0
+    result1 = evaluator.evaluate(program, train_data, val_data, dataset_type="B")
+
+    # Reflect on failures
+    reflector = Reflector(model=MODEL, temperature=0.0)
+    child = reflector.reflect_and_mutate(program, result1, iteration=1)
+    assert child is not None, "Reflection failed to produce code"
+
+    # Round 2: reflected program should improve
+    result2 = evaluator.evaluate(child, train_data, val_data, dataset_type="B")
+    assert result2.score > result1.score, (
+        f"Expected improvement: round1={result1.score:.3f} -> round2={result2.score:.3f}\n"
+        f"Reflected code:\n{child.source_code}\n"
+        f"Round2 logs: {result2.logs}"
+    )
+
+    snapshot_data = {
+        "round1_score": result1.score,
+        "round2_score": result2.score,
+        "round2_output": result2.per_case_outputs[0] if result2.per_case_outputs else "",
+        "reflected_code": child.source_code,
     }
     assert snapshot_data == snapshot
