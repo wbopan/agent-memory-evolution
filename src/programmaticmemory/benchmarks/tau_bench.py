@@ -59,7 +59,7 @@ def _derive_expected(task: dict) -> str:
     return ""
 
 
-@register_dataset("tau_bench", scorer=ExactMatchScorer())
+@register_dataset("tau_bench")
 def load_tau_bench(
     *,
     domain: str = "retail",
@@ -97,4 +97,4 @@ def load_tau_bench(
     train = items[:split]
     val = items[split:]
 
-    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE)
+    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE, scorer=ExactMatchScorer())

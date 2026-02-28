@@ -4,7 +4,6 @@ from programmaticmemory.evolution.evaluator import (
     ExactMatchScorer,
     LLMJudgeScorer,
     MemoryEvaluator,
-    Scorer,
 )
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
@@ -19,7 +18,6 @@ from programmaticmemory.evolution.toolkit import (
     MemoryLogger,
     Toolkit,
     ToolkitConfig,
-    create_toolkit,
 )
 from programmaticmemory.evolution.types import (
     DataItem,
@@ -28,4 +26,5 @@ from programmaticmemory.evolution.types import (
     EvolutionState,
     FailedCase,
     MemoryProgram,
+    Scorer,
 )

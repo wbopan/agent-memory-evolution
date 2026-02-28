@@ -75,6 +75,8 @@ its evaluation score, and failed cases, diagnose issues and produce an improved 
 2. The code must define exactly three classes: Observation, Query, Memory.
 3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
 4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
+5. Most failures stem from the Memory class logic (write/read methods, storage strategy, indexing), \
+not from the Observation/Query schema. Prefer improving the Memory class over changing dataclass fields.
 """
 
 
@@ -116,8 +118,7 @@ def build_reflection_user_prompt(
 ## Task
 1. Diagnose why these cases fail.
 2. Propose specific improvements to the Memory Program.
-3. Output the complete improved code in a ```python``` block.
-"""
+3. Output the complete improved code in a ```python``` block."""
 
 
 def build_observation_generation_prompt(raw_text: str, schema: str) -> str:
@@ -183,24 +184,6 @@ The observation must be a JSON object matching this schema:
 {schema}
 
 Respond with the JSON only."""
-
-
-def build_response_prompt(question: str, retrieved: str) -> str:
-    """Prompt the task agent LLM to answer a question given retrieved memory content.
-
-    Used only for Type A observation generation (standalone, non-conversational).
-    For multi-turn flows, use build_retrieved_memory_prompt instead.
-    """
-    return f"""\
-Answer the following question using ONLY the retrieved information below.
-Be concise and direct. If the information is insufficient, say so.
-
-Question: {question}
-
-Retrieved information:
-{retrieved}
-
-Answer:"""
 
 
 COMPILE_FIX_SYSTEM_PROMPT = """\

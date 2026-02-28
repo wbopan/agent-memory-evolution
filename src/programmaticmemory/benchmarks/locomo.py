@@ -33,7 +33,7 @@ def _format_session(turns: list[dict], date_time: str) -> str:
 _SESSION_KEY_RE = re.compile(r"^session_(\d+)$")
 
 
-@register_dataset("locomo", scorer=TokenF1Scorer())
+@register_dataset("locomo")
 def load_locomo(
     *,
     num_conversations: int | None = None,
@@ -86,4 +86,4 @@ def load_locomo(
                 continue
             val.append(DataItem(raw_text="", question=qa["question"], expected_answer=qa["answer"]))
 
-    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.OFFLINE)
+    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.OFFLINE, scorer=TokenF1Scorer())

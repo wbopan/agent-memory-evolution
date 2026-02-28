@@ -1,1 +1,1 @@
-from programmaticmemory.logging.logger import LoggerProtocol, RichLogger, StdOutLogger, get_logger
+from programmaticmemory.logging.logger import LoggerProtocol, RichLogger, get_logger, set_logger

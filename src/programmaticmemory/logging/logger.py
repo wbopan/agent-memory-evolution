@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import io
 import os
 import sys
+from pathlib import Path
 from typing import Protocol
 
 from rich.console import Console
@@ -24,10 +26,17 @@ def _color_for_header(header: str) -> str:
 class RichLogger(LoggerProtocol):
     """A logger that uses rich formatting with colorful output."""
 
-    def __init__(self, console: Console | None = None, indent_level: int = 0):
+    def __init__(
+        self,
+        console: Console | None = None,
+        indent_level: int = 0,
+        log_file: Path | None = None,
+        _log_fh: io.TextIOWrapper | None = None,
+    ):
         self.console = console or Console()
         self._debug_enabled = os.environ.get("LOG_LEVEL", "").upper() == "DEBUG"
         self._indent_level = indent_level
+        self._log_fh = _log_fh or (open(log_file, "a") if log_file else None)
 
     def log(self, message: str, header: str | None = None, flush: bool = False):
         """Log a message with optional colored header.
@@ -46,6 +55,11 @@ class RichLogger(LoggerProtocol):
             self.console.print(f"{indent}{message}")
         if flush:
             sys.stdout.flush()
+        # Tee to file
+        if self._log_fh:
+            prefix = f"[{header.upper()}] " if header else ""
+            self._log_fh.write(f"{indent}{prefix}{message}\n")
+            self._log_fh.flush()
 
     def debug(self, message: str, header: str | None = None, flush: bool = True):
         """Log a debug message (only shown when LOG_LEVEL=DEBUG).
@@ -78,7 +92,13 @@ class RichLogger(LoggerProtocol):
         Returns:
             A new RichLogger with indent_level incremented by 1.
         """
-        return RichLogger(console=self.console, indent_level=self._indent_level + 1)
+        return RichLogger(console=self.console, indent_level=self._indent_level + 1, _log_fh=self._log_fh)
+
+    def close(self) -> None:
+        """Close the log file handle if this logger owns it."""
+        if self._log_fh is not None:
+            self._log_fh.close()
+            self._log_fh = None
 
 
 # Global default logger instance
@@ -97,6 +117,7 @@ def get_logger() -> RichLogger:
     return _default_logger
 
 
-class StdOutLogger(LoggerProtocol):
-    def log(self, message: str, header: str | None = None):
-        print(message)
+def set_logger(logger: RichLogger) -> None:
+    """Set the global default RichLogger instance."""
+    global _default_logger
+    _default_logger = logger

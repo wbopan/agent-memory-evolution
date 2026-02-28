@@ -1,9 +1,7 @@
 """Utility functions for graceful stopping of optimization runs."""
 
-import os
 import signal
-import time
-from typing import Any, Literal, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -23,31 +21,6 @@ class StopperProtocol(Protocol):
             True if the optimization should stop, False otherwise.
         """
         ...
-
-
-class TimeoutStopCondition(StopperProtocol):
-    """Stop callback that stops after a specified timeout."""
-
-    def __init__(self, timeout_seconds: float):
-        self.timeout_seconds = timeout_seconds
-        self.start_time = time.time()
-
-    def __call__(self, state: Any) -> bool:
-        return time.time() - self.start_time > self.timeout_seconds
-
-
-class FileStopper(StopperProtocol):
-    """Stop callback that stops when a specific file exists."""
-
-    def __init__(self, stop_file_path: str):
-        self.stop_file_path = stop_file_path
-
-    def __call__(self, state: Any) -> bool:
-        return os.path.exists(self.stop_file_path)
-
-    def remove_stop_file(self):
-        if os.path.exists(self.stop_file_path):
-            os.remove(self.stop_file_path)
 
 
 class SignalStopper(StopperProtocol):
@@ -81,19 +54,3 @@ class SignalStopper(StopperProtocol):
                 signal.signal(sig, handler)
             except (OSError, ValueError):
                 pass
-
-
-class CompositeStopper(StopperProtocol):
-    """Stop callback that combines multiple stopping conditions."""
-
-    def __init__(self, *stoppers: StopperProtocol, mode: Literal["any", "all"] = "any"):
-        self.stoppers = stoppers
-        self.mode = mode
-
-    def __call__(self, state: Any) -> bool:
-        if self.mode == "any":
-            return any(stopper(state) for stopper in self.stoppers)
-        elif self.mode == "all":
-            return all(stopper(state) for stopper in self.stoppers)
-        else:
-            raise ValueError(f"Unknown mode: {self.mode}")

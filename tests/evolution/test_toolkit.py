@@ -4,8 +4,8 @@ import pytest
 
 from programmaticmemory.evolution.toolkit import (
     MemoryLogger,
+    Toolkit,
     ToolkitConfig,
-    create_toolkit,
 )
 
 
@@ -30,7 +30,7 @@ class TestMemoryLogger:
 class TestToolkitConfig:
     def test_defaults(self):
         config = ToolkitConfig()
-        assert config.llm_model == "openai/gpt-4o-mini"
+        assert config.llm_model == "openrouter/deepseek/deepseek-v3.2"
         assert config.llm_call_budget == 50
         assert config.llm_temperature == 0.0
 
@@ -42,7 +42,7 @@ class TestToolkitConfig:
 
 class TestToolkit:
     def test_sqlite_works(self):
-        tk = create_toolkit()
+        tk = Toolkit()
         tk.db.execute("CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)")
         tk.db.execute("INSERT INTO test VALUES (1, 'hello')")
         row = tk.db.execute("SELECT value FROM test WHERE id=1").fetchone()
@@ -51,7 +51,7 @@ class TestToolkit:
 
     @pytest.mark.uses_chroma
     def test_chroma_works(self):
-        tk = create_toolkit()
+        tk = Toolkit()
         col = tk.chroma.get_or_create_collection("test")
         col.add(ids=["1"], documents=["hello world"])
         results = col.query(query_texts=["hello"], n_results=1)
@@ -60,38 +60,20 @@ class TestToolkit:
         tk.close()
 
     def test_logger_integration(self):
-        tk = create_toolkit()
+        tk = Toolkit()
         tk.logger.log("test message")
         assert "test message" in tk.logger.logs
         tk.close()
 
-    def test_reset_clears_state(self):
-        tk = create_toolkit()
-        # Create some state
-        tk.db.execute("CREATE TABLE test (id INTEGER)")
-        tk.db.execute("INSERT INTO test VALUES (1)")
-        tk.logger.log("before reset")
-        tk._llm_calls_used = 5
-
-        tk.reset()
-
-        # State should be cleared
-        assert tk.logger.logs == []
-        assert tk._llm_calls_used == 0
-        # Old table should not exist
-        cursor = tk.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='test'")
-        assert cursor.fetchone() is None
-        tk.close()
-
     def test_llm_budget_enforcement(self):
-        tk = create_toolkit(ToolkitConfig(llm_call_budget=2))
+        tk = Toolkit(ToolkitConfig(llm_call_budget=2))
         tk._llm_calls_used = 2  # Simulate budget exhaustion
         with pytest.raises(RuntimeError, match="budget exhausted"):
             tk.llm_completion([{"role": "user", "content": "test"}])
         tk.close()
 
     def test_close_is_idempotent(self):
-        tk = create_toolkit()
+        tk = Toolkit()
         tk.close()
         # Second close should not raise (sqlite3 may raise ProgrammingError but we shouldn't crash)
         try:
@@ -99,9 +81,9 @@ class TestToolkit:
         except Exception:
             pass  # Some DB drivers raise on double-close, that's fine
 
-    def test_factory_creates_independent_instances(self):
-        tk1 = create_toolkit()
-        tk2 = create_toolkit()
+    def test_instances_are_independent(self):
+        tk1 = Toolkit()
+        tk2 = Toolkit()
         tk1.db.execute("CREATE TABLE only_in_tk1 (id INTEGER)")
         cursor = tk2.db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='only_in_tk1'")
         assert cursor.fetchone() is None

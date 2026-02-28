@@ -94,30 +94,3 @@ class ExperimentTracker:
             except Exception:
                 pass
         return False
-
-    def log_final_results(
-        self,
-        best_candidate: dict[str, str],
-        best_score: float,
-        total_candidates: int,
-        total_metric_calls: int,
-    ) -> None:
-        """Save final optimization results to wandb summary."""
-        self.log_summary(
-            {
-                "candidate/best_score": best_score,
-                "candidate/total": total_candidates,
-                "candidate/total_evals": total_metric_calls,
-                "candidate/best": best_candidate,
-            }
-        )
-
-
-def create_experiment_tracker(
-    use_weave: bool = False,
-    weave_project_name: str | None = None,
-) -> ExperimentTracker:
-    return ExperimentTracker(
-        use_weave=use_weave,
-        weave_project_name=weave_project_name,
-    )

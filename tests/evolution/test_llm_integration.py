@@ -18,12 +18,11 @@ from programmaticmemory.evolution.prompts import (
     build_observation_with_feedback_prompt,
     build_query_generation_prompt,
     build_reflection_user_prompt,
-    build_response_prompt,
     build_retrieved_memory_prompt,
 )
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import compile_memory_program, extract_dataclass_schema
-from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
+from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 from programmaticmemory.evolution.types import DataItem, EvalMode, MemoryProgram
 
 MODEL = "openrouter/deepseek/deepseek-v3.2"
@@ -46,7 +45,7 @@ def _get_obs_query_schema() -> tuple[str, str]:
 def test_toolkit_llm_completion(snapshot: SnapshotAssertion):
     """Toolkit.llm_completion() calls real LLM and returns a string answer."""
     config = ToolkitConfig(llm_model=MODEL, llm_call_budget=5)
-    tk = create_toolkit(config)
+    tk = Toolkit(config)
 
     messages = [{"role": "user", "content": "What is 2 + 3? Answer with just the number."}]
     output = tk.llm_completion(messages)
@@ -217,28 +216,7 @@ def test_reflection(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3f. Response Generation (standalone answer)
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.llm
-def test_response_generation(snapshot: SnapshotAssertion):
-    """LLM answers a question from retrieved information (standalone, non-conversational)."""
-    prompt = build_response_prompt(
-        "What is the capital of France?",
-        "The capital of France is Paris.",
-    )
-
-    output = _llm_call(MODEL, [{"role": "user", "content": prompt}])
-
-    assert "paris" in output.lower()
-    assert len(output) < 500
-
-    assert {"prompt": prompt, "output": output} == snapshot
-
-
-# ---------------------------------------------------------------------------
-# 3g. End-to-End Offline Pipeline
+# 3f. End-to-End Offline Pipeline
 # ---------------------------------------------------------------------------
 
 

@@ -110,12 +110,12 @@ class TestMemoryLifecycle:
     def test_initial_program_instantiates(self):
         """Initial memory program template can be instantiated."""
         from programmaticmemory.evolution.sandbox import compile_memory_program
-        from programmaticmemory.evolution.toolkit import create_toolkit
+        from programmaticmemory.evolution.toolkit import Toolkit
 
         result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
         assert not isinstance(result, tuple) or len(result) == 3
         _, _, memory_cls = result
-        tk = create_toolkit()
+        tk = Toolkit()
         memory = memory_cls(tk)
         assert memory is not None
         tk.close()
@@ -123,10 +123,10 @@ class TestMemoryLifecycle:
     def test_write_then_read_returns_content(self):
         """Write followed by read should return the written content."""
         from programmaticmemory.evolution.sandbox import compile_memory_program
-        from programmaticmemory.evolution.toolkit import create_toolkit
+        from programmaticmemory.evolution.toolkit import Toolkit
 
         _, _, memory_cls = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-        tk = create_toolkit()
+        tk = Toolkit()
         memory = memory_cls(tk)
         from dataclasses import dataclass
 
@@ -150,10 +150,10 @@ class TestMemoryLifecycle:
     def test_reinstantiation_gives_empty_memory(self):
         """Re-instantiating Memory should produce an empty store (no state leak)."""
         from programmaticmemory.evolution.sandbox import compile_memory_program
-        from programmaticmemory.evolution.toolkit import create_toolkit
+        from programmaticmemory.evolution.toolkit import Toolkit
 
         obs_cls, query_cls, memory_cls = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-        tk = create_toolkit()
+        tk = Toolkit()
 
         # First instance: write data
         mem1 = memory_cls(tk)

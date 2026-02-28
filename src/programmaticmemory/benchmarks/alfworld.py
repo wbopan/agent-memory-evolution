@@ -105,7 +105,7 @@ def _parse_trials(base_dir: Path) -> list[DataItem]:
     return items
 
 
-@register_dataset("alfworld", scorer=ExactMatchScorer())
+@register_dataset("alfworld")
 def load_alfworld(
     *,
     num_train: int = 50,
@@ -139,4 +139,4 @@ def load_alfworld(
     remaining = items[num_train:]
     val = remaining[:num_val] if num_val is not None else remaining
 
-    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE)
+    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE, scorer=ExactMatchScorer())

@@ -5,6 +5,13 @@ from __future__ import annotations
 import hashlib
 from dataclasses import dataclass, field
 from enum import StrEnum
+from typing import Protocol
+
+
+class Scorer(Protocol):
+    """Scoring function: compares model output against expected answer."""
+
+    def __call__(self, output: str, expected: str) -> float: ...
 
 
 class EvalMode(StrEnum):
@@ -50,12 +57,13 @@ class DataItem:
 
 @dataclass
 class Dataset:
-    """A benchmark dataset with its associated evaluation mode."""
+    """A benchmark dataset with its associated evaluation mode and scorer."""
 
     train: list[DataItem]
     val: list[DataItem]
     test: list[DataItem]
     eval_mode: EvalMode
+    scorer: Scorer | None = None
 
 
 @dataclass

@@ -9,7 +9,7 @@ from __future__ import annotations
 import collections
 import json
 import re
-from typing import Protocol
+from typing import Any
 
 import litellm
 import weave
@@ -25,13 +25,9 @@ from programmaticmemory.evolution.sandbox import (
     compile_memory_program,
     extract_dataclass_schema,
 )
-from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
-from programmaticmemory.evolution.types import DataItem, EvalMode, EvalResult, FailedCase, MemoryProgram
+from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
+from programmaticmemory.evolution.types import DataItem, EvalMode, EvalResult, FailedCase, MemoryProgram, Scorer
 from programmaticmemory.logging.logger import get_logger
-
-
-class Scorer(Protocol):
-    def __call__(self, output: str, expected: str) -> float: ...
 
 
 class ExactMatchScorer:
@@ -160,7 +156,7 @@ class MemoryEvaluator:
         obs_schema = extract_dataclass_schema(obs_cls)
         query_schema = extract_dataclass_schema(query_cls)
 
-        toolkit = create_toolkit(self.toolkit_config)
+        toolkit = Toolkit(self.toolkit_config)
         try:
             memory = memory_cls(toolkit)
         except Exception as e:
@@ -182,14 +178,14 @@ class MemoryEvaluator:
 
     def _evaluate_offline(
         self,
-        memory: object,
+        memory: Any,
         obs_cls: type,
         query_cls: type,
         obs_schema: str,
         query_schema: str,
         train_data: list[DataItem],
         val_data: list[DataItem],
-        toolkit: object,
+        toolkit: Toolkit,
     ) -> EvalResult:
         """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
         logs: list[str] = []
@@ -212,14 +208,14 @@ class MemoryEvaluator:
 
     def _evaluate_online(
         self,
-        memory: object,
+        memory: Any,
         obs_cls: type,
         query_cls: type,
         obs_schema: str,
         query_schema: str,
         train_data: list[DataItem],
         val_data: list[DataItem],
-        toolkit: object,
+        toolkit: Toolkit,
     ) -> EvalResult:
         """Online: Interleaved multi-turn train, then evaluate val.
 
@@ -314,12 +310,12 @@ class MemoryEvaluator:
 
     def _evaluate_val(
         self,
-        memory: object,
+        memory: Any,
         query_cls: type,
         query_schema: str,
         val_data: list[DataItem],
         logs: list[str],
-        toolkit: object,
+        toolkit: Toolkit,
     ) -> EvalResult:
         """Validation: multi-turn query → read → answer → score. No writes.
 
@@ -441,7 +437,7 @@ class MemoryEvaluator:
 
     # ── Standalone helpers (offline only) ────────────────────────────────────
 
-    def _generate_observation_standalone(self, raw_text: str, obs_cls: type, obs_schema: str) -> object | None:
+    def _generate_observation_standalone(self, raw_text: str, obs_cls: type, obs_schema: str) -> Any | None:
         """Generate an Observation from raw text via a single LLM call.
 
         Used only for offline train (batch ingest). Online uses the multi-turn flow.

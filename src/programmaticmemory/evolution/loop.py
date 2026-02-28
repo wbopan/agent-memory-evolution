@@ -15,6 +15,7 @@ from programmaticmemory.evolution.types import (
 )
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.logger import get_logger
+from programmaticmemory.logging.run_output import RunOutputManager
 from programmaticmemory.utils.stop_condition import StopperProtocol
 
 
@@ -30,6 +31,7 @@ class EvolutionLoop:
         max_iterations: int = 20,
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
+        output_manager: RunOutputManager | None = None,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -38,6 +40,7 @@ class EvolutionLoop:
         self.max_iterations = max_iterations
         self.stop_condition = stop_condition
         self.tracker = tracker
+        self.output_manager = output_manager
         self.logger = get_logger()
 
     @weave.op()
@@ -53,6 +56,8 @@ class EvolutionLoop:
         )
 
         # Evaluate initial program
+        if self.output_manager:
+            self.output_manager.set_phase(0, "train")
         self.logger.log(f"Evaluating initial program (hash={current.hash})", header="EVOLUTION")
         eval_result = self.evaluator.evaluate(current, ds.train, ds.val, ds.eval_mode)
         best_score = eval_result.score
@@ -80,6 +85,8 @@ class EvolutionLoop:
             self.logger.log(f"Iteration {i}/{self.max_iterations}", header="EVOLUTION")
 
             # Reflect and mutate
+            if self.output_manager:
+                self.output_manager.set_phase(i, "reflect")
             child = self.reflector.reflect_and_mutate(current, eval_result, i)
             if child is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
@@ -88,6 +95,8 @@ class EvolutionLoop:
                 continue
 
             # Evaluate child
+            if self.output_manager:
+                self.output_manager.set_phase(i, "train")
             child_result = self.evaluator.evaluate(child, ds.train, ds.val, ds.eval_mode)
             child_score = child_result.score
             self.logger.log(
@@ -129,14 +138,15 @@ class EvolutionLoop:
             f"Evolution complete: {state.total_iterations} iterations, best score: {state.best_score:.3f}",
             header="EVOLUTION",
         )
+        summary = {
+            "best_score": state.best_score,
+            "total_iterations": state.total_iterations,
+            "best_program_hash": state.best_program.hash,
+            "best_program_generation": state.best_program.generation,
+        }
         if self.tracker:
-            self.tracker.log_summary(
-                {
-                    "best_score": state.best_score,
-                    "total_iterations": state.total_iterations,
-                    "best_program_hash": state.best_program.hash,
-                    "best_program_generation": state.best_program.generation,
-                }
-            )
+            self.tracker.log_summary(summary)
+        if self.output_manager:
+            self.output_manager.write_summary(summary)
 
         return state

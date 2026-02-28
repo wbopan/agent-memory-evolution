@@ -6,12 +6,12 @@ import ast
 import concurrent.futures
 import dataclasses
 import traceback
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any
 
 import weave
 
-from programmaticmemory.evolution.toolkit import ToolkitConfig, create_toolkit
+from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
 ALLOWED_IMPORTS: set[str] = {
     "json",
@@ -42,15 +42,6 @@ class SmokeTestResult:
 
     success: bool
     error: str = ""
-
-
-@dataclass
-class ExecutionResult:
-    """Result of executing memory operations."""
-
-    outputs: list[str] = field(default_factory=list)
-    errors: list[str] = field(default_factory=list)
-    success: bool = True
 
 
 class _ImportValidator(ast.NodeVisitor):
@@ -155,18 +146,8 @@ def compile_memory_program(
     except Exception:
         return CompileError(message="Execution error", details=traceback.format_exc())
 
-    # 5. Extract classes
-    obs_cls = namespace.get("Observation")
-    query_cls = namespace.get("Query")
-    memory_cls = namespace.get("Memory")
-
-    if not all([obs_cls, query_cls, memory_cls]):
-        return CompileError(
-            message="Classes not found after execution",
-            details="One or more of Observation, Query, Memory not in namespace after exec",
-        )
-
-    return (obs_cls, query_cls, memory_cls)
+    # 5. Extract classes (guaranteed to exist — AST check in step 2 verified definitions)
+    return (namespace["Observation"], namespace["Query"], namespace["Memory"])
 
 
 def _type_to_json_example(type_str: str) -> str:
@@ -237,7 +218,7 @@ def smoke_test(
             return SmokeTestResult(success=False, error=f"Compile: {result.message} — {result.details}")
 
         obs_cls, query_cls, memory_cls = result
-        toolkit = create_toolkit(toolkit_config)
+        toolkit = Toolkit(toolkit_config)
         try:
             memory = memory_cls(toolkit)
 
@@ -283,46 +264,3 @@ def smoke_test(
             return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             return SmokeTestResult(success=False, error=f"Smoke test timed out after {timeout}s")
-
-
-def execute_memory_operations(
-    memory: object,
-    operations: list[tuple[str, object]],
-    timeout: float = 30.0,
-) -> ExecutionResult:
-    """Execute a sequence of write/read operations on a memory instance.
-
-    Each operation is ("write", observation) or ("read", query).
-    Individual operation failures don't stop the sequence.
-    """
-
-    def _run() -> ExecutionResult:
-        result = ExecutionResult()
-        for op_type, arg in operations:
-            try:
-                if op_type == "write":
-                    memory.write(arg)
-                    result.outputs.append("")
-                elif op_type == "read":
-                    output = memory.read(arg)
-                    result.outputs.append(str(output) if output is not None else "")
-                else:
-                    result.errors.append(f"Unknown operation: {op_type}")
-                    result.outputs.append("")
-                    result.success = False
-            except Exception as e:
-                result.errors.append(f"{op_type} error: {e}")
-                result.outputs.append("")
-                result.success = False
-        return result
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-        future = executor.submit(_run)
-        try:
-            return future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            return ExecutionResult(
-                outputs=[],
-                errors=[f"Operations timed out after {timeout}s"],
-                success=False,
-            )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ class LLMCallLogger(CustomLogger):
         self._iteration: int = 0
         self._phase: str = "init"
         self._call_index: int = 0
+        self._lock = threading.Lock()
 
     def set_context(self, run_dir: Path, iteration: int, phase: str) -> None:
         """Update the current logging context.
@@ -29,22 +31,29 @@ class LLMCallLogger(CustomLogger):
             iteration: Current evolution iteration number.
             phase: Current phase name (e.g. "evaluate", "reflect").
         """
-        self._run_dir = run_dir
-        self._iteration = iteration
-        self._phase = phase
-        self._call_index = 0
+        with self._lock:
+            self._run_dir = run_dir
+            self._iteration = iteration
+            self._phase = phase
+            self._call_index = 0
 
-    def _iter_dir(self) -> Path:
-        """Return (and create) the directory for the current iteration's LLM calls."""
-        assert self._run_dir is not None
-        d = self._run_dir / "llm_calls" / f"iter_{self._iteration}"
+    def _iter_dir(self, run_dir: Path, iteration: int) -> Path:
+        """Return (and create) the directory for the given iteration's LLM calls."""
+        d = run_dir / "llm_calls" / f"iter_{iteration}"
         d.mkdir(parents=True, exist_ok=True)
         return d
 
-    def _next_path(self) -> Path:
-        """Increment call index and return the path for the next log file."""
-        self._call_index += 1
-        return self._iter_dir() / f"{self._phase}_{self._call_index:03d}.json"
+    def _next_path(self) -> tuple[Path, int, str, int]:
+        """Atomically increment call index and return (path, iteration, phase, call_index)."""
+        with self._lock:
+            if self._run_dir is None:
+                raise RuntimeError("_next_path called before set_context")
+            self._call_index += 1
+            iteration = self._iteration
+            phase = self._phase
+            call_index = self._call_index
+            path = self._iter_dir(self._run_dir, iteration) / f"{phase}_{call_index:03d}.json"
+        return path, iteration, phase, call_index
 
     def _extract_response_text(self, response_obj: Any) -> str:
         """Best-effort extraction of the response text from a litellm response."""
@@ -67,46 +76,52 @@ class LLMCallLogger(CustomLogger):
 
     def log_success_event(self, kwargs: dict, response_obj: Any, start_time: datetime, end_time: datetime) -> None:
         """Log a successful LLM call to disk."""
-        if self._run_dir is None:
-            return
+        try:
+            if self._run_dir is None:
+                return
 
-        path = self._next_path()
-        duration_ms = (end_time - start_time).total_seconds() * 1000
+            path, iteration, phase, call_index = self._next_path()
+            duration_ms = (end_time - start_time).total_seconds() * 1000
 
-        record = {
-            "timestamp": end_time.isoformat(),
-            "iteration": self._iteration,
-            "phase": self._phase,
-            "call_index": self._call_index,
-            "model": kwargs.get("model", "unknown"),
-            "messages": kwargs.get("messages", []),
-            "response": self._extract_response_text(response_obj),
-            "duration_ms": round(duration_ms, 2),
-            "usage": self._extract_usage(response_obj),
-        }
+            record = {
+                "timestamp": end_time.isoformat(),
+                "iteration": iteration,
+                "phase": phase,
+                "call_index": call_index,
+                "model": kwargs.get("model", "unknown"),
+                "messages": kwargs.get("messages", []),
+                "response": self._extract_response_text(response_obj),
+                "duration_ms": round(duration_ms, 2),
+                "usage": self._extract_usage(response_obj),
+            }
 
-        path.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+            path.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+        except Exception:
+            pass  # logging must never crash the evolution loop
 
     def log_failure_event(self, kwargs: dict, response_obj: Any, start_time: datetime, end_time: datetime) -> None:
         """Log a failed LLM call to disk."""
-        if self._run_dir is None:
-            return
+        try:
+            if self._run_dir is None:
+                return
 
-        path = self._next_path()
-        duration_ms = (end_time - start_time).total_seconds() * 1000
+            path, iteration, phase, call_index = self._next_path()
+            duration_ms = (end_time - start_time).total_seconds() * 1000
 
-        record = {
-            "timestamp": end_time.isoformat(),
-            "iteration": self._iteration,
-            "phase": self._phase,
-            "call_index": self._call_index,
-            "model": kwargs.get("model", "unknown"),
-            "messages": kwargs.get("messages", []),
-            "error": str(response_obj),
-            "duration_ms": round(duration_ms, 2),
-        }
+            record = {
+                "timestamp": end_time.isoformat(),
+                "iteration": iteration,
+                "phase": phase,
+                "call_index": call_index,
+                "model": kwargs.get("model", "unknown"),
+                "messages": kwargs.get("messages", []),
+                "error": str(response_obj),
+                "duration_ms": round(duration_ms, 2),
+            }
 
-        path.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+            path.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+        except Exception:
+            pass  # logging must never crash the evolution loop
 
 
 class RunOutputManager:

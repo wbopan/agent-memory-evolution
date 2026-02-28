@@ -66,19 +66,6 @@ class Toolkit:
         response = litellm.completion(model=self.llm_model, messages=messages, **kwargs)
         return response.choices[0].message.content
 
-    def reset(self) -> None:
-        """Reset all state for a fresh evaluation."""
-        self.db.close()
-        self.db = sqlite3.connect(":memory:")
-        self.chroma = chromadb.EphemeralClient()
-        self.logger.clear()
-        self._llm_calls_used = 0
-
     def close(self) -> None:
         """Release resources."""
         self.db.close()
-
-
-def create_toolkit(config: ToolkitConfig | None = None) -> Toolkit:
-    """Factory function to create a fresh Toolkit."""
-    return Toolkit(config)

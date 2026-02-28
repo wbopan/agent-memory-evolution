@@ -12,7 +12,6 @@ from programmaticmemory.evolution.prompts import (
     build_observation_with_feedback_prompt,
     build_query_generation_prompt,
     build_reflection_user_prompt,
-    build_response_prompt,
     build_retrieved_memory_prompt,
 )
 
@@ -162,14 +161,6 @@ class TestBuildObservationWithFeedbackPrompt:
         prompt = build_observation_with_feedback_prompt("ok", "42", "schema")
         assert "Ground truth" in prompt
         assert "42" in prompt
-        assert prompt == snapshot
-
-
-class TestBuildResponsePrompt:
-    def test_includes_question_and_retrieved(self, snapshot: SnapshotAssertion):
-        prompt = build_response_prompt("What is X?", "X is 42.")
-        assert "What is X?" in prompt
-        assert "X is 42." in prompt
         assert prompt == snapshot
 
 

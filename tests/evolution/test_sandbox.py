@@ -1,9 +1,8 @@
-"""Tests for evolution/sandbox.py — compile, schema, smoke test, execution."""
+"""Tests for evolution/sandbox.py — compile, schema, smoke test."""
 
 from programmaticmemory.evolution.sandbox import (
     CompileError,
     compile_memory_program,
-    execute_memory_operations,
     extract_dataclass_schema,
     smoke_test,
 )
@@ -302,106 +301,3 @@ class Memory:
         result = smoke_test(code, timeout=0.1)
         assert result.success is False
         assert "timed out" in result.error
-
-
-class TestExecuteMemoryOperations:
-    def _make_memory(self):
-        """Create a simple memory instance for testing."""
-        result = compile_memory_program(VALID_PROGRAM)
-        assert not isinstance(result, CompileError)
-        obs_cls, query_cls, memory_cls = result
-        from programmaticmemory.evolution.toolkit import create_toolkit
-
-        toolkit = create_toolkit()
-        memory = memory_cls(toolkit)
-        return memory, obs_cls, query_cls, toolkit
-
-    def test_write_and_read(self):
-        memory, obs_cls, query_cls, toolkit = self._make_memory()
-        ops = [
-            ("write", obs_cls(raw="hello")),
-            ("write", obs_cls(raw="world")),
-            ("read", query_cls(raw="anything")),
-        ]
-        result = execute_memory_operations(memory, ops)
-        assert result.success is True
-        assert len(result.outputs) == 3
-        assert result.outputs[0] == ""  # write returns empty
-        assert result.outputs[1] == ""
-        assert "hello" in result.outputs[2]
-        assert "world" in result.outputs[2]
-        toolkit.close()
-
-    def test_error_in_read_does_not_stop_sequence(self):
-        memory, obs_cls, query_cls, toolkit = self._make_memory()
-        # Inject a broken read by patching
-        original_read = memory.read
-        call_count = [0]
-
-        def broken_read(query):
-            call_count[0] += 1
-            if call_count[0] == 1:
-                raise ValueError("first read fails")
-            return original_read(query)
-
-        memory.read = broken_read
-
-        ops = [
-            ("write", obs_cls(raw="data")),
-            ("read", query_cls(raw="q1")),  # will fail
-            ("read", query_cls(raw="q2")),  # should still run
-        ]
-        result = execute_memory_operations(memory, ops)
-        assert result.success is False  # has errors
-        assert len(result.outputs) == 3
-        assert len(result.errors) == 1
-        assert "data" in result.outputs[2]  # second read worked
-        toolkit.close()
-
-    def test_unknown_operation(self):
-        memory, obs_cls, _, toolkit = self._make_memory()
-        ops = [("delete", obs_cls(raw="x"))]
-        result = execute_memory_operations(memory, ops)
-        assert result.success is False
-        assert "Unknown operation" in result.errors[0]
-        toolkit.close()
-
-    def test_timeout(self):
-        code = """\
-from dataclasses import dataclass
-from datetime import datetime
-
-@dataclass
-class Observation:
-    raw: str
-
-@dataclass
-class Query:
-    raw: str
-
-class Memory:
-    def __init__(self, toolkit):
-        self.store = []
-    def write(self, obs):
-        self.store.append(obs.raw)
-    def read(self, query):
-        start = datetime.now()
-        while (datetime.now() - start).total_seconds() < 0.5:
-            pass
-        return ""
-"""
-        result = compile_memory_program(code)
-        assert not isinstance(result, CompileError)
-        obs_cls, query_cls, memory_cls = result
-        from programmaticmemory.evolution.toolkit import create_toolkit
-
-        toolkit = create_toolkit()
-        memory = memory_cls(toolkit)
-        ops = [
-            ("write", obs_cls(raw="data")),
-            ("read", query_cls(raw="q")),
-        ]
-        result = execute_memory_operations(memory, ops, timeout=0.1)
-        assert result.success is False
-        assert "timed out" in result.errors[0]
-        toolkit.close()

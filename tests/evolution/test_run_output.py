@@ -69,17 +69,22 @@ class TestRunOutputManager:
         try:
             manager.set_phase(iteration=3, phase="evaluate")
 
-            # The iter dir is created lazily when _iter_dir() is called (via logging),
-            # but we can verify the callback state was set correctly
-            assert manager._callback._iteration == 3
-            assert manager._callback._phase == "evaluate"
-            assert manager._callback._run_dir == manager.run_dir
-            assert manager._callback._call_index == 0
+            # Log a call to trigger directory creation
+            start = datetime(2025, 1, 1, 12, 0, 0)
+            end = datetime(2025, 1, 1, 12, 0, 1)
+            kwargs = {"model": "m", "messages": []}
+            response = MagicMock()
+            response.choices = [MagicMock()]
+            response.choices[0].message.content = "test"
+            response.usage.prompt_tokens = 1
+            response.usage.completion_tokens = 1
+            response.usage.total_tokens = 2
 
-            # Trigger directory creation by calling _iter_dir
-            iter_dir = manager._callback._iter_dir()
+            manager._callback.log_success_event(kwargs, response, start, end)
+
+            iter_dir = manager.run_dir / "llm_calls" / "iter_3"
             assert iter_dir.exists()
-            assert iter_dir.name == "iter_3"
+            assert (iter_dir / "evaluate_001.json").exists()
         finally:
             manager.close()
 
@@ -247,3 +252,36 @@ class TestLLMCallLogger:
         bad_response = MagicMock(spec=[])  # No attributes
         result = logger._extract_usage(bad_response)
         assert result == {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
+
+
+class TestLoggerTee:
+    """Tests for RichLogger log_file tee functionality."""
+
+    def test_logger_writes_to_file(self, tmp_path):
+        from programmaticmemory.logging.logger import RichLogger
+
+        log_file = tmp_path / "test.log"
+        logger = RichLogger(log_file=log_file)
+        logger.log("hello world", header="TEST")
+        logger.log("second line")
+
+        content = log_file.read_text()
+        assert "[TEST] hello world" in content
+        assert "second line" in content
+
+    def test_logger_without_file_works(self):
+        from programmaticmemory.logging.logger import RichLogger
+
+        logger = RichLogger()
+        logger.log("no crash")  # Should not raise
+
+    def test_indent_preserves_file_handle(self, tmp_path):
+        from programmaticmemory.logging.logger import RichLogger
+
+        log_file = tmp_path / "test.log"
+        logger = RichLogger(log_file=log_file)
+        indented = logger.indent()
+        indented.log("indented message", header="SUB")
+
+        content = log_file.read_text()
+        assert "[SUB] indented message" in content

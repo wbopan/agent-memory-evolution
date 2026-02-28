@@ -2,31 +2,12 @@
 
 from __future__ import annotations
 
-import importlib
-import random
-from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable
+from typing import Any, Callable
 
-from programmaticmemory.core.adapter import DataInst
 from programmaticmemory.evolution.types import Dataset
 
-if TYPE_CHECKING:
-    from programmaticmemory.evolution.evaluator import Scorer
-
-# Built-in dataset name -> module path mapping (lazy-loaded)
-_BUILTIN_DATASETS: dict[str, str] = {}
-
-
-@dataclass
-class BenchmarkConfig:
-    """Metadata registered alongside a dataset loader."""
-
-    loader: Callable[..., Dataset]
-    scorer: Scorer | None = None
-
-
 # User-registered datasets
-_CUSTOM_REGISTRY: dict[str, BenchmarkConfig] = {}
+_CUSTOM_REGISTRY: dict[str, Callable[..., Dataset]] = {}
 
 _benchmarks_imported = False
 
@@ -40,23 +21,14 @@ def _ensure_benchmarks_imported() -> None:
         _benchmarks_imported = True
 
 
-def register_dataset(name: str, *, scorer: Scorer | None = None):
-    """Decorator to register a dataset loader with optional scorer metadata."""
+def register_dataset(name: str):
+    """Decorator to register a dataset loader."""
 
     def decorator(fn: Callable[..., Dataset]) -> Callable[..., Dataset]:
-        _CUSTOM_REGISTRY[name] = BenchmarkConfig(loader=fn, scorer=scorer)
+        _CUSTOM_REGISTRY[name] = fn
         return fn
 
     return decorator
-
-
-def get_benchmark_config(name: str) -> BenchmarkConfig:
-    """Retrieve the BenchmarkConfig for a registered dataset."""
-    _ensure_benchmarks_imported()
-    if name in _CUSTOM_REGISTRY:
-        return _CUSTOM_REGISTRY[name]
-    available = sorted(set(_BUILTIN_DATASETS) | set(_CUSTOM_REGISTRY))
-    raise ValueError(f"Unknown dataset: {name!r}. Available: {available}")
 
 
 def load_dataset(
@@ -68,14 +40,11 @@ def load_dataset(
 ) -> Dataset:
     """Load a dataset by name."""
     _ensure_benchmarks_imported()
-    if name in _CUSTOM_REGISTRY:
-        dataset = _CUSTOM_REGISTRY[name].loader(**kwargs)
-    elif name in _BUILTIN_DATASETS:
-        module = importlib.import_module(_BUILTIN_DATASETS[name])
-        dataset = module.init_dataset(**kwargs)
-    else:
-        available = sorted(set(_BUILTIN_DATASETS) | set(_CUSTOM_REGISTRY))
+    if name not in _CUSTOM_REGISTRY:
+        available = sorted(_CUSTOM_REGISTRY)
         raise ValueError(f"Unknown dataset: {name!r}. Available: {available}")
+
+    dataset = _CUSTOM_REGISTRY[name](**kwargs)
 
     if train_size is not None:
         dataset.train = dataset.train[:train_size]
@@ -86,17 +55,5 @@ def load_dataset(
 
 def list_datasets() -> list[str]:
     """Return sorted list of all available dataset names."""
-    return sorted(set(_BUILTIN_DATASETS) | set(_CUSTOM_REGISTRY))
-
-
-def split_and_shuffle(
-    examples: list[DataInst],
-    *,
-    train_ratio: float = 0.5,
-    seed: int = 0,
-) -> tuple[list[DataInst], list[DataInst]]:
-    """Deterministically shuffle and split examples into train/val."""
-    examples = list(examples)
-    random.Random(seed).shuffle(examples)
-    mid = int(len(examples) * train_ratio)
-    return examples[:mid], examples[mid:]
+    _ensure_benchmarks_imported()
+    return sorted(_CUSTOM_REGISTRY)
