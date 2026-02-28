@@ -7,8 +7,6 @@ from typing import Literal
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
-from programmaticmemory.evolution.sandbox import smoke_test
-from programmaticmemory.evolution.toolkit import ToolkitConfig
 from programmaticmemory.evolution.types import (
     DataItem,
     EvolutionRecord,
@@ -32,7 +30,6 @@ class EvolutionLoop:
         initial_program: MemoryProgram | None = None,
         dataset_type: Literal["A", "B"] = "A",
         max_iterations: int = 20,
-        toolkit_config: ToolkitConfig | None = None,
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
     ) -> None:
@@ -43,7 +40,6 @@ class EvolutionLoop:
         self.initial_program = initial_program or MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         self.dataset_type = dataset_type
         self.max_iterations = max_iterations
-        self.toolkit_config = toolkit_config
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.logger = get_logger()
@@ -88,18 +84,9 @@ class EvolutionLoop:
             # Reflect and mutate
             child = self.reflector.reflect_and_mutate(current, eval_result, i)
             if child is None:
-                self.logger.log("Reflection failed to produce code, skipping", header="EVOLUTION")
+                self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
                 state.history.append(EvolutionRecord(iteration=i, program=current, score=best_score, accepted=False))
                 state.total_iterations = i
-                continue
-
-            # Smoke test
-            st = smoke_test(child.source_code, self.toolkit_config)
-            if not st.success:
-                self.logger.log(f"Smoke test failed: {st.error}", header="EVOLUTION")
-                state.history.append(EvolutionRecord(iteration=i, program=child, score=0.0, accepted=False))
-                if self.tracker:
-                    self.tracker.log_metrics({"score": 0.0, "accepted": 0, "smoke_test_fail": 1}, iteration=i)
                 continue
 
             # Evaluate child
