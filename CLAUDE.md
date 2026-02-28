@@ -46,16 +46,16 @@ This is a GEPA (Gradient-free Exploration with Population Advancement) framework
 Evaluate(program, data) → EvalResult → Reflect(code, failures) → new MemoryProgram → repeat
 ```
 
-Greedy serial: one candidate, one child per iteration, accept if score improves.
+Greedy serial: one candidate, one child per iteration, accept if score improves. Reflector handles compile/smoke-test validation internally; loop.py does not call `smoke_test`.
 
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
 - **types.py** — Core dataclasses: `MemoryProgram`, `DataItem`, `EvalResult`, `FailedCase`, `EvolutionState`
 - **evaluator.py** — Type A (batch-ingest train, then read-only val) and Type B (interleaved multi-turn train with feedback, then read-only val) pipelines. Uses `ExactMatchScorer` (containment-based) or `LLMJudgeScorer`.
-- **reflector.py** — Calls LLM with current code + failed cases, extracts last `` ```python ``` `` block as the improved program.
+- **reflector.py** — Calls LLM with current code + failed cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_memory_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `MemoryProgram` is guaranteed valid.
 - **sandbox.py** — `compile_memory_program()`: AST parse → check 3 required classes → validate import whitelist → exec. Also: `extract_dataclass_schema()` (outputs commented JSON example), `smoke_test()`.
 - **toolkit.py** — Resource bundle (`db`: SQLite, `chroma`: ChromaDB, `llm_completion`: budget-limited LLM, `logger`). Created fresh per evaluation.
-- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). `REFLECTION_SYSTEM_PROMPT` instructs the reflector LLM.
+- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). `REFLECTION_SYSTEM_PROMPT` instructs the reflector LLM. `COMPILE_FIX_SYSTEM_PROMPT` + `build_compile_fix_prompt` for the compile-fix loop.
 - **benchmarks/kv_memory.py** — Simple factual recall benchmark (simple/compound difficulty).
 
 ### Other Modules (under `src/programmaticmemory/`)
@@ -104,5 +104,6 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q
 - LLM integration test model: `openrouter/deepseek/deepseek-v3.2`
 - Import whitelist for Memory Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+- A Memory Program is a **complete Python module**: import statements + three class definitions (Observation, Query, Memory). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
 - Evaluator tests: use `mock_fn = _mock_completion_factory(...)` pattern, snapshot `mock_fn.captured_calls` for prompt verification

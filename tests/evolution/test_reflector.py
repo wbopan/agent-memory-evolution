@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from syrupy.assertion import SnapshotAssertion
+
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import CompileError, SmokeTestResult
 from programmaticmemory.evolution.types import EvalResult, FailedCase, MemoryProgram
@@ -75,7 +77,7 @@ class TestReflector:
     @patch("programmaticmemory.evolution.reflector.smoke_test")
     @patch("programmaticmemory.evolution.reflector.compile_memory_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_successful_reflection(self, mock_litellm, mock_compile, mock_smoke):
+    def test_successful_reflection(self, mock_litellm, mock_compile, mock_smoke, snapshot: SnapshotAssertion):
         """Reflector should produce a new MemoryProgram with incremented generation."""
         mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
         mock_smoke.return_value = SmokeTestResult(success=True)
@@ -122,9 +124,10 @@ class Memory:
         assert child.parent_hash == current.hash
         assert "class Memory" in child.source_code
         assert "self.store" in child.source_code
+        assert mock_litellm.completion.call_args.kwargs["messages"] == snapshot
 
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_reflection_no_code_block_returns_none(self, mock_litellm):
+    def test_reflection_no_code_block_returns_none(self, mock_litellm, snapshot: SnapshotAssertion):
         """If LLM output has no code block, return None."""
         mock_resp = MagicMock()
         mock_resp.choices = [MagicMock()]
@@ -138,9 +141,10 @@ class Memory:
         child = reflector.reflect_and_mutate(current, eval_result, iteration=1)
 
         assert child is None
+        assert mock_litellm.completion.call_args.kwargs["messages"] == snapshot
 
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_reflection_passes_failed_cases(self, mock_litellm):
+    def test_reflection_passes_failed_cases(self, mock_litellm, snapshot: SnapshotAssertion):
         """Verify the reflection prompt includes failed case info."""
         captured_messages = []
 
@@ -181,11 +185,14 @@ class Memory:
         assert "What is X?" in user_content
         assert "42" in user_content
         assert "Stored: X=42" in user_content
+        assert captured_messages == snapshot
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
     @patch("programmaticmemory.evolution.reflector.compile_memory_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_reflection_uses_configured_model_and_temperature(self, mock_litellm, mock_compile, mock_smoke):
+    def test_reflection_uses_configured_model_and_temperature(
+        self, mock_litellm, mock_compile, mock_smoke, snapshot: SnapshotAssertion
+    ):
         """Verify model and temperature are passed to litellm."""
         mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
         mock_smoke.return_value = SmokeTestResult(success=True)
@@ -212,6 +219,7 @@ class Memory:
 
         assert captured_kwargs[0]["model"] == "custom/reflect-model"
         assert captured_kwargs[0]["temperature"] == 0.9
+        assert [kw["messages"] for kw in captured_kwargs] == snapshot
 
 
 class TestReflectorCompileFixLoop:

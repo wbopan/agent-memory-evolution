@@ -414,3 +414,135 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
         "reflected_code": child.source_code,
     }
     assert snapshot_data == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3j. Compile-Fix Loop (broken code → detect → LLM fix → valid)
+# ---------------------------------------------------------------------------
+
+PROGRAM_WITH_DISALLOWED_IMPORT = """\
+import numpy as np
+from dataclasses import dataclass
+
+
+@dataclass
+class Observation:
+    raw: str
+
+
+@dataclass
+class Query:
+    raw: str
+
+
+class Memory:
+    def __init__(self, toolkit):
+        self.store = []
+
+    def write(self, observation: Observation) -> None:
+        self.store.append(observation.raw)
+        self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+
+    def read(self, query: Query) -> str:
+        return "\\n".join(self.store) if self.store else "No information stored."
+"""
+
+PROGRAM_WITH_RUNTIME_BUG = """\
+from dataclasses import dataclass
+
+
+@dataclass
+class Observation:
+    raw: str
+
+
+@dataclass
+class Query:
+    raw: str
+
+
+class Memory:
+    def __init__(self, toolkit):
+        self.toolkit = toolkit
+        self.store = []
+
+    def write(self, observation: Observation) -> None:
+        processed = process_text(observation.raw)
+        self.store.append(processed)
+
+    def read(self, query: Query) -> str:
+        return "\\n".join(self.store) if self.store else "No information stored."
+"""
+
+
+@pytest.mark.llm
+def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
+    """Compile error (disallowed import) → detected → LLM fixes → compiles and passes smoke test."""
+    from programmaticmemory.evolution.sandbox import CompileError, smoke_test
+
+    # Step 1: Verify the program is broken
+    compile_result = compile_memory_program(PROGRAM_WITH_DISALLOWED_IMPORT)
+    assert isinstance(compile_result, CompileError), f"Expected CompileError, got {type(compile_result)}"
+    assert "numpy" in compile_result.details.lower() or "import" in compile_result.message.lower()
+
+    # Step 2: LLM fixes it
+    reflector = Reflector(model=MODEL, temperature=0.0)
+    fixed_code = reflector._try_fix(
+        PROGRAM_WITH_DISALLOWED_IMPORT,
+        error_type=compile_result.message,
+        error_details=compile_result.details,
+    )
+    assert fixed_code is not None, "LLM failed to produce a fix"
+
+    # Step 3: Verify the fix compiles
+    fixed_result = compile_memory_program(fixed_code)
+    assert isinstance(fixed_result, tuple), f"Fixed code still fails to compile: {fixed_result}"
+    obs_cls, query_cls, memory_cls = fixed_result
+    assert obs_cls.__name__ == "Observation"
+    assert query_cls.__name__ == "Query"
+    assert memory_cls.__name__ == "Memory"
+
+    # Step 4: Verify the fix passes smoke test
+    st = smoke_test(fixed_code)
+    assert st.success, f"Fixed code fails smoke test: {st.error}"
+
+    assert {
+        "original_error_type": compile_result.message,
+        "original_error_details": compile_result.details,
+        "fixed_code": fixed_code,
+    } == snapshot
+
+
+@pytest.mark.llm
+def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
+    """Runtime bug (NameError in write) → detected by smoke test → LLM fixes → passes."""
+    from programmaticmemory.evolution.sandbox import smoke_test
+
+    # Step 1: Program compiles but fails smoke test
+    compile_result = compile_memory_program(PROGRAM_WITH_RUNTIME_BUG)
+    assert isinstance(compile_result, tuple), f"Expected compile success, got {compile_result}"
+
+    st = smoke_test(PROGRAM_WITH_RUNTIME_BUG)
+    assert not st.success, "Expected smoke test failure, got success"
+    assert "process_text" in st.error.lower() or "nameerror" in st.error.lower()
+
+    # Step 2: LLM fixes it
+    reflector = Reflector(model=MODEL, temperature=0.0)
+    fixed_code = reflector._try_fix(
+        PROGRAM_WITH_RUNTIME_BUG,
+        error_type="Smoke test error",
+        error_details=st.error,
+    )
+    assert fixed_code is not None, "LLM failed to produce a fix"
+
+    # Step 3: Verify the fix compiles and passes smoke test
+    fixed_compile = compile_memory_program(fixed_code)
+    assert isinstance(fixed_compile, tuple), f"Fixed code fails to compile: {fixed_compile}"
+
+    fixed_st = smoke_test(fixed_code)
+    assert fixed_st.success, f"Fixed code fails smoke test: {fixed_st.error}"
+
+    assert {
+        "original_smoke_error": st.error,
+        "fixed_code": fixed_code,
+    } == snapshot

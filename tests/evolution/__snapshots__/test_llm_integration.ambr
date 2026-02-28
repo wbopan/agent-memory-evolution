@@ -1,4 +1,89 @@
 # serializer version: 1
+# name: test_compile_fix_disallowed_import
+  dict({
+    'fixed_code': '''
+      import json
+      import re
+      import math
+      import hashlib
+      import collections
+      import dataclasses
+      import typing
+      import datetime
+      import textwrap
+      import sqlite3
+      import chromadb
+      from dataclasses import dataclass
+      from typing import Optional
+      
+      
+      @dataclass
+      class Observation:
+          raw: str
+      
+      
+      @dataclass
+      class Query:
+          raw: str
+      
+      
+      class Memory:
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.store = []
+      
+          def write(self, observation: Observation) -> None:
+              self.store.append(observation.raw)
+              self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+      
+          def read(self, query: Query) -> str:
+              return "\n".join(self.store) if self.store else "No information stored."
+    ''',
+    'original_error_details': 'Disallowed import: numpy',
+    'original_error_type': 'Import whitelist violation',
+  })
+# ---
+# name: test_compile_fix_runtime_bug
+  dict({
+    'fixed_code': '''
+      from dataclasses import dataclass
+      from typing import Optional, List
+      import json
+      import re
+      import math
+      import hashlib
+      import collections
+      import datetime
+      import textwrap
+      import sqlite3
+      import chromadb
+      
+      
+      @dataclass
+      class Observation:
+          raw: str
+      
+      
+      @dataclass
+      class Query:
+          raw: str
+      
+      
+      class Memory:
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.store = []
+      
+          def write(self, observation: Observation) -> None:
+              processed = observation.raw  # Simple processing - just use raw text
+              self.store.append(processed)
+      
+          def read(self, query: Query) -> str:
+              return "\n".join(self.store) if self.store else "No information stored."
+    ''',
+    'original_smoke_error': "Runtime: name 'process_text' is not defined",
+  })
+# ---
 # name: test_end_to_end_type_a
   dict({
     'first_output': 'The capital of France is Paris.',

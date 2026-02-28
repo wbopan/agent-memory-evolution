@@ -1,0 +1,279 @@
+# serializer version: 1
+# name: TestReflector.test_reflection_no_code_block_returns_none
+  list([
+    dict({
+      'content': '''
+        You are an expert Python programmer specializing in memory system design.
+        
+        Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose issues and produce an improved version.
+        
+        You are designing a Memory Program that implements three classes:
+        
+        1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+           - Must be a @dataclass with typed fields
+           - An external LLM will populate instances by generating JSON matching your field definitions
+           - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+           - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+        
+        2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+           - Must be a @dataclass with typed fields
+           - An external LLM will populate instances by generating JSON matching your field definitions
+           - Same JSON-compatible type restriction as Observation
+        
+        3. **Memory** (class): The core memory system.
+           - `__init__(self, toolkit)`: Receives a Toolkit with:
+             - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+             - `toolkit.chroma`: chromadb ephemeral client
+             - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+             - `toolkit.logger.log(message)`: Internal logging
+           - `write(self, observation: Observation) -> None`: Store information
+           - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+        
+        Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+        
+        
+        ## Rules
+        1. Output your diagnosis first, then the complete improved code in a ```python``` block.
+        2. The code must define exactly three classes: Observation, Query, Memory.
+        3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
+  
+      ''',
+      'role': 'system',
+    }),
+    dict({
+      'content': '''
+        ## Current Memory Program (iteration 1)
+        
+        ```python
+        x
+        ```
+        
+        ## Evaluation Score: 0.500
+        
+        ## Failed Cases
+        
+        
+        ## Task
+        1. Diagnose why these cases fail.
+        2. Propose specific improvements to the Memory Program.
+        3. Output the complete improved code in a ```python``` block.
+  
+      ''',
+      'role': 'user',
+    }),
+  ])
+# ---
+# name: TestReflector.test_reflection_passes_failed_cases
+  list([
+    list([
+      dict({
+        'content': '''
+          You are an expert Python programmer specializing in memory system design.
+          
+          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose issues and produce an improved version.
+          
+          You are designing a Memory Program that implements three classes:
+          
+          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction as Observation
+          
+          3. **Memory** (class): The core memory system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+               - `toolkit.logger.log(message)`: Internal logging
+             - `write(self, observation: Observation) -> None`: Store information
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          
+          ## Rules
+          1. Output your diagnosis first, then the complete improved code in a ```python``` block.
+          2. The code must define exactly three classes: Observation, Query, Memory.
+          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
+  
+        ''',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          ## Current Memory Program (iteration 5)
+          
+          ```python
+          code here
+          ```
+          
+          ## Evaluation Score: 0.200
+          
+          ## Failed Cases
+          
+          ### Failed Case 1
+          Question: What is X?
+          Expected: 42
+          Got: unknown
+          Score: 0.0
+          Memory logs:
+            - Stored: X=42
+          
+          
+          ## Task
+          1. Diagnose why these cases fail.
+          2. Propose specific improvements to the Memory Program.
+          3. Output the complete improved code in a ```python``` block.
+  
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestReflector.test_reflection_uses_configured_model_and_temperature
+  list([
+    list([
+      dict({
+        'content': '''
+          You are an expert Python programmer specializing in memory system design.
+          
+          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose issues and produce an improved version.
+          
+          You are designing a Memory Program that implements three classes:
+          
+          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction as Observation
+          
+          3. **Memory** (class): The core memory system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+               - `toolkit.logger.log(message)`: Internal logging
+             - `write(self, observation: Observation) -> None`: Store information
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          
+          ## Rules
+          1. Output your diagnosis first, then the complete improved code in a ```python``` block.
+          2. The code must define exactly three classes: Observation, Query, Memory.
+          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
+  
+        ''',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          ## Current Memory Program (iteration 1)
+          
+          ```python
+          x
+          ```
+          
+          ## Evaluation Score: 0.000
+          
+          ## Failed Cases
+          
+          
+          ## Task
+          1. Diagnose why these cases fail.
+          2. Propose specific improvements to the Memory Program.
+          3. Output the complete improved code in a ```python``` block.
+  
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestReflector.test_successful_reflection
+  list([
+    dict({
+      'content': '''
+        You are an expert Python programmer specializing in memory system design.
+        
+        Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose issues and produce an improved version.
+        
+        You are designing a Memory Program that implements three classes:
+        
+        1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+           - Must be a @dataclass with typed fields
+           - An external LLM will populate instances by generating JSON matching your field definitions
+           - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+           - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+        
+        2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+           - Must be a @dataclass with typed fields
+           - An external LLM will populate instances by generating JSON matching your field definitions
+           - Same JSON-compatible type restriction as Observation
+        
+        3. **Memory** (class): The core memory system.
+           - `__init__(self, toolkit)`: Receives a Toolkit with:
+             - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+             - `toolkit.chroma`: chromadb ephemeral client
+             - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+             - `toolkit.logger.log(message)`: Internal logging
+           - `write(self, observation: Observation) -> None`: Store information
+           - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+        
+        Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+        
+        
+        ## Rules
+        1. Output your diagnosis first, then the complete improved code in a ```python``` block.
+        2. The code must define exactly three classes: Observation, Query, Memory.
+        3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
+  
+      ''',
+      'role': 'system',
+    }),
+    dict({
+      'content': '''
+        ## Current Memory Program (iteration 3)
+        
+        ```python
+        old code
+        ```
+        
+        ## Evaluation Score: 0.300
+        
+        ## Failed Cases
+        
+        ### Failed Case 1
+        Question: q
+        Expected: right
+        Got: wrong
+        Score: 0.0
+        
+        
+        ## Task
+        1. Diagnose why these cases fail.
+        2. Propose specific improvements to the Memory Program.
+        3. Output the complete improved code in a ```python``` block.
+  
+      ''',
+      'role': 'user',
+    }),
+  ])
+# ---
