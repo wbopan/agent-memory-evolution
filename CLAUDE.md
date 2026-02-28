@@ -17,6 +17,9 @@ uv run pytest tests/evolution/ -m "not llm" -v
 # Run only LLM integration tests (uses disk cache by default)
 uv run pytest tests/evolution/ -m llm -v
 
+# Update all snapshots (unit test snapshots don't need API keys)
+uv run pytest tests/evolution/ -m "not llm" --snapshot-update -v
+
 # Update LLM snapshots (requires OPENROUTER_API_KEY or DEEPSEEK_API_KEY)
 uv run pytest tests/evolution/test_llm_integration.py --snapshot-update
 
@@ -24,11 +27,13 @@ uv run pytest tests/evolution/test_llm_integration.py --snapshot-update
 uv run pytest tests/evolution/test_evaluator.py::TestTypeAEvaluation::test_basic_type_a -v
 
 # Lint & format (also runs as pre-commit hooks)
-ruff check src/
-ruff format src/
+uv run ruff check src/
+uv run ruff format src/
 
 # Run evolution on kv_memory benchmark
-python -m programmaticmemory.evolution --iterations 5 --num-items 10
+uv run python -m programmaticmemory.evolution --iterations 5 --num-items 10
+# Weave/wandb tracing is ON by default; disable with --no-weave
+# --seed 42 (default), --weave-project programmaticmemory (default)
 ```
 
 ## Architecture
@@ -62,6 +67,7 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - **core/data_loader.py** — Data loader protocols and split helpers.
 - **logging/experiment_tracker.py** — Experiment tracking via wandb/weave.
 - **logging/weave_tracing.py** — Weave call tracing utilities with feedback.
+
 - **utils/stop_condition.py** — Graceful stopping (signal handlers, convergence checks).
 
 ### Two Separate LLM Roles
@@ -73,7 +79,11 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 
 - **Pytest markers**: `@pytest.mark.llm` (real LLM calls), `@pytest.mark.uses_chroma` (real ChromaDB instead of mock)
 - **Disk cache**: `tests/evolution/.llm_cache/` — litellm disk cache committed to git, so LLM tests replay without API keys. Configured in `tests/evolution/conftest.py` via session-scoped fixture that wraps `litellm.completion` with `caching=True`.
-- **Syrupy snapshots**: `tests/evolution/__snapshots__/test_llm_integration.ambr` — each snapshot is a `{prompt, output}` dict so prompts and LLM responses can be reviewed together.
+- **Syrupy snapshots**: `tests/evolution/__snapshots__/*.ambr` — 4 snapshot files:
+  - `test_prompts.ambr` — prompt template outputs from `build_*` functions and formatted system prompts
+  - `test_evaluator.ambr` — full `captured_calls` (all messages sent to mock LLM per test)
+  - `test_reflector.ambr` — reflection LLM call messages (system + user prompts)
+  - `test_llm_integration.ambr` — `{prompt, output}` dicts with real LLM responses
 - **ChromaDB mock**: `conftest.py` auto-mocks `chromadb.EphemeralClient`; opt out with `@pytest.mark.uses_chroma`.
 
 ## Knowledge Files
@@ -84,8 +94,9 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 ## Environment Setup
 
 - Package manager: `uv` (required)
-- `OPENROUTER_API_KEY` or `DEEPSEEK_API_KEY` — needed for real LLM calls and snapshot updates
+- `OPENROUTER_API_KEY` — needed for real LLM calls and snapshot updates
 - LLM tests replay from disk cache (`tests/evolution/.llm_cache/`) without API keys
+- Worktree directory: `.worktrees/` (gitignored, used for feature branch isolation)
 
 ## Conventions
 
@@ -93,3 +104,5 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q
 - LLM integration test model: `openrouter/deepseek/deepseek-v3.2`
 - Import whitelist for Memory Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+- All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
+- Evaluator tests: use `mock_fn = _mock_completion_factory(...)` pattern, snapshot `mock_fn.captured_calls` for prompt verification
