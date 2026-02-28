@@ -236,7 +236,28 @@ class MemoryEvaluator:
         val_data: list[DataItem],
         toolkit: Toolkit,
     ) -> EvalResult:
-        """Online: Interleaved multi-turn train, then evaluate val.
+        """Online: Interleaved multi-turn train, then evaluate val."""
+        logs: list[str] = []
+        if self.batch_process:
+            self._online_train_batched(memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs)
+        else:
+            self._online_train_sequential(
+                memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs, toolkit
+            )
+        return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+
+    def _online_train_sequential(
+        self,
+        memory: Any,
+        obs_cls: type,
+        query_cls: type,
+        obs_schema: str,
+        query_schema: str,
+        train_data: list[DataItem],
+        logs: list[str],
+        toolkit: Toolkit,
+    ) -> None:
+        """Online train sequential: one item at a time, multi-turn conversation per item.
 
         Each train sample is a multi-turn conversation:
           Step 1: generate query (user → assistant)
@@ -244,8 +265,6 @@ class MemoryEvaluator:
           Step 3: generate observation with feedback (user → assistant)
           Step 4: write observation to memory
         """
-        logs: list[str] = []
-
         for item in train_data:
             messages: list[dict[str, str]] = []
 
@@ -322,8 +341,106 @@ class MemoryEvaluator:
             except Exception as e:
                 logs.append(f"Train write failed: {e}")
 
-        # Val: multi-turn query → read → answer → score (no writes)
-        return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+    def _online_train_batched(
+        self,
+        memory: Any,
+        obs_cls: type,
+        query_cls: type,
+        obs_schema: str,
+        query_schema: str,
+        train_data: list[DataItem],
+        logs: list[str],
+    ) -> None:
+        """Online train batched: 3 rounds of batch_completion, then serial writes."""
+        if not train_data:
+            return
+
+        # Round 1: query generation for all items
+        round1_messages = [
+            [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema)}]
+            for item in train_data
+        ]
+        round1_responses = self._batch_llm_call(round1_messages)
+
+        # Parse queries + serial reads
+        # slot[i] = (query_obj, query_json_str, retrieved_str) or None
+        slots: list[tuple | None] = []
+        for _item, content in zip(train_data, round1_responses, strict=True):
+            if content is None:
+                logs.append("Train query generation failed (batch error)")
+                slots.append(None)
+                continue
+            try:
+                query = query_cls(**_parse_json_from_llm(content))
+            except Exception as e:
+                logs.append(f"Train query parse failed: {e}")
+                slots.append(None)
+                continue
+            try:
+                retrieved = memory.read(query)
+                retrieved_str = str(retrieved) if retrieved is not None else ""
+            except Exception as e:
+                retrieved_str = f"Read error: {e}"
+                logs.append(f"Train read failed: {e}")
+            slots.append((query, content, retrieved_str))
+
+        # Round 2: answer generation for valid slots
+        valid = [(i, s) for i, s in enumerate(slots) if s is not None]
+        round2_messages = [
+            [
+                {"role": "user", "content": build_query_generation_prompt(train_data[i].question, query_schema)},
+                {"role": "assistant", "content": s[1]},
+                {"role": "user", "content": build_retrieved_memory_prompt(s[2])},
+            ]
+            for i, s in valid
+        ]
+        round2_responses = self._batch_llm_call(round2_messages)
+
+        # Score answers for feedback; build tuples for round 3
+        # (item, slot, msgs_so_far, answer, score, evaluation_result)
+        answered: list[tuple] = []
+        for (i, s), answer in zip(valid, round2_responses, strict=True):
+            item = train_data[i]
+            if answer is None:
+                logs.append("Train answer generation failed (batch error)")
+                continue
+            score = self.scorer(answer, item.expected_answer)
+            evaluation_result = f"Score: {score:.1f} ({'correct' if score >= 1.0 else 'incorrect'})"
+            msgs_so_far = [
+                {"role": "user", "content": build_query_generation_prompt(item.question, query_schema)},
+                {"role": "assistant", "content": s[1]},
+                {"role": "user", "content": build_retrieved_memory_prompt(s[2])},
+                {"role": "assistant", "content": answer},
+            ]
+            answered.append((item, s, msgs_so_far, answer, score, evaluation_result))
+
+        # Round 3: observation generation with feedback
+        round3_messages = [
+            msgs_so_far
+            + [
+                {
+                    "role": "user",
+                    "content": build_observation_with_feedback_prompt(
+                        evaluation_result, item.expected_answer, obs_schema
+                    ),
+                }
+            ]
+            for item, s, msgs_so_far, answer, score, evaluation_result in answered
+        ]
+        round3_responses = self._batch_llm_call(round3_messages)
+
+        # Serial writes
+        for (_item, _s, _msgs_so_far, _answer, _score, _ev), obs_content in zip(
+            answered, round3_responses, strict=True
+        ):
+            if obs_content is None:
+                logs.append("Train observation generation failed (batch error)")
+                continue
+            try:
+                obs = obs_cls(**_parse_json_from_llm(obs_content))
+                memory.write(obs)
+            except Exception as e:
+                logs.append(f"Train observation parse/write failed: {e}")
 
     # ── Shared validation ───────────────────────────────────────────────────
 
