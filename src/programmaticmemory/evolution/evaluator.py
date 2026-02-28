@@ -11,6 +11,7 @@ import re
 from typing import Literal, Protocol
 
 import litellm
+import weave
 
 from programmaticmemory.evolution.prompts import (
     build_observation_generation_prompt,
@@ -114,6 +115,7 @@ class MemoryEvaluator:
         self.toolkit_config = toolkit_config
         self.logger = get_logger()
 
+    @weave.op()
     def evaluate(
         self,
         program: MemoryProgram,
