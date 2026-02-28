@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+import weave
+
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
@@ -48,6 +50,7 @@ class EvolutionLoop:
         self.tracker = tracker
         self.logger = get_logger()
 
+    @weave.op()
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
         current = self.initial_program

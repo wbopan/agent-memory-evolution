@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 import litellm
+import weave
 
 from programmaticmemory.evolution.prompts import (
     MEMORY_INTERFACE_SPEC,
@@ -35,6 +36,7 @@ class Reflector:
         self.temperature = temperature
         self.logger = get_logger()
 
+    @weave.op()
     def reflect_and_mutate(
         self,
         current: MemoryProgram,
