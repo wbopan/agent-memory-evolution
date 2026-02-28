@@ -7,11 +7,14 @@ You are designing a Memory Program that implements three classes:
 
 1. **Observation** (dataclass): Defines what information is captured when writing to memory.
    - Must be a @dataclass with typed fields
-   - The evaluator LLM will generate instances based on your field definitions
+   - An external LLM will populate instances by generating JSON matching your field definitions
+   - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+   - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
 
 2. **Query** (dataclass): Defines what parameters are used when reading from memory.
    - Must be a @dataclass with typed fields
-   - The evaluator LLM will generate instances based on your field definitions
+   - An external LLM will populate instances by generating JSON matching your field definitions
+   - Same JSON-compatible type restriction as Observation
 
 3. **Memory** (class): The core memory system.
    - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -70,12 +73,8 @@ its evaluation score, and failed cases, diagnose issues and produce an improved 
 ## Rules
 1. Output your diagnosis first, then the complete improved code in a ```python``` block.
 2. The code must define exactly three classes: Observation, Query, Memory.
-3. You may change Observation/Query field definitions to capture richer information.
-4. You may use any allowed imports.
-5. Memory.__init__ must accept a single `toolkit` argument.
-6. Memory.write must accept a single Observation instance.
-7. Memory.read must accept a single Query instance and return a str.
-8. Be creative but practical — focus on fixing the actual failure patterns.
+3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+4. Keep it simple. Fix only what is broken — do not over-engineer or rewrite working parts.
 """
 
 
@@ -202,3 +201,33 @@ Retrieved information:
 {retrieved}
 
 Answer:"""
+
+
+COMPILE_FIX_SYSTEM_PROMPT = """\
+You are an expert Python programmer. A Memory Program failed to compile or run.
+Fix the error and output the complete corrected code in a ```python``` block.
+
+{interface_spec}
+
+Rules:
+1. Output ONLY the corrected code in a ```python``` block. No explanation needed.
+2. The code must define exactly three classes: Observation, Query, Memory.
+3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+4. Make minimal changes — fix only what's broken.
+"""
+
+
+def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> str:
+    """Build user prompt for fixing a compile/runtime error."""
+    return f"""\
+## Broken Code
+
+```python
+{code}
+```
+
+## Error
+
+**{error_type}**: {error_details}
+
+Fix the error and output the complete corrected code in a ```python``` block."""

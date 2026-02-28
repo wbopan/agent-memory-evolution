@@ -1,9 +1,11 @@
 """Tests for evolution/prompts.py — prompt templates and construction."""
 
 from programmaticmemory.evolution.prompts import (
+    COMPILE_FIX_SYSTEM_PROMPT,
     INITIAL_MEMORY_PROGRAM,
     MEMORY_INTERFACE_SPEC,
     REFLECTION_SYSTEM_PROMPT,
+    build_compile_fix_prompt,
     build_observation_generation_prompt,
     build_observation_with_feedback_prompt,
     build_query_generation_prompt,
@@ -155,3 +157,38 @@ class TestBuildResponsePrompt:
         prompt = build_response_prompt("What is X?", "X is 42.")
         assert "What is X?" in prompt
         assert "X is 42." in prompt
+
+
+class TestCompileFixSystemPrompt:
+    def test_contains_interface_spec_placeholder(self):
+        assert "{interface_spec}" in COMPILE_FIX_SYSTEM_PROMPT
+
+    def test_format_works(self):
+        formatted = COMPILE_FIX_SYSTEM_PROMPT.format(interface_spec="spec here")
+        assert "spec here" in formatted
+        assert "{interface_spec}" not in formatted
+
+    def test_instructs_fix(self):
+        formatted = COMPILE_FIX_SYSTEM_PROMPT.format(interface_spec="spec")
+        assert "fix" in formatted.lower() or "correct" in formatted.lower()
+
+
+class TestBuildCompileFixPrompt:
+    def test_includes_code_and_error(self):
+        prompt = build_compile_fix_prompt(
+            code="class Memory: pass",
+            error_type="Syntax error",
+            error_details="unexpected indent at line 5",
+        )
+        assert "class Memory: pass" in prompt
+        assert "Syntax error" in prompt
+        assert "unexpected indent at line 5" in prompt
+
+    def test_includes_error_type_label(self):
+        prompt = build_compile_fix_prompt(
+            code="x",
+            error_type="Import whitelist violation",
+            error_details="Disallowed import: numpy",
+        )
+        assert "Import whitelist violation" in prompt
+        assert "Disallowed import: numpy" in prompt
