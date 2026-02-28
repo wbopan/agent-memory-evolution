@@ -250,3 +250,60 @@ def test_end_to_end_type_a(snapshot: SnapshotAssertion):
         "num_failed": len(result.failed_cases),
     }
     assert snapshot_data == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3h. End-to-End Type B Pipeline (multi-turn train with feedback)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.llm
+@pytest.mark.uses_chroma
+def test_end_to_end_type_b(snapshot: SnapshotAssertion):
+    """Full Type B pipeline: interleaved train with feedback → val.
+
+    Train has 2 samples where the expected answers are ALL-CAPS (APPLE, GREEN),
+    but the questions don't hint at this format. The model must learn the
+    output convention from feedback during training.
+
+    Val has 1 sample that requires combining knowledge from both train items
+    (favorite fruit + favorite color → green apple).
+    """
+    program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+    train_data = [
+        DataItem(
+            raw_text="Alice was asked about her favorite fruit. She loves apples over bananas.",
+            question="Does Alice prefer apples or bananas?",
+            expected_answer="APPLE",
+        ),
+        DataItem(
+            raw_text="Alice was asked about her favorite color. She said green is her favorite.",
+            question="What is Alice's favorite color?",
+            expected_answer="GREEN",
+        ),
+    ]
+    val_data = [
+        DataItem(
+            raw_text="",  # not used in val
+            question=(
+                "Given what Alice likes, which would she pick: "
+                "a green apple, a red apple, a green banana, or a dragon fruit?"
+            ),
+            expected_answer="green apple",
+        ),
+    ]
+
+    evaluator = MemoryEvaluator(task_model=MODEL)
+    result = evaluator.evaluate(program, train_data, val_data, dataset_type="B")
+
+    assert len(result.per_case_outputs) == 1
+    assert len(result.per_case_outputs[0]) > 0  # non-empty answer
+
+    snapshot_data = {
+        "score": result.score,
+        "num_outputs": len(result.per_case_outputs),
+        "val_output": result.per_case_outputs[0] if result.per_case_outputs else "",
+        "num_failed": len(result.failed_cases),
+        "logs": result.logs,
+    }
+    assert snapshot_data == snapshot
