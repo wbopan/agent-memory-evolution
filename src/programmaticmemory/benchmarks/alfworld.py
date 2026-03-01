@@ -9,7 +9,7 @@ from pathlib import Path
 from programmaticmemory.benchmarks._download import download_and_extract_zip, get_data_dir
 from programmaticmemory.datasets import register_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
+from programmaticmemory.evolution.types import DataItem, Dataset
 
 _GH_RELEASE = "https://github.com/alfworld/alfworld/releases/download/0.2.2"
 _JSON_URL = f"{_GH_RELEASE}/json_2.1.1_json.zip"
@@ -122,7 +122,7 @@ def load_alfworld(
         data_dir: Override data directory.
 
     Returns:
-        Dataset with eval_mode=ONLINE.
+        Dataset with ExactMatchScorer.
     """
     dest_dir = ensure_data(data_dir)
 
@@ -139,4 +139,4 @@ def load_alfworld(
     remaining = items[num_train:]
     val = remaining[:num_val] if num_val is not None else remaining
 
-    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE, scorer=ExactMatchScorer())
+    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer())

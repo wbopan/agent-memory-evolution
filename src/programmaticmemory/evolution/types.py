@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from enum import StrEnum
 from typing import Protocol
 
 
@@ -12,17 +11,6 @@ class Scorer(Protocol):
     """Scoring function: compares model output against expected answer."""
 
     def __call__(self, output: str, expected: str) -> float: ...
-
-
-class EvalMode(StrEnum):
-    """Evaluation mode — determines how training data is ingested.
-
-    OFFLINE: Batch ingest train data (generate observations), then read-only val.
-    ONLINE: Interleaved multi-turn train (query→answer→feedback→write), then read-only val.
-    """
-
-    OFFLINE = "offline"
-    ONLINE = "online"
 
 
 @dataclass(frozen=True)
@@ -46,8 +34,9 @@ class MemoryProgram:
 class DataItem:
     """A single benchmark data item.
 
-    For OFFLINE: raw_text is ingested during train, question+expected_answer during val.
-    For ONLINE: all fields used in interleaved train/val.
+    Train items with raw_text are batch-ingested as observations.
+    Train items without raw_text use interactive QA (query→answer→feedback→write).
+    Val items always use question+expected_answer for scoring.
     """
 
     raw_text: str
@@ -57,12 +46,11 @@ class DataItem:
 
 @dataclass
 class Dataset:
-    """A benchmark dataset with its associated evaluation mode and scorer."""
+    """A benchmark dataset with its associated scorer."""
 
     train: list[DataItem]
     val: list[DataItem]
     test: list[DataItem]
-    eval_mode: EvalMode
     scorer: Scorer | None = None
 
 

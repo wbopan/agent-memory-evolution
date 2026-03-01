@@ -9,7 +9,7 @@ from pathlib import Path
 from programmaticmemory.benchmarks._download import download_file, get_data_dir
 from programmaticmemory.datasets import register_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
+from programmaticmemory.evolution.types import DataItem, Dataset
 
 _BASE_URL = "https://raw.githubusercontent.com/sierra-research/tau-bench/main"
 
@@ -76,7 +76,7 @@ def load_tau_bench(
         data_dir: Override data directory.
 
     Returns:
-        Dataset with eval_mode=ONLINE.
+        Dataset with ExactMatchScorer.
     """
     dest_dir = ensure_data(domain, data_dir)
     tasks_path = dest_dir / domain / "tasks.py"
@@ -97,4 +97,4 @@ def load_tau_bench(
     train = items[:split]
     val = items[split:]
 
-    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.ONLINE, scorer=ExactMatchScorer())
+    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer())

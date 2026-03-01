@@ -9,7 +9,7 @@ from pathlib import Path
 from programmaticmemory.benchmarks.locomo import _SESSION_KEY_RE, _format_session, ensure_data
 from programmaticmemory.datasets import register_dataset
 from programmaticmemory.evolution.evaluator import TokenF1Scorer
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
+from programmaticmemory.evolution.types import DataItem, Dataset
 
 _EVIDENCE_RE = re.compile(r"^D(\d+):(\d+)$")
 
@@ -34,7 +34,7 @@ def load_mini_locomo(
         data_dir: Override data directory.
 
     Returns:
-        Dataset with eval_mode=OFFLINE.
+        Dataset with TokenF1Scorer.
     """
     import json
 
@@ -79,4 +79,4 @@ def load_mini_locomo(
     rng2.shuffle(eligible)
     val = eligible[:num_val]
 
-    return Dataset(train=train, val=val, test=[], eval_mode=EvalMode.OFFLINE, scorer=TokenF1Scorer())
+    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer())

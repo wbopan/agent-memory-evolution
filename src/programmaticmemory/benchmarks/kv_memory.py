@@ -6,7 +6,7 @@ import random
 
 from programmaticmemory.datasets import register_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
+from programmaticmemory.evolution.types import DataItem, Dataset
 
 # Factual statements and corresponding QA pairs
 _FACTS = [
@@ -97,7 +97,7 @@ def load_kv_memory(
         seed: Random seed for shuffling.
 
     Returns:
-        Dataset with eval_mode=OFFLINE.
+        Dataset with ExactMatchScorer.
     """
     rng = random.Random(seed)
 
@@ -114,4 +114,4 @@ def load_kv_memory(
         data = [DataItem(raw_text=r, question=q, expected_answer=a) for r, q, a in facts]
 
     # All items are both train (ingest) and val (query) for offline eval
-    return Dataset(train=data, val=data, test=[], eval_mode=EvalMode.OFFLINE, scorer=ExactMatchScorer())
+    return Dataset(train=data, val=data, test=[], scorer=ExactMatchScorer())

@@ -20,7 +20,7 @@ class MemoryLogger:
         self.logs.append(message)
 
     def debug(self, message: str) -> None:
-        self.logs.append(message)
+        self.log(message)
 
     def clear(self) -> None:
         self.logs.clear()
@@ -44,7 +44,7 @@ class Toolkit:
 
     def __init__(self, config: ToolkitConfig | None = None) -> None:
         config = config or ToolkitConfig()
-        self.db: sqlite3.Connection = sqlite3.connect(":memory:")
+        self.db: sqlite3.Connection = sqlite3.connect(":memory:", check_same_thread=False)
         self.chroma: chromadb.ClientAPI = chromadb.EphemeralClient()
         self.llm_model: str = config.llm_model
         self.logger: MemoryLogger = MemoryLogger()

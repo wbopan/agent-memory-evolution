@@ -37,7 +37,6 @@ uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations
 # Benchmark-specific kwargs passed as positional key=value args
 # --train-size / --val-size to limit dataset size
 # Weave/wandb tracing is ON by default; disable with --no-weave
-# --no-batch: disable parallel LLM calls (sequential mode, useful for debugging)
 # --seed 42 (default), --weave-project programmaticmemory (default)
 # --dataset locomo/tau_bench/alfworld/mini_locomo for other benchmarks
 # Local output directory (default: outputs/YYYY-MM-DD-HH-mm-SS/)
@@ -47,7 +46,20 @@ uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations
 
 ## Architecture
 
-This is a GEPA (Gradient-free Exploration with Population Advancement) framework that evolves **Memory Programs** — Python code defining `Observation`, `Query`, and `Memory` classes.
+LLMs can retrieve information but can't figure out *how to organize* it. This project evolves the **organizing strategy itself** — as executable Python code.
+
+A **Memory Program** is a Python module defining three classes:
+- `Observation` — what to capture from incoming information (dataclass fields)
+- `Query` — how to parameterize a retrieval request (dataclass fields)
+- `Memory` — `write(obs)` / `read(query)` logic using a `Toolkit` (SQLite, ChromaDB, LLM)
+
+The task agent (fixed prompt, fixed model) uses whatever Memory Program it's given. Evolution changes *only* the Memory Program code — so performance differences are purely attributable to the memory strategy.
+
+```
+Seed: append everything, return everything
+  → Evaluate on benchmark → Reflect on failures → Mutate code → repeat
+  → Evolved: task-specific schemas, structured storage, selective retrieval
+```
 
 ### Evolution Loop (`evolution/loop.py`)
 
@@ -59,17 +71,17 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
-- **types.py** — Core types: `Scorer` protocol, `EvalMode` enum (OFFLINE/ONLINE), `Dataset` (bundles train/val/test/eval_mode/scorer), `MemoryProgram`, `DataItem`, `EvalResult`, `FailedCase`, `EvolutionState`
-- **evaluator.py** — Offline and Online evaluation pipelines. `batch_process=True` (default) fans out independent LLM calls via `litellm.batch_completion`; `batch_process=False` is sequential. Offline train: 1 batch round. Val: 2 rounds (query → read → answer). Online train: 3 rounds (query → read → answer → obs-with-feedback) then serial writes. Uses `ExactMatchScorer` (containment-based), `TokenF1Scorer` (SQuAD-style F1), or `LLMJudgeScorer`.
+- **types.py** — Core types: `Scorer` protocol, `Dataset` (bundles train/val/test/scorer), `MemoryProgram`, `DataItem`, `EvalResult` (includes `runtime_violation` field), `FailedCase`, `TrainExample`, `EvolutionState`
+- **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch observation ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven obs). Val is always 2 rounds (query → read → answer). Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation.
 - **reflector.py** — Calls LLM with current code + failed cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_memory_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `MemoryProgram` is guaranteed valid.
-- **sandbox.py** — `compile_memory_program()`: AST parse → check 3 required classes → validate import whitelist → exec. Also: `extract_dataclass_schema()` (outputs commented JSON example), `smoke_test()`.
+- **sandbox.py** — `compile_memory_program()`: AST parse → check 3 required classes → validate import whitelist → exec. Returns `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
 - **toolkit.py** — Resource bundle (`db`: SQLite, `chroma`: ChromaDB, `llm_completion`: budget-limited LLM, `logger`). Instantiate via `Toolkit(config)`, created fresh per evaluation.
-- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). `REFLECTION_SYSTEM_PROMPT` instructs the reflector LLM. `COMPILE_FIX_SYSTEM_PROMPT` + `build_compile_fix_prompt` for the compile-fix loop.
-- **benchmarks/kv_memory.py** — Simple factual recall (OFFLINE, `ExactMatchScorer`).
-- **benchmarks/locomo.py** — LoCoMo multi-session conversation QA (OFFLINE, `TokenF1Scorer`).
-- **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (OFFLINE, `TokenF1Scorer`).
-- **benchmarks/tau_bench.py** — tau-bench retail/airline task completion (ONLINE, `ExactMatchScorer`).
-- **benchmarks/alfworld.py** — ALFWorld embodied task key-element recall (ONLINE, `ExactMatchScorer`).
+- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). No system prompts — all LLM instructions are merged into user prompts via `build_reflection_user_prompt` and `build_compile_fix_prompt`.
+- **benchmarks/kv_memory.py** — Simple factual recall (`ExactMatchScorer`). Train has `raw_text`.
+- **benchmarks/locomo.py** — LoCoMo multi-session conversation QA (`TokenF1Scorer`). Train has `raw_text`.
+- **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (`TokenF1Scorer`). Train has `raw_text`.
+- **benchmarks/tau_bench.py** — tau-bench retail/airline task completion (`ExactMatchScorer`). Train is QA-only.
+- **benchmarks/alfworld.py** — ALFWorld embodied task key-element recall (`ExactMatchScorer`). Train is QA-only.
 - **benchmarks/_download.py** — Shared download utilities (stdlib only: urllib, tarfile, zipfile).
 - **benchmarks/__init__.py** — Imports all benchmark modules to trigger `@register_dataset` decorators. Must be updated when adding new benchmarks.
 
@@ -83,7 +95,7 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 
 ### Two Separate LLM Roles
 
-1. **Task agent** (`evaluator.py:_llm_call`) — Fixed model that generates Observation/Query JSON and answers questions. Separate from the memory program.
+1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates Observation/Query JSON and answers questions via `litellm.batch_completion`. Separate from the memory program.
 2. **Toolkit LLM** (`toolkit.py:Toolkit.llm_completion`) — Available to Memory Programs via `toolkit.llm_completion()`, budget-limited (default 50 calls), with tenacity retry.
 
 ## Test Infrastructure
@@ -91,9 +103,9 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - **Pytest markers**: `@pytest.mark.llm` (real LLM calls), `@pytest.mark.uses_chroma` (real ChromaDB instead of mock)
 - **Disk cache**: `tests/evolution/.llm_cache/` — litellm disk cache committed to git, so LLM tests replay without API keys. Configured in `tests/evolution/conftest.py` via session-scoped fixture that wraps `litellm.completion` with `caching=True`.
 - **Syrupy snapshots**: `tests/evolution/__snapshots__/*.ambr` — 4 snapshot files:
-  - `test_prompts.ambr` — prompt template outputs from `build_*` functions and formatted system prompts
+  - `test_prompts.ambr` — prompt template outputs from `build_*` functions
   - `test_evaluator.ambr` — full `captured_calls` (all messages sent to mock LLM per test)
-  - `test_reflector.ambr` — reflection LLM call messages (system + user prompts)
+  - `test_reflector.ambr` — reflection LLM call messages (user-only prompts)
   - `test_llm_integration.ambr` — `{prompt, output}` dicts with real LLM responses
 - **ChromaDB mock**: `conftest.py` auto-mocks `chromadb.EphemeralClient`; opt out with `@pytest.mark.uses_chroma`.
 
@@ -118,4 +130,6 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - Import whitelist for Memory Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
 - A Memory Program is a **complete Python module**: import statements + three class definitions (Observation, Query, Memory). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
-- Evaluator tests: sequential path uses `mock_fn = _mock_completion_factory(...)` + `mock_litellm.completion = mock_fn`; batch path uses `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock`. Existing sequential tests must pass `batch_process=False`.
+- Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.
+- All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
+- Memory Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).

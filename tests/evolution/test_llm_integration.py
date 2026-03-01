@@ -6,10 +6,13 @@ Snapshots capture both prompts and outputs for human review.
 
 from __future__ import annotations
 
+import dataclasses
+
+import litellm
 import pytest
 from syrupy.assertion import SnapshotAssertion
 
-from programmaticmemory.evolution.evaluator import MemoryEvaluator, _llm_call, _parse_json_from_llm
+from programmaticmemory.evolution.evaluator import MEMORY_READ_MAX_CHARS, MemoryEvaluator, _parse_json_from_llm
 from programmaticmemory.evolution.prompts import (
     INITIAL_MEMORY_PROGRAM,
     build_observation_generation_prompt,
@@ -21,9 +24,15 @@ from programmaticmemory.evolution.prompts import (
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import compile_memory_program, extract_dataclass_schema
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
-from programmaticmemory.evolution.types import DataItem, EvalMode, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, MemoryProgram
 
 MODEL = "openrouter/deepseek/deepseek-v3.2"
+
+
+def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str:
+    """Task agent LLM call for integration tests."""
+    response = litellm.completion(model=model, messages=messages, temperature=temperature, caching=True)
+    return response.choices[0].message.content
 
 
 def _get_obs_query_schema() -> tuple[str, str]:
@@ -234,7 +243,7 @@ def test_end_to_end_offline(snapshot: SnapshotAssertion):
     val_data = list(train_data)
 
     evaluator = MemoryEvaluator(task_model=MODEL)
-    result = evaluator.evaluate(program, train_data, val_data, eval_mode=EvalMode.OFFLINE)
+    result = evaluator.evaluate(program, train_data, val_data)
 
     assert result.score > 0, f"Expected positive score, got {result.score}"
     assert len(result.per_case_outputs) > 0
@@ -269,12 +278,12 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
     program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
     train_data = [
         DataItem(
-            raw_text="Alice was asked about her favorite fruit. She loves apples over bananas.",
+            raw_text="",
             question="Does Alice prefer apples or bananas?",
             expected_answer="APPLE",
         ),
         DataItem(
-            raw_text="Alice was asked about her favorite color. She said green is her favorite.",
+            raw_text="",
             question="What is Alice's favorite color?",
             expected_answer="GREEN",
         ),
@@ -291,7 +300,7 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
     ]
 
     evaluator = MemoryEvaluator(task_model=MODEL)
-    result = evaluator.evaluate(program, train_data, val_data, eval_mode=EvalMode.ONLINE)
+    result = evaluator.evaluate(program, train_data, val_data)
 
     assert len(result.per_case_outputs) == 1
     assert len(result.per_case_outputs[0]) > 0  # non-empty answer
@@ -355,7 +364,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     program = MemoryProgram(source_code=BROKEN_MEMORY_PROGRAM)
     train_data = [
         DataItem(
-            raw_text="Project Zephyr's internal access code is DELTA-7742.",
+            raw_text="",
             question="What is Project Zephyr's access code?",
             expected_answer="DELTA-7742",
         ),
@@ -365,7 +374,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     evaluator = MemoryEvaluator(task_model=MODEL)
 
     # Round 1: broken program should score 0
-    result1 = evaluator.evaluate(program, train_data, val_data, eval_mode=EvalMode.ONLINE)
+    result1 = evaluator.evaluate(program, train_data, val_data)
 
     # Reflect on failures
     reflector = Reflector(model=MODEL, temperature=0.0)
@@ -373,7 +382,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     assert child is not None, "Reflection failed to produce code"
 
     # Round 2: reflected program should improve
-    result2 = evaluator.evaluate(child, train_data, val_data, eval_mode=EvalMode.ONLINE)
+    result2 = evaluator.evaluate(child, train_data, val_data)
     assert result2.score > result1.score, (
         f"Expected improvement: round1={result1.score:.3f} -> round2={result2.score:.3f}\n"
         f"Reflected code:\n{child.source_code}\n"
@@ -517,5 +526,103 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
 
     assert {
         "original_smoke_error": st.error,
+        "fixed_code": fixed_code,
+    } == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3k. Runtime Violation Fix (oversized read → detect → LLM fix → within limits)
+# ---------------------------------------------------------------------------
+
+OVERSIZED_READ_MEMORY_PROGRAM = """\
+from dataclasses import dataclass
+
+
+@dataclass
+class Observation:
+    raw: str
+
+
+@dataclass
+class Query:
+    raw: str
+
+
+class Memory:
+    def __init__(self, toolkit):
+        self.toolkit = toolkit
+        self.store: list[str] = []
+
+    def write(self, observation: Observation) -> None:
+        self.store.append(observation.raw)
+
+    def read(self, query: Query) -> str:
+        return "x" * 5000
+"""
+
+
+@pytest.mark.llm
+@pytest.mark.uses_chroma
+def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
+    """Oversized read output → detected by eval → LLM fixes → output within limits."""
+    # Step 1: Evaluate with real LLM — should detect runtime violation
+    program = MemoryProgram(source_code=OVERSIZED_READ_MEMORY_PROGRAM)
+    train_data = [
+        DataItem(
+            raw_text="Project Zephyr's access code is DELTA-7742.",
+            question="What is Project Zephyr's access code?",
+            expected_answer="DELTA-7742",
+        ),
+    ]
+    val_data = list(train_data)
+
+    evaluator = MemoryEvaluator(task_model=MODEL)
+    result = evaluator.evaluate(program, train_data, val_data)
+
+    assert result.runtime_violation is not None, "Expected runtime violation but got None"
+    assert "5000" in result.runtime_violation
+    assert "1000" in result.runtime_violation
+    assert result.score == 0.0
+
+    # Step 2: LLM fixes the runtime violation
+    reflector = Reflector(model=MODEL, temperature=0.0)
+    fixed_code = reflector.fix_runtime_violation(OVERSIZED_READ_MEMORY_PROGRAM, result.runtime_violation)
+    assert fixed_code is not None, "Reflector failed to produce a fix"
+
+    # Step 3: Verify the fixed read() output respects the char limit
+    # Compile to get classes (smoke_test already passed inside fix_runtime_violation)
+    fixed_compile = compile_memory_program(fixed_code)
+    assert isinstance(fixed_compile, tuple), f"Fixed code fails to compile: {fixed_compile}"
+    obs_cls, query_cls, memory_cls = fixed_compile
+    toolkit = Toolkit(ToolkitConfig(llm_model=MODEL, llm_call_budget=5))
+    try:
+        # Clear collections left by smoke_test (EphemeralClient shares in-process state)
+        for col in toolkit.chroma.list_collections():
+            toolkit.chroma.delete_collection(col.name)
+        memory = memory_cls(toolkit)
+
+        # Build obs/query dynamically from dataclass fields (LLM may rename fields)
+        obs_kwargs = {
+            f.name: "test value"
+            for f in dataclasses.fields(obs_cls)
+            if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
+        }
+        memory.write(obs_cls(**obs_kwargs))
+
+        query_kwargs = {
+            f.name: "test query"
+            for f in dataclasses.fields(query_cls)
+            if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
+        }
+        read_result = memory.read(query_cls(**query_kwargs))
+        result_str = str(read_result) if read_result is not None else ""
+        assert len(result_str) <= MEMORY_READ_MAX_CHARS, (
+            f"Fixed code still returns {len(result_str)} chars (limit: {MEMORY_READ_MAX_CHARS})"
+        )
+    finally:
+        toolkit.close()
+
+    assert {
+        "runtime_violation": result.runtime_violation,
         "fixed_code": fixed_code,
     } == snapshot

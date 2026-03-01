@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from programmaticmemory.evolution.types import TrainExample
+
 MEMORY_INTERFACE_SPEC = """\
 You are designing a Memory Program that implements three classes:
 
@@ -60,8 +62,30 @@ class Memory:
         self.toolkit.logger.debug(f"Query: {query.raw}, store size: {len(self.store)}")
         if not self.store:
             return "No information stored."
-        return "\\n".join(self.store)
+        result = "\\n".join(self.store)
+        return result[:1000]
 '''
+
+
+_MSG_MAX_CHARS = 10_000
+_MSG_HEAD = _MSG_MAX_CHARS // 2
+_MSG_TAIL = _MSG_MAX_CHARS - _MSG_HEAD
+
+
+def _truncate_msg(content: str) -> str:
+    """Keep head and tail, elide the middle if content exceeds _MSG_MAX_CHARS."""
+    if len(content) <= _MSG_MAX_CHARS:
+        return content
+    omitted = len(content) - _MSG_MAX_CHARS
+    return content[:_MSG_HEAD] + f"\n... [{omitted} chars omitted] ...\n" + content[-_MSG_TAIL:]
+
+
+def _render_messages(messages: list[dict[str, str]], indent: str = "") -> str:
+    """Render a message list with truncation: [{role}]: {content}\\n per message."""
+    parts = []
+    for msg in messages:
+        parts.append(f"{indent}[{msg.get('role', '?')}]: {_truncate_msg(msg.get('content', ''))}\n")
+    return "".join(parts)
 
 
 def build_reflection_user_prompt(
@@ -69,23 +93,32 @@ def build_reflection_user_prompt(
     score: float,
     failed_cases: list[dict],
     iteration: int,
+    train_examples: list[TrainExample] | None = None,
 ) -> str:
     """Build the user prompt for the reflection LLM."""
-    failed_section = ""
+    parts: list[str] = []
     for i, case in enumerate(failed_cases, 1):
-        failed_section += f"\n### Failed Case {i}\n"
-        failed_section += f"Question: {case.get('question', 'N/A')}\n"
-        failed_section += f"Expected: {case.get('expected', 'N/A')}\n"
-        failed_section += f"Got: {case.get('output', 'N/A')}\n"
-        failed_section += f"Score: {case.get('score', 0)}\n"
+        parts.append(f"\n### Failed Case {i}\n")
+        parts.append(f"Question: {case.get('question', 'N/A')}\n")
+        parts.append(f"Expected: {case.get('expected', 'N/A')}\n")
+        parts.append(f"Got: {case.get('output', 'N/A')}\n")
+        parts.append(f"Score: {case.get('score', 0)}\n")
         if case.get("conversation_history"):
-            failed_section += "Conversation:\n"
-            for msg in case["conversation_history"]:
-                failed_section += f"  [{msg.get('role', '?')}]: {msg.get('content', '')}\n"
+            parts.append("Conversation:\n")
+            parts.append(_render_messages(case["conversation_history"], indent="  "))
         if case.get("memory_logs"):
-            failed_section += "Memory logs:\n"
+            parts.append("Memory logs:\n")
             for log in case["memory_logs"]:
-                failed_section += f"  - {log}\n"
+                parts.append(f"  - {log}\n")
+    failed_section = "".join(parts)
+
+    train_section = ""
+    if train_examples:
+        train_parts: list[str] = ["## Training Write Examples\n"]
+        for i, example in enumerate(train_examples, 1):
+            train_parts.append(f"\n### Write Example {i}\n")
+            train_parts.append(_render_messages(example.messages))
+        train_section = "\n" + "".join(train_parts)
 
     return f"""\
 You are an expert Python programmer specializing in memory system design.
@@ -108,7 +141,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 ```
 
 ## Evaluation Score: {score:.3f}
-
+{train_section}
 ## Failed Cases
 {failed_section}
 

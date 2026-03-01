@@ -12,6 +12,7 @@ from programmaticmemory.evolution.prompts import (
     build_reflection_user_prompt,
     build_retrieved_memory_prompt,
 )
+from programmaticmemory.evolution.types import TrainExample
 
 
 class TestInitialMemoryProgram:
@@ -126,6 +127,29 @@ class TestBuildReflectionUserPrompt:
         cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0}]
         prompt = build_reflection_user_prompt(code="x", score=0.5, failed_cases=cases, iteration=1)
         assert "q" in prompt
+        assert prompt == snapshot
+
+    def test_includes_train_examples(self, snapshot: SnapshotAssertion):
+        examples = [
+            TrainExample(
+                messages=[
+                    {
+                        "role": "user",
+                        "content": 'Given the following text...\nText: Hello world\nSchema: {"raw": "..."}',
+                    },
+                    {"role": "assistant", "content": '{"raw": "Hello world"}'},
+                ]
+            )
+        ]
+        prompt = build_reflection_user_prompt(
+            code="class Memory: pass",
+            score=0.1,
+            failed_cases=[],
+            iteration=1,
+            train_examples=examples,
+        )
+        assert "Training Write Examples" in prompt
+        assert "Hello world" in prompt
         assert prompt == snapshot
 
 

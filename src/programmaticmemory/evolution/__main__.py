@@ -54,9 +54,6 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")
-    parser.add_argument(
-        "--no-batch", action="store_true", help="Disable batch processing (sequential mode for debugging)"
-    )
     parser.add_argument("--weave-project", default="programmaticmemory", help="Weave project name")
     args, extra = parser.parse_known_args()
 
@@ -67,7 +64,7 @@ def main() -> None:
 
     configure_cache("disk")
 
-    # Load dataset (includes scorer, eval_mode, etc.)
+    # Load dataset (includes scorer, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
     dataset = load_dataset(args.dataset, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs)
 
@@ -78,7 +75,6 @@ def main() -> None:
         scorer=scorer,
         task_model=args.task_model,
         toolkit_config=toolkit_config,
-        batch_process=not args.no_batch,
     )
     reflector = Reflector(model=args.reflect_model)
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)

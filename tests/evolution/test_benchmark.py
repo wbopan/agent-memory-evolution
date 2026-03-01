@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from programmaticmemory.benchmarks.kv_memory import load_kv_memory
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode
+from programmaticmemory.evolution.types import DataItem, Dataset
 
 
 class TestKVMemoryBenchmark:
@@ -16,7 +16,6 @@ class TestKVMemoryBenchmark:
         assert len(ds.train) == 5
         assert len(ds.val) == 5
         assert len(ds.test) == 0
-        assert ds.eval_mode == EvalMode.OFFLINE
 
     def test_compound_loads(self):
         ds = load_kv_memory(num_items=3, difficulty="compound")
@@ -109,7 +108,6 @@ class TestLoComoBenchmark:
 
         ds = load_locomo(data_dir=locomo_data_dir)
         assert isinstance(ds, Dataset)
-        assert ds.eval_mode == EvalMode.OFFLINE
         assert len(ds.train) == 2
         assert all(isinstance(i, DataItem) for i in ds.train)
         assert all(i.raw_text for i in ds.train)
@@ -192,7 +190,6 @@ class TestTauBenchBenchmark:
 
         ds = load_tau_bench(data_dir=tau_data_dir, train_ratio=0.7)
         assert isinstance(ds, Dataset)
-        assert ds.eval_mode == EvalMode.ONLINE
         assert len(ds.train) + len(ds.val) == 3
         assert len(ds.test) == 0
 
@@ -322,7 +319,6 @@ class TestALFWorldBenchmark:
 
         ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
         assert isinstance(ds, Dataset)
-        assert ds.eval_mode == EvalMode.ONLINE
         assert len(ds.train) == 2
         assert len(ds.val) == 2
         assert len(ds.test) == 0
