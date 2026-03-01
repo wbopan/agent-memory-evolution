@@ -37,6 +37,21 @@ class CompileError:
 
 
 @dataclass
+class CompiledProgram:
+    """Successful compilation result."""
+
+    obs_cls: type
+    query_cls: type
+    memory_cls: type
+    instruction_observation: str
+    instruction_query: str
+    instruction_response: str
+
+
+REQUIRED_CONSTANTS = {"INSTRUCTION_OBSERVATION", "INSTRUCTION_QUERY", "INSTRUCTION_RESPONSE"}
+
+
+@dataclass
 class SmokeTestResult:
     """Result of a smoke test run."""
 
@@ -78,10 +93,10 @@ class _ClassFinder(ast.NodeVisitor):
 
 def compile_memory_program(
     source_code: str,
-) -> tuple[type, type, type] | CompileError:
+) -> CompiledProgram | CompileError:
     """Compile memory program source code and extract Observation, Query, Memory classes.
 
-    Returns (Observation, Query, Memory) class tuple on success, CompileError on failure.
+    Returns CompiledProgram on success, CompileError on failure.
     """
     # 1. Parse
     try:
@@ -146,8 +161,29 @@ def compile_memory_program(
     except Exception:
         return CompileError(message="Execution error", details=traceback.format_exc())
 
-    # 5. Extract classes (guaranteed to exist — AST check in step 2 verified definitions)
-    return (namespace["Observation"], namespace["Query"], namespace["Memory"])
+    # 5. Check required constants exist and are strings
+    missing_constants = REQUIRED_CONSTANTS - set(namespace.keys())
+    if missing_constants:
+        return CompileError(
+            message=f"Missing required constant(s): {', '.join(sorted(missing_constants))}",
+            details="Each constant must be a module-level string variable.",
+        )
+    non_string_constants = [name for name in sorted(REQUIRED_CONSTANTS) if not isinstance(namespace[name], str)]
+    if non_string_constants:
+        return CompileError(
+            message=f"Constant(s) must be strings: {', '.join(non_string_constants)}",
+            details="Each constant must be a module-level string variable.",
+        )
+
+    # 6. Extract classes and constants
+    return CompiledProgram(
+        obs_cls=namespace["Observation"],
+        query_cls=namespace["Query"],
+        memory_cls=namespace["Memory"],
+        instruction_observation=namespace["INSTRUCTION_OBSERVATION"],
+        instruction_query=namespace["INSTRUCTION_QUERY"],
+        instruction_response=namespace["INSTRUCTION_RESPONSE"],
+    )
 
 
 def _type_to_json_example(type_str: str) -> str:
@@ -220,8 +256,8 @@ def smoke_test(
         if isinstance(result, CompileError):
             return SmokeTestResult(success=False, error=f"Compile: {result.message} — {result.details}")
 
-        obs_cls, query_cls, memory_cls = result
-        toolkit = Toolkit(toolkit_config)
+        obs_cls, query_cls, memory_cls = result.obs_cls, result.query_cls, result.memory_cls
+        toolkit = Toolkit(toolkit_config or ToolkitConfig(llm_model="smoke-test/noop"))
         try:
             memory = memory_cls(toolkit)
 
