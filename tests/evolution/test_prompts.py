@@ -21,6 +21,9 @@ class TestInitialMemoryProgram:
         assert "class Observation" in INITIAL_MEMORY_PROGRAM
         assert "class Query" in INITIAL_MEMORY_PROGRAM
         assert "class Memory" in INITIAL_MEMORY_PROGRAM
+        assert "INSTRUCTION_OBSERVATION" in INITIAL_MEMORY_PROGRAM
+        assert "INSTRUCTION_QUERY" in INITIAL_MEMORY_PROGRAM
+        assert "INSTRUCTION_RESPONSE" in INITIAL_MEMORY_PROGRAM
 
     def test_compiles(self):
         from programmaticmemory.evolution.sandbox import CompileError, compile_memory_program
@@ -90,9 +93,9 @@ class TestBuildReflectionUserPrompt:
     def test_includes_all_cases(self, snapshot: SnapshotAssertion):
         cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
-        # Default max_failed_cases=3, so q0-q2 included, q3+ excluded
-        assert "q2" in prompt
-        assert "q3" not in prompt
+        # Default max_failed_cases=2, so q0-q1 included, q2+ excluded
+        assert "q1" in prompt
+        assert "q2" not in prompt
         assert prompt == snapshot
 
     def test_long_conversation_not_truncated(self):
@@ -131,6 +134,48 @@ class TestBuildReflectionUserPrompt:
         cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0}]
         prompt = build_reflection_user_prompt(code="x", score=0.5, failed_cases=cases, iteration=1)
         assert "q" in prompt
+        assert prompt == snapshot
+
+    def test_includes_success_cases(self, snapshot: SnapshotAssertion):
+        failed = [{"question": "q_fail", "expected": "a_fail", "output": "wrong", "score": 0.0}]
+        success = [
+            {
+                "question": "q_success",
+                "expected": "correct_answer",
+                "output": "correct_answer",
+                "score": 1.0,
+                "conversation_history": [
+                    {"role": "user", "content": "query prompt"},
+                    {"role": "assistant", "content": "correct_answer"},
+                ],
+            }
+        ]
+        prompt = build_reflection_user_prompt(
+            code="class Memory: pass",
+            score=0.5,
+            failed_cases=failed,
+            iteration=1,
+            success_cases=success,
+        )
+        assert "<success_cases>" in prompt
+        assert "q_success" in prompt
+        assert "correct_answer" in prompt
+        assert "Preserve the behavior" in prompt
+        assert prompt == snapshot
+
+    def test_success_cases_limited_by_config(self, snapshot: SnapshotAssertion):
+        success = [{"question": f"sq{i}", "expected": f"sa{i}", "output": f"sa{i}", "score": 1.0} for i in range(5)]
+        config = ReflectionPromptConfig(max_success_cases=1)
+        prompt = build_reflection_user_prompt(
+            code="x", score=0.8, failed_cases=[], iteration=1, config=config, success_cases=success
+        )
+        assert "sq0" in prompt
+        assert "sq1" not in prompt
+        assert prompt == snapshot
+
+    def test_no_success_cases_omits_section(self, snapshot: SnapshotAssertion):
+        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=[], iteration=1, success_cases=[])
+        assert "<success_cases>" not in prompt
         assert prompt == snapshot
 
     def test_includes_train_examples(self, snapshot: SnapshotAssertion):
@@ -176,6 +221,17 @@ class TestReflectionPromptConfig:
         assert "example 0" in prompt
         assert "example 1" in prompt
         assert "example 2" not in prompt
+        assert prompt == snapshot
+
+    def test_max_success_cases(self, snapshot: SnapshotAssertion):
+        success = [{"question": f"sq{i}", "expected": f"sa{i}", "output": f"sa{i}", "score": 1.0} for i in range(5)]
+        config = ReflectionPromptConfig(max_success_cases=2)
+        prompt = build_reflection_user_prompt(
+            code="x", score=0.5, failed_cases=[], iteration=1, config=config, success_cases=success
+        )
+        assert "sq0" in prompt
+        assert "sq1" in prompt
+        assert "sq2" not in prompt
         assert prompt == snapshot
 
     def test_max_memory_log_chars_truncates(self):

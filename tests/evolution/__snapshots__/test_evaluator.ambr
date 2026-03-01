@@ -126,12 +126,13 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             f1
             f2
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -160,12 +161,13 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             f1
             f2
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -240,11 +242,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -381,11 +384,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             f1
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -414,11 +418,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             f1
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -529,12 +534,13 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             France capital is Paris.
             Germany capital is Berlin.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -563,12 +569,13 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             France capital is Paris.
             Germany capital is Berlin.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -661,11 +668,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             obs1
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -694,11 +702,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             obs1
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -773,11 +782,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             The capital of France is Paris.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -832,11 +842,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -867,11 +878,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -943,11 +955,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             obs
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1002,11 +1015,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1037,11 +1051,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1113,11 +1128,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             obs
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1172,11 +1188,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1207,11 +1224,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1283,11 +1301,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             parsed observation value
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1342,11 +1361,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1377,11 +1397,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1453,11 +1474,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             obs stored
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1512,11 +1534,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1547,11 +1570,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1623,11 +1647,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             stored via online
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1702,11 +1727,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             fact
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -1948,11 +1974,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             fact
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),
@@ -2027,11 +2054,12 @@
         dict({
           'content': '''
             <retrieved_memory>
-            When answering questions, give a short and direct answer and nothing else.
             fact
             </retrieved_memory>
             
             Based on the above memory and the original question, provide your answer.
+            
+            When answering questions, give a short and direct answer and nothing else.
           ''',
           'role': 'user',
         }),

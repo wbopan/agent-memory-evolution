@@ -1,6 +1,7 @@
 """Tests for evolution/sandbox.py — compile, schema, smoke test."""
 
 from programmaticmemory.evolution.sandbox import (
+    CompiledProgram,
     CompileError,
     compile_memory_program,
     extract_dataclass_schema,
@@ -9,6 +10,10 @@ from programmaticmemory.evolution.sandbox import (
 
 VALID_PROGRAM = """\
 from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:
@@ -71,6 +76,10 @@ class Memory:
 RUNTIME_ERROR_PROGRAM = """\
 from dataclasses import dataclass
 
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
+
 @dataclass
 class Observation:
     raw: str
@@ -89,6 +98,10 @@ class Memory:
 
 READ_ERROR_PROGRAM = """\
 from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:
@@ -113,11 +126,10 @@ class Memory:
 class TestCompileMemoryProgram:
     def test_valid_program(self):
         result = compile_memory_program(VALID_PROGRAM)
-        assert not isinstance(result, CompileError)
-        obs_cls, query_cls, memory_cls = result
-        assert obs_cls.__name__ == "Observation"
-        assert query_cls.__name__ == "Query"
-        assert memory_cls.__name__ == "Memory"
+        assert isinstance(result, CompiledProgram)
+        assert result.obs_cls.__name__ == "Observation"
+        assert result.query_cls.__name__ == "Query"
+        assert result.memory_cls.__name__ == "Memory"
 
     def test_syntax_error(self):
         result = compile_memory_program(SYNTAX_ERROR_PROGRAM)
@@ -145,6 +157,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
+
 @dataclass
 class Observation:
     raw: str
@@ -169,6 +185,10 @@ class Memory:
         code = """\
 import chromadb
 from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:
@@ -195,6 +215,10 @@ class Memory:
 from dataclasses import dataclass
 x = 1 / 0  # RuntimeError during exec
 
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
+
 @dataclass
 class Observation:
     raw: str
@@ -212,13 +236,33 @@ class Memory:
         assert isinstance(result, CompileError)
         assert "Execution error" in result.message
 
+    def test_missing_constants(self):
+        code = """\
+from dataclasses import dataclass
+
+@dataclass
+class Observation:
+    raw: str
+
+@dataclass
+class Query:
+    raw: str
+
+class Memory:
+    def __init__(self, toolkit): pass
+    def write(self, obs): pass
+    def read(self, query): return ""
+"""
+        result = compile_memory_program(code)
+        assert isinstance(result, CompileError)
+        assert "Missing required constant" in result.message
+
 
 class TestExtractDataclassSchema:
     def test_simple_dataclass(self):
         result = compile_memory_program(VALID_PROGRAM)
-        assert not isinstance(result, CompileError)
-        obs_cls, _, _ = result
-        schema = extract_dataclass_schema(obs_cls)
+        assert isinstance(result, CompiledProgram)
+        schema = extract_dataclass_schema(result.obs_cls)
         assert "Observation" in schema
         assert '"raw"' in schema
         assert "str" in schema
@@ -228,6 +272,10 @@ class TestExtractDataclassSchema:
         code = """\
 from dataclasses import dataclass, field
 from typing import Any
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:
@@ -245,9 +293,8 @@ class Memory:
     def read(self, query): return ""
 """
         result = compile_memory_program(code)
-        assert not isinstance(result, CompileError)
-        obs_cls, _, _ = result
-        schema = extract_dataclass_schema(obs_cls)
+        assert isinstance(result, CompiledProgram)
+        schema = extract_dataclass_schema(result.obs_cls)
         assert '"text"' in schema
         assert '"category"' in schema
         assert '"priority"' in schema
@@ -256,6 +303,10 @@ class Memory:
     def test_field_description_in_metadata(self):
         code = """\
 from dataclasses import dataclass, field
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:
@@ -272,17 +323,15 @@ class Memory:
     def read(self, query): return ""
 """
         result = compile_memory_program(code)
-        assert not isinstance(result, CompileError)
-        obs_cls, _, _ = result
-        schema = extract_dataclass_schema(obs_cls)
+        assert isinstance(result, CompiledProgram)
+        schema = extract_dataclass_schema(result.obs_cls)
         assert "The main content to store" in schema
         assert "Category tag" in schema
 
     def test_non_dataclass(self):
         result = compile_memory_program(VALID_PROGRAM)
-        assert not isinstance(result, CompileError)
-        _, _, memory_cls = result
-        schema = extract_dataclass_schema(memory_cls)
+        assert isinstance(result, CompiledProgram)
+        schema = extract_dataclass_schema(result.memory_cls)
         assert "not a dataclass" in schema
 
 
@@ -306,6 +355,10 @@ class TestSmokeTest:
         code = """\
 from dataclasses import dataclass
 from datetime import datetime
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:

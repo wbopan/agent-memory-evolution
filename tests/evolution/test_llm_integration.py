@@ -22,7 +22,12 @@ from programmaticmemory.evolution.prompts import (
     build_retrieved_memory_prompt,
 )
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
-from programmaticmemory.evolution.sandbox import compile_memory_program, extract_dataclass_schema
+from programmaticmemory.evolution.sandbox import (
+    CompiledProgram,
+    CompileError,
+    compile_memory_program,
+    extract_dataclass_schema,
+)
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 from programmaticmemory.evolution.types import DataItem, MemoryProgram
 
@@ -38,9 +43,8 @@ def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str
 def _get_obs_query_schema() -> tuple[str, str]:
     """Compile INITIAL_MEMORY_PROGRAM and return (obs_schema, query_schema)."""
     result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-    assert not isinstance(result, Exception)
-    obs_cls, query_cls, _ = result
-    return extract_dataclass_schema(obs_cls), extract_dataclass_schema(query_cls)
+    assert isinstance(result, CompiledProgram)
+    return extract_dataclass_schema(result.obs_cls), extract_dataclass_schema(result.query_cls)
 
 
 # ---------------------------------------------------------------------------
@@ -207,11 +211,10 @@ def test_reflection(snapshot: SnapshotAssertion):
 
     # Code must compile and define all three classes
     compile_result = compile_memory_program(code)
-    assert isinstance(compile_result, tuple), f"Compile failed: {compile_result}"
-    obs_cls, query_cls, memory_cls = compile_result
-    assert obs_cls.__name__ == "Observation"
-    assert query_cls.__name__ == "Query"
-    assert memory_cls.__name__ == "Memory"
+    assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
+    assert compile_result.obs_cls.__name__ == "Observation"
+    assert compile_result.query_cls.__name__ == "Query"
+    assert compile_result.memory_cls.__name__ == "Memory"
 
     assert {
         "prompt": user_prompt,
@@ -242,7 +245,7 @@ def test_end_to_end_offline(snapshot: SnapshotAssertion):
     ]
     val_data = list(train_data)
 
-    evaluator = MemoryEvaluator(task_model=MODEL)
+    evaluator = MemoryEvaluator(task_model=MODEL, toolkit_config=ToolkitConfig(llm_model=MODEL))
     result = evaluator.evaluate(program, train_data, val_data)
 
     assert result.score > 0, f"Expected positive score, got {result.score}"
@@ -299,7 +302,7 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
         ),
     ]
 
-    evaluator = MemoryEvaluator(task_model=MODEL)
+    evaluator = MemoryEvaluator(task_model=MODEL, toolkit_config=ToolkitConfig(llm_model=MODEL))
     result = evaluator.evaluate(program, train_data, val_data)
 
     assert len(result.per_case_outputs) == 1
@@ -321,6 +324,10 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
 
 BROKEN_MEMORY_PROGRAM = '''\
 from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 
 @dataclass
@@ -371,7 +378,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     ]
     val_data = list(train_data)
 
-    evaluator = MemoryEvaluator(task_model=MODEL)
+    evaluator = MemoryEvaluator(task_model=MODEL, toolkit_config=ToolkitConfig(llm_model=MODEL))
 
     # Round 1: broken program should score 0
     result1 = evaluator.evaluate(program, train_data, val_data)
@@ -432,6 +439,10 @@ class Memory:
 PROGRAM_WITH_RUNTIME_BUG = """\
 from dataclasses import dataclass
 
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
+
 
 @dataclass
 class Observation:
@@ -460,7 +471,7 @@ class Memory:
 @pytest.mark.llm
 def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
     """Compile error (disallowed import) → detected → LLM fixes → compiles and passes smoke test."""
-    from programmaticmemory.evolution.sandbox import CompileError, smoke_test
+    from programmaticmemory.evolution.sandbox import smoke_test
 
     # Step 1: Verify the program is broken
     compile_result = compile_memory_program(PROGRAM_WITH_DISALLOWED_IMPORT)
@@ -478,11 +489,10 @@ def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
 
     # Step 3: Verify the fix compiles
     fixed_result = compile_memory_program(fixed_code)
-    assert isinstance(fixed_result, tuple), f"Fixed code still fails to compile: {fixed_result}"
-    obs_cls, query_cls, memory_cls = fixed_result
-    assert obs_cls.__name__ == "Observation"
-    assert query_cls.__name__ == "Query"
-    assert memory_cls.__name__ == "Memory"
+    assert isinstance(fixed_result, CompiledProgram), f"Fixed code still fails to compile: {fixed_result}"
+    assert fixed_result.obs_cls.__name__ == "Observation"
+    assert fixed_result.query_cls.__name__ == "Query"
+    assert fixed_result.memory_cls.__name__ == "Memory"
 
     # Step 4: Verify the fix passes smoke test
     st = smoke_test(fixed_code)
@@ -502,7 +512,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
 
     # Step 1: Program compiles but fails smoke test
     compile_result = compile_memory_program(PROGRAM_WITH_RUNTIME_BUG)
-    assert isinstance(compile_result, tuple), f"Expected compile success, got {compile_result}"
+    assert isinstance(compile_result, CompiledProgram), f"Expected compile success, got {compile_result}"
 
     st = smoke_test(PROGRAM_WITH_RUNTIME_BUG)
     assert not st.success, "Expected smoke test failure, got success"
@@ -519,7 +529,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
 
     # Step 3: Verify the fix compiles and passes smoke test
     fixed_compile = compile_memory_program(fixed_code)
-    assert isinstance(fixed_compile, tuple), f"Fixed code fails to compile: {fixed_compile}"
+    assert isinstance(fixed_compile, CompiledProgram), f"Fixed code fails to compile: {fixed_compile}"
 
     fixed_st = smoke_test(fixed_code)
     assert fixed_st.success, f"Fixed code fails smoke test: {fixed_st.error}"
@@ -536,6 +546,10 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
 
 OVERSIZED_READ_MEMORY_PROGRAM = """\
 from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 
 @dataclass
@@ -576,7 +590,7 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
     ]
     val_data = list(train_data)
 
-    evaluator = MemoryEvaluator(task_model=MODEL)
+    evaluator = MemoryEvaluator(task_model=MODEL, toolkit_config=ToolkitConfig(llm_model=MODEL))
     result = evaluator.evaluate(program, train_data, val_data)
 
     assert result.runtime_violation is not None, "Expected runtime violation but got None"
@@ -592,29 +606,28 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
     # Step 3: Verify the fixed read() output respects the char limit
     # Compile to get classes (smoke_test already passed inside fix_runtime_violation)
     fixed_compile = compile_memory_program(fixed_code)
-    assert isinstance(fixed_compile, tuple), f"Fixed code fails to compile: {fixed_compile}"
-    obs_cls, query_cls, memory_cls = fixed_compile
+    assert isinstance(fixed_compile, CompiledProgram), f"Fixed code fails to compile: {fixed_compile}"
     toolkit = Toolkit(ToolkitConfig(llm_model=MODEL, llm_call_budget=5))
     try:
         # Clear collections left by smoke_test (EphemeralClient shares in-process state)
         for col in toolkit.chroma.list_collections():
             toolkit.chroma.delete_collection(col.name)
-        memory = memory_cls(toolkit)
+        memory = fixed_compile.memory_cls(toolkit)
 
         # Build obs/query dynamically from dataclass fields (LLM may rename fields)
         obs_kwargs = {
             f.name: "test value"
-            for f in dataclasses.fields(obs_cls)
+            for f in dataclasses.fields(fixed_compile.obs_cls)
             if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
         }
-        memory.write(obs_cls(**obs_kwargs))
+        memory.write(fixed_compile.obs_cls(**obs_kwargs))
 
         query_kwargs = {
             f.name: "test query"
-            for f in dataclasses.fields(query_cls)
+            for f in dataclasses.fields(fixed_compile.query_cls)
             if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
         }
-        read_result = memory.read(query_cls(**query_kwargs))
+        read_result = memory.read(fixed_compile.query_cls(**query_kwargs))
         result_str = str(read_result) if read_result is not None else ""
         assert len(result_str) <= MEMORY_READ_MAX_CHARS, (
             f"Fixed code still returns {len(result_str)} chars (limit: {MEMORY_READ_MAX_CHARS})"

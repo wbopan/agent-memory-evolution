@@ -23,7 +23,10 @@ from programmaticmemory.evolution.evaluator import (
     _parse_json_from_llm,
 )
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
+from programmaticmemory.evolution.toolkit import ToolkitConfig
 from programmaticmemory.evolution.types import DataItem, MemoryProgram
+
+_TEST_TOOLKIT_CONFIG = ToolkitConfig(llm_model="test/model")
 
 # ── Scorer Tests ────────────────────────────────────────────────────────────
 
@@ -66,7 +69,7 @@ class TestLLMJudgeScorer:
         mock_resp.choices[0].message.content = "1"
         mock_litellm.completion.return_value = mock_resp
 
-        scorer = LLMJudgeScorer()
+        scorer = LLMJudgeScorer(model="mock/model")
         score = scorer("Paris", "Paris")
 
         assert score == 1.0
@@ -142,61 +145,48 @@ def _make_batch_mock(response_batches: list[list[str]]):
 class TestMemoryLifecycle:
     def test_initial_program_instantiates(self):
         """Initial memory program template can be instantiated."""
-        from programmaticmemory.evolution.sandbox import compile_memory_program
-        from programmaticmemory.evolution.toolkit import Toolkit
+        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_memory_program
+        from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
         result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-        assert not isinstance(result, tuple) or len(result) == 3
-        _, _, memory_cls = result
-        tk = Toolkit()
-        memory = memory_cls(tk)
+        assert isinstance(result, CompiledProgram)
+        tk = Toolkit(ToolkitConfig(llm_model="test/model"))
+        memory = result.memory_cls(tk)
         assert memory is not None
         tk.close()
 
     def test_write_then_read_returns_content(self):
         """Write followed by read should return the written content."""
-        from programmaticmemory.evolution.sandbox import compile_memory_program
-        from programmaticmemory.evolution.toolkit import Toolkit
+        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_memory_program
+        from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
-        _, _, memory_cls = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-        tk = Toolkit()
-        memory = memory_cls(tk)
-        from dataclasses import dataclass
-
-        @dataclass
-        class Obs:
-            raw: str
-
-        @dataclass
-        class Q:
-            raw: str
-
-        # Use the compiled classes instead
         result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-        obs_cls, query_cls, memory_cls = result
-        memory = memory_cls(tk)
-        memory.write(obs_cls(raw="The sky is blue."))
-        output = memory.read(query_cls(raw="sky"))
+        assert isinstance(result, CompiledProgram)
+        tk = Toolkit(ToolkitConfig(llm_model="test/model"))
+        memory = result.memory_cls(tk)
+        memory.write(result.obs_cls(raw="The sky is blue."))
+        output = memory.read(result.query_cls(raw="sky"))
         assert "The sky is blue." in output
         tk.close()
 
     def test_reinstantiation_gives_empty_memory(self):
         """Re-instantiating Memory should produce an empty store (no state leak)."""
-        from programmaticmemory.evolution.sandbox import compile_memory_program
-        from programmaticmemory.evolution.toolkit import Toolkit
+        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_memory_program
+        from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
-        obs_cls, query_cls, memory_cls = compile_memory_program(INITIAL_MEMORY_PROGRAM)
-        tk = Toolkit()
+        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        assert isinstance(result, CompiledProgram)
+        tk = Toolkit(ToolkitConfig(llm_model="test/model"))
 
         # First instance: write data
-        mem1 = memory_cls(tk)
-        mem1.write(obs_cls(raw="secret data"))
-        output1 = mem1.read(query_cls(raw="anything"))
+        mem1 = result.memory_cls(tk)
+        mem1.write(result.obs_cls(raw="secret data"))
+        output1 = mem1.read(result.query_cls(raw="anything"))
         assert "secret data" in output1
 
         # Second instance: should be empty
-        mem2 = memory_cls(tk)
-        output2 = mem2.read(query_cls(raw="anything"))
+        mem2 = result.memory_cls(tk)
+        output2 = mem2.read(result.query_cls(raw="anything"))
         assert "secret data" not in output2
         tk.close()
 
@@ -227,7 +217,7 @@ class TestMemoryEvaluatorOffline:
             DataItem(raw_text="x", question="Capital of Germany?", expected_answer="Berlin"),
         ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         # Train should be exactly 1 call with 2 messages
@@ -253,7 +243,7 @@ class TestMemoryEvaluatorOffline:
         train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert result.score == 0.0
@@ -263,7 +253,7 @@ class TestMemoryEvaluatorOffline:
 
     def test_compile_error_returns_zero(self):
         program = MemoryProgram(source_code="invalid python {{{}}")
-        evaluator = MemoryEvaluator()
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(
             program,
             [DataItem(raw_text="x", question="q", expected_answer="a")],
@@ -291,7 +281,7 @@ class TestMemoryEvaluatorOffline:
             DataItem(raw_text="x", question="Q2?", expected_answer="correct2"),
         ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert result.score == 1.0
@@ -324,7 +314,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="obs stored")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert len(batch_mock.captured_calls) == 5  # 3 train rounds + 2 val rounds
@@ -362,7 +352,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         # No parse errors in logs means query was parsed successfully
@@ -387,7 +377,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert not any("observation parse failed" in log for log in result.logs)
@@ -411,7 +401,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="stored via online")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert result.score == 1.0
@@ -435,7 +425,7 @@ class TestMemoryEvaluatorOnline:
         train = [DataItem(raw_text="", question="Q?", expected_answer="correct answer")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         evaluator.evaluate(program, train, val)
 
         # Round 3 (call index 2) should contain feedback in the last user message
@@ -467,7 +457,7 @@ class TestValidationPipeline:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         evaluator.evaluate(program, train, val)
 
         # Should be exactly 3 batch_completion calls: 1 train obs + 2 val rounds
@@ -491,6 +481,10 @@ class TestValidationPipeline:
         # Use a memory program that tracks write calls
         tracking_program = """\
 from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
 
 @dataclass
 class Observation:
@@ -518,7 +512,7 @@ class Memory:
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         evaluator.evaluate(program, train, val)
 
         # 5 batch calls: 3 train rounds + 2 val rounds
@@ -541,7 +535,7 @@ class Memory:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="correct")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert len(result.failed_cases) == 1
@@ -568,7 +562,7 @@ class Memory:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is X?", expected_answer="the answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         evaluator.evaluate(program, train, val)
 
         # Val round 2 (call index 2): each item should have 3 messages
@@ -600,7 +594,7 @@ class TestEvaluatorEdgeCases:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert result.score is not None
@@ -623,7 +617,7 @@ class TestEvaluatorEdgeCases:
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="a")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert result.score == 0.0
@@ -633,7 +627,7 @@ class TestEvaluatorEdgeCases:
     def test_empty_val_data(self, snapshot: SnapshotAssertion):
         """Empty val data should return score 0 without crashing."""
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
             batch_mock = _make_batch_mock(
                 [
@@ -647,6 +641,36 @@ class TestEvaluatorEdgeCases:
                 [],
             )
         assert result.score == 0.0
+        assert batch_mock.captured_calls == snapshot
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_success_cases_collected(self, mock_litellm, snapshot: SnapshotAssertion):
+        """Correct answers should be collected as success_cases."""
+        batch_mock = _make_batch_mock(
+            [
+                ['{"raw": "f1"}'],  # train obs
+                ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: queries
+                ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        train = [DataItem(raw_text="f1", question="q", expected_answer="e")]
+        val = [
+            DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
+            DataItem(raw_text="x", question="Q2?", expected_answer="right answer"),
+        ]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
+        result = evaluator.evaluate(program, train, val)
+
+        assert len(result.success_cases) == 1
+        assert result.success_cases[0].question == "Q1?"
+        assert result.success_cases[0].score == 1.0
+        assert len(result.success_cases[0].conversation_history) == 4
+        assert len(result.failed_cases) == 1
+        assert result.failed_cases[0].question == "Q2?"
         assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
@@ -670,7 +694,7 @@ class TestEvaluatorEdgeCases:
             DataItem(raw_text="x", question="Q2?", expected_answer="right answer"),
         ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         assert result.score == 0.5
@@ -705,7 +729,7 @@ class TestEvaluatorEdgeCases:
         ]
         val = [DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
         # Should still complete; only 1 item written to memory
@@ -773,6 +797,10 @@ class TestGuardedRead:
 OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
     from dataclasses import dataclass
 
+    INSTRUCTION_OBSERVATION = ""
+    INSTRUCTION_QUERY = ""
+    INSTRUCTION_RESPONSE = ""
+
     @dataclass
     class Observation:
         content: str
@@ -807,7 +835,7 @@ class TestRuntimeViolationEarlyAbort:
         mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=OVERSIZED_READ_PROGRAM)
-        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         train = [DataItem(raw_text="hello", question="q", expected_answer="a")]
         val = [DataItem(raw_text="x", question="what?", expected_answer="x")]
 
