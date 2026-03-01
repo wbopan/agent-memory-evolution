@@ -50,7 +50,7 @@ def main() -> None:
     parser.add_argument("--train-size", type=int, default=None, help="Limit train set size")
     parser.add_argument("--val-size", type=int, default=None, help="Limit val set size")
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
-    parser.add_argument("--reflect-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for reflection")
+    parser.add_argument("--reflect-model", default="openrouter/openai/gpt-5.3-codex", help="Model for reflection")
     parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
@@ -89,6 +89,24 @@ def main() -> None:
     dataset_kwargs = _parse_extra_kwargs(extra)
     dataset = load_dataset(args.dataset, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs)
 
+    from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
+
+    # Set up logger with file tee before constructing evaluator/reflector
+    # (they cache get_logger() in __init__, so the logger must be final by then)
+    output_manager = None
+    if not args.no_output:
+        output_manager = RunOutputManager(base_dir="outputs", config=vars(args))
+        set_logger(RichLogger(log_file=output_manager.get_log_path()))
+
+    logger = get_logger()
+    logger.log(
+        f"Dataset={args.dataset}, train={len(dataset.train)}, val={len(dataset.val)}, "
+        f"task_model={args.task_model}, reflect_model={args.reflect_model}",
+        header="CONFIG",
+    )
+    if output_manager:
+        logger.log(f"Output directory: {output_manager.run_dir}", header="CONFIG")
+
     # Configure
     scorer = dataset.scorer or ExactMatchScorer()
     toolkit_config = ToolkitConfig(llm_model=args.toolkit_model)
@@ -105,15 +123,6 @@ def main() -> None:
     reflector = Reflector(model=args.reflect_model, prompt_config=prompt_config)
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
-    # Local output directory
-    output_manager = None
-    if not args.no_output:
-        output_manager = RunOutputManager(base_dir="outputs", config=vars(args))
-        # Tee logger output to run.log
-        from programmaticmemory.logging.logger import RichLogger, set_logger
-
-        set_logger(RichLogger(log_file=output_manager.get_log_path()))
-
     # Run
     with tracker:
         loop = EvolutionLoop(
@@ -129,9 +138,7 @@ def main() -> None:
 
     if output_manager:
         output_manager.close()
-        from programmaticmemory.logging.logger import get_logger
-
-        get_logger().close()
+        logger.close()
 
     # Output
     print(f"\n{'=' * 60}")

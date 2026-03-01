@@ -115,7 +115,7 @@ class TokenF1Scorer:
 class LLMJudgeScorer:
     """LLM-as-judge scorer, returns 0.0 or 1.0."""
 
-    def __init__(self, model: str = "openrouter/deepseek/deepseek-v3.2") -> None:
+    def __init__(self, model: str) -> None:
         self.model = model
 
     def __call__(self, output: str, expected: str) -> float:
@@ -170,8 +170,9 @@ class MemoryEvaluator:
     def __init__(
         self,
         scorer: Scorer | None = None,
-        task_model: str = "openrouter/deepseek/deepseek-v3.2",
-        toolkit_config: ToolkitConfig | None = None,
+        *,
+        task_model: str,
+        toolkit_config: ToolkitConfig,
     ) -> None:
         self.scorer = scorer or ExactMatchScorer()
         self.task_model = task_model
@@ -210,10 +211,18 @@ class MemoryEvaluator:
 
         try:
             if train_data and train_data[0].raw_text:
+                self.logger.log(
+                    f"Pipeline: offline (batch obs ingestion), train={len(train_data)}, val={len(val_data)}",
+                    header="EVAL",
+                )
                 return self._evaluate_offline(
                     memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
                 )
             else:
+                self.logger.log(
+                    f"Pipeline: online (interactive QA), train={len(train_data)}, val={len(val_data)}",
+                    header="EVAL",
+                )
                 return self._evaluate_online(
                     memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
                 )
@@ -240,6 +249,7 @@ class MemoryEvaluator:
         logs: list[str] = []
 
         # Batch all observation generation prompts in one call
+        self.logger.log(f"Train: generating observations for {len(train_data)} items", header="EVAL")
         all_messages = [
             [{"role": "user", "content": build_observation_generation_prompt(item.raw_text, obs_schema)}]
             for item in train_data
@@ -247,21 +257,29 @@ class MemoryEvaluator:
         responses = self._batch_llm_call(all_messages)
 
         train_examples = []
+        write_count = 0
+        fail_count = 0
         for idx, (msgs, item, content) in enumerate(zip(all_messages, train_data, responses, strict=True)):
             if idx < 3 and content is not None:
                 train_examples.append(TrainExample(messages=[*msgs, {"role": "assistant", "content": content}]))
             if content is None:
                 logs.append(f"Failed to generate observation for: {item.raw_text}")
+                fail_count += 1
                 continue
             try:
                 obs = obs_cls(**_parse_json_from_llm(content))
                 _guarded_write(memory, obs)
+                write_count += 1
             except RuntimeViolationError:
                 raise
             except Exception as e:
                 logs.append(f"Obs parse/write failed: {e}")
+                fail_count += 1
+
+        self.logger.log(f"Train: write phase complete — {write_count} written, {fail_count} failed", header="EVAL")
 
         # Val: multi-turn query → read → answer → score
+        self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
         result = self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
         result.train_examples = train_examples
         return result
@@ -281,9 +299,12 @@ class MemoryEvaluator:
     ) -> EvalResult:
         """Online: Interleaved multi-turn train, then evaluate val."""
         logs: list[str] = []
+        self.logger.log(f"Train: interactive QA for {len(train_data)} items (3 rounds)", header="EVAL")
         train_examples = self._online_train_batched(
             memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs
         )
+        self.logger.log("Train: interactive QA complete", header="EVAL")
+        self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
         result = self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
         result.train_examples = train_examples
         return result
@@ -412,6 +433,7 @@ class MemoryEvaluator:
         scores: list[float],
         outputs: list[str],
         failed_cases: list[FailedCase],
+        success_cases: list[FailedCase],
         logs: list[str],
     ) -> EvalResult:
         """Assemble the final EvalResult with average score logging."""
@@ -422,6 +444,7 @@ class MemoryEvaluator:
             per_case_scores=scores,
             per_case_outputs=outputs,
             failed_cases=failed_cases,
+            success_cases=success_cases,
             logs=logs,
         )
 
@@ -436,7 +459,7 @@ class MemoryEvaluator:
     ) -> EvalResult:
         """Two-round batched val: all query prompts → serial reads → all answer prompts."""
         if not val_data:
-            return self._build_eval_result([], [], [], logs)
+            return self._build_eval_result([], [], [], [], logs)
 
         # Round 1: batch all query generation
         round1_messages = [
@@ -466,6 +489,7 @@ class MemoryEvaluator:
         scores: list[float] = []
         outputs: list[str] = []
         failed_cases: list[FailedCase] = []
+        success_cases: list[FailedCase] = []
         log_snapshot = list(toolkit.logger.logs)
 
         valid_idx = 0
@@ -506,25 +530,31 @@ class MemoryEvaluator:
             outputs.append(answer)
             score = self.scorer(answer, item.expected_answer)
             scores.append(score)
+            conv = [
+                {"role": "user", "content": slot.query_prompt},
+                {"role": "assistant", "content": slot.query_json},
+                {"role": "user", "content": slot.retrieved_prompt},
+                {"role": "assistant", "content": answer},
+            ]
+            case = FailedCase(
+                question=item.question,
+                output=answer,
+                expected=item.expected_answer,
+                score=score,
+                conversation_history=conv,
+                memory_logs=log_snapshot,
+            )
             if score < 1.0:
-                conv = [
-                    {"role": "user", "content": slot.query_prompt},
-                    {"role": "assistant", "content": slot.query_json},
-                    {"role": "user", "content": slot.retrieved_prompt},
-                    {"role": "assistant", "content": answer},
-                ]
-                failed_cases.append(
-                    FailedCase(
-                        question=item.question,
-                        output=answer,
-                        expected=item.expected_answer,
-                        score=score,
-                        conversation_history=conv,
-                        memory_logs=log_snapshot,
-                    )
-                )
+                failed_cases.append(case)
+            else:
+                success_cases.append(case)
 
-        return self._build_eval_result(scores, outputs, failed_cases, logs)
+        result = self._build_eval_result(scores, outputs, failed_cases, success_cases, logs)
+        self.logger.log(
+            f"Val: complete — score={result.score:.3f}, {len(failed_cases)}/{len(val_data)} failed",
+            header="EVAL",
+        )
+        return result
 
     def _batch_llm_call(self, all_messages: list[list[dict]]) -> list[str | None]:
         """Fan out independent LLM calls via litellm.batch_completion.

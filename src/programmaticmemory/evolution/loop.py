@@ -72,7 +72,9 @@ class EvolutionLoop:
         # Evaluate initial program
         if self.output_manager:
             self.output_manager.set_phase(0, "train")
-        self.logger.log(f"Evaluating initial program (hash={current.hash})", header="EVOLUTION")
+        self.logger.log(
+            f"Evaluating initial program (gen={current.generation}, hash={current.hash})", header="EVOLUTION"
+        )
         eval_result = self.evaluator.evaluate(current, ds.train, ds.val)
         best_score = eval_result.score
         best_program = current
@@ -101,11 +103,12 @@ class EvolutionLoop:
                 self.logger.log(f"Stop condition triggered at iteration {i}", header="EVOLUTION")
                 break
 
-            self.logger.log(f"Iteration {i}/{self.max_iterations}", header="EVOLUTION")
+            self.logger.log(f"--- Iteration {i}/{self.max_iterations} ---", header="EVOLUTION")
 
             # Reflect and mutate
             if self.output_manager:
                 self.output_manager.set_phase(i, "reflect")
+            self.logger.log("Starting reflection", header="EVOLUTION")
             child = self.reflector.reflect_and_mutate(current, eval_result, i)
             if child is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
@@ -118,6 +121,7 @@ class EvolutionLoop:
             # Evaluate child
             if self.output_manager:
                 self.output_manager.set_phase(i, "train")
+            self.logger.log(f"Evaluating child program (gen={child.generation}, hash={child.hash})", header="EVOLUTION")
             child_result = self.evaluator.evaluate(child, ds.train, ds.val)
 
             # Runtime violation fix loop

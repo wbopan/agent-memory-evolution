@@ -126,6 +126,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             f1
             f2
             </retrieved_memory>
@@ -159,6 +160,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             f1
             f2
             </retrieved_memory>
@@ -238,6 +240,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -286,6 +289,136 @@
             }
             
             Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+  ])
+# ---
+# name: TestEvaluatorEdgeCases.test_success_cases_collected
+  list([
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following text, create an Observation object to store this information in memory.
+            
+            Text: f1
+            
+            The Observation must conform to this schema:
+            // Observation: Raw text observation to store in memory.
+            {
+              "raw": "..."  // str, The raw text to store
+            }
+            
+            Output ONLY a valid JSON object matching the schema fields. No explanation.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q1?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str, The query text to search for
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q2?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str, The query text to search for
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q1?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str, The query text to search for
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "q1"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
+            f1
+            </retrieved_memory>
+            
+            Based on the above memory and the original question, provide your answer.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+      list([
+        dict({
+          'content': '''
+            Given the following question, generate a query to retrieve relevant memory.
+            
+            Question: Q2?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Raw text query to retrieve from memory.
+            {
+              "raw": "..."  // str, The query text to search for
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "q2"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
+            f1
+            </retrieved_memory>
+            
+            Based on the above memory and the original question, provide your answer.
           ''',
           'role': 'user',
         }),
@@ -396,6 +529,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             France capital is Paris.
             Germany capital is Berlin.
             </retrieved_memory>
@@ -429,6 +563,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             France capital is Paris.
             Germany capital is Berlin.
             </retrieved_memory>
@@ -526,6 +661,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             obs1
             </retrieved_memory>
             
@@ -558,6 +694,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             obs1
             </retrieved_memory>
             
@@ -636,6 +773,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             The capital of France is Paris.
             </retrieved_memory>
             
@@ -694,6 +832,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -728,6 +867,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -803,6 +943,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             obs
             </retrieved_memory>
             
@@ -861,6 +1002,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -895,6 +1037,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -970,6 +1113,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             obs
             </retrieved_memory>
             
@@ -1028,6 +1172,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -1062,6 +1207,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -1137,6 +1283,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             parsed observation value
             </retrieved_memory>
             
@@ -1195,6 +1342,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -1229,6 +1377,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -1304,6 +1453,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             obs stored
             </retrieved_memory>
             
@@ -1362,6 +1512,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -1396,6 +1547,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             No information stored.
             </retrieved_memory>
             
@@ -1471,6 +1623,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             stored via online
             </retrieved_memory>
             
@@ -1549,6 +1702,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             fact
             </retrieved_memory>
             
@@ -1794,6 +1948,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             fact
             </retrieved_memory>
             
@@ -1872,6 +2027,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            When answering questions, give a short and direct answer and nothing else.
             fact
             </retrieved_memory>
             

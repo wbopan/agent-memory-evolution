@@ -11,6 +11,8 @@ from typing import Any
 import litellm
 from litellm.integrations.custom_logger import CustomLogger
 
+from programmaticmemory.logging.logger import get_logger
+
 
 class LLMCallLogger(CustomLogger):
     """Litellm callback that logs every LLM call to a JSON file on disk."""
@@ -140,7 +142,10 @@ class RunOutputManager:
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
         # Write config
-        (self.run_dir / "config.json").write_text(json.dumps(config, indent=2, default=str), encoding="utf-8")
+        config_path = self.run_dir / "config.json"
+        config_path.write_text(json.dumps(config, indent=2, default=str), encoding="utf-8")
+
+        get_logger().log(f"Saved config → {config_path}", header="OUTPUT")
 
         # Create and register the callback
         self._callback = LLMCallLogger()
@@ -161,7 +166,9 @@ class RunOutputManager:
         Args:
             metrics: Dictionary of summary metrics.
         """
-        (self.run_dir / "summary.json").write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
+        summary_path = self.run_dir / "summary.json"
+        summary_path.write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
+        get_logger().log(f"Saved summary → {summary_path}", header="OUTPUT")
 
     def write_program(self, iteration: int, source_code: str, accepted: bool, score: float) -> None:
         """Save a Memory Program's source code to programs/iter_N.py.
@@ -177,7 +184,9 @@ class RunOutputManager:
             programs_dir.mkdir(exist_ok=True)
             label = "initial" if iteration == 0 else ("accepted" if accepted else "rejected")
             header = f"# iter={iteration}  score={score:.4f}  {label}\n\n"
-            (programs_dir / f"iter_{iteration}.py").write_text(header + source_code, encoding="utf-8")
+            program_path = programs_dir / f"iter_{iteration}.py"
+            program_path.write_text(header + source_code, encoding="utf-8")
+            get_logger().log(f"Saved program ({label}) → {program_path}", header="OUTPUT")
         except Exception:
             pass  # logging must never crash the evolution loop
 
@@ -195,6 +204,7 @@ class RunOutputManager:
         try:
             out_path = self._iter_dir(iteration) / "failed_cases.json"
             out_path.write_text(json.dumps(cases, indent=2, default=str), encoding="utf-8")
+            get_logger().log(f"Saved {len(cases)} failed cases → {out_path}", header="OUTPUT")
         except Exception:
             pass  # logging must never crash the evolution loop
 
