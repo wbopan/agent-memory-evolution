@@ -53,21 +53,21 @@ These limits are enforced during evaluation. Violating them results in score = 0
 
 ## Instruction Constants (required)
 
-Three module-level string constants control how the task agent LLM behaves:
+Three module-level string constants provide the natural-language instructions used in task agent prompts:
 
-- INSTRUCTION_OBSERVATION: Appended to the observation generation prompt. Guide what information to extract and how to structure it.
-- INSTRUCTION_QUERY: Appended to the query generation prompt. Guide how to formulate retrieval queries.
-- INSTRUCTION_RESPONSE: Appended to the answer generation prompt. Control answer format, length, and style.
+- INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
+- INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+- INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
 
-Set to empty string "" if no special instruction is needed.
+These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
 """
 
 INITIAL_MEMORY_PROGRAM = '''\
 from dataclasses import dataclass, field
 
-INSTRUCTION_OBSERVATION = ""
-INSTRUCTION_QUERY = ""
-INSTRUCTION_RESPONSE = "When answering questions, give a short and direct answer and nothing else."
+INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in memory. Include all key information."
+INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant memory."
+INSTRUCTION_RESPONSE = "Based on the above memory and the original question, provide a short answer without explanation."
 
 
 @dataclass
@@ -274,10 +274,14 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 </task>"""
 
 
-def build_observation_generation_prompt(raw_text: str, schema: str, instruction: str = "") -> str:
+def build_observation_generation_prompt(
+    raw_text: str,
+    schema: str,
+    instruction: str = "Given the following text, create an Observation object to store this information in memory.",
+) -> str:
     """Prompt the task agent LLM to generate an Observation from raw text."""
-    prompt = f"""\
-Given the following text, create an Observation object to store this information in memory.
+    return f"""\
+{instruction}
 
 Text: {raw_text}
 
@@ -285,18 +289,19 @@ The Observation must conform to this schema:
 {schema}
 
 Output ONLY a valid JSON object matching the schema fields. No explanation."""
-    if instruction:
-        prompt += f"\n\n{instruction}"
-    return prompt
 
 
-def build_query_generation_prompt(question: str, schema: str, instruction: str = "") -> str:
+def build_query_generation_prompt(
+    question: str,
+    schema: str,
+    instruction: str = "Given the following question, generate a query to retrieve relevant memory.",
+) -> str:
     """Prompt the task agent LLM to generate a Query from a question.
 
     Used as a user message in the multi-turn conversation (Step 1).
     """
-    prompt = f"""\
-Given the following question, generate a query to retrieve relevant memory.
+    return f"""\
+{instruction}
 
 Question: {question}
 
@@ -304,33 +309,30 @@ The query must be a JSON object matching this schema:
 {schema}
 
 Respond with the JSON only."""
-    if instruction:
-        prompt += f"\n\n{instruction}"
-    return prompt
 
 
-def build_retrieved_memory_prompt(retrieved: str, instruction: str = "") -> str:
+def build_retrieved_memory_prompt(
+    retrieved: str,
+    instruction: str = "Based on the above memory and the original question, provide your answer.",
+) -> str:
     """Prompt the task agent LLM to answer based on retrieved memory.
 
     Used as a user message in the multi-turn conversation (Step 2).
     The LLM sees the full conversation history including its own query from Step 1.
     """
-    prompt = f"""\
+    return f"""\
 <retrieved_memory>
 {retrieved}
 </retrieved_memory>
 
-Based on the above memory and the original question, provide your answer."""
-    if instruction:
-        prompt += f"\n\n{instruction}"
-    return prompt
+{instruction}"""
 
 
 def build_observation_with_feedback_prompt(
     evaluation_result: str,
     ground_truth: str,
     schema: str,
-    instruction: str = "",
+    instruction: str = "Based on this feedback, generate an observation to write into memory.",
 ) -> str:
     """Prompt the task agent LLM to generate an Observation informed by feedback.
 
@@ -341,14 +343,12 @@ def build_observation_with_feedback_prompt(
 Evaluation result: {evaluation_result}
 Ground truth: {ground_truth}
 
-Based on this feedback, generate an observation to write into memory.
+{instruction}
 
 The observation must be a JSON object matching this schema:
 {schema}
 
 Respond with the JSON only."""
-    if instruction:
-        prompt += f"\n\n{instruction}"
     return prompt
 
 

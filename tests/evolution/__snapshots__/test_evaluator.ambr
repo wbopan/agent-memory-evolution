@@ -5,7 +5,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: x
             
@@ -29,7 +29,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: f1
             
@@ -47,7 +47,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: f2
             
@@ -130,9 +130,7 @@
             f2
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -165,9 +163,7 @@
             f2
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -181,7 +177,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: fact
             
@@ -245,9 +241,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -261,7 +255,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: fact
             
@@ -305,7 +299,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: f1
             
@@ -387,9 +381,7 @@
             f1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -421,9 +413,7 @@
             f1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -437,7 +427,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: France capital is Paris.
             
@@ -455,7 +445,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: Germany capital is Berlin.
             
@@ -538,9 +528,7 @@
             Germany capital is Berlin.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -573,9 +561,7 @@
             Germany capital is Berlin.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -589,7 +575,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: fact
             
@@ -671,9 +657,7 @@
             obs1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -705,9 +689,7 @@
             obs1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -721,7 +703,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: The capital of France is Paris.
             
@@ -785,9 +767,7 @@
             The capital of France is Paris.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -845,9 +825,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -881,9 +859,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -896,7 +872,7 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Based on this feedback, generate an observation to write into memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             The observation must be a JSON object matching this schema:
             // Observation: Raw text observation to store in memory.
@@ -958,9 +934,7 @@
             obs
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1018,9 +992,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1054,9 +1026,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1069,7 +1039,7 @@
             Evaluation result: Score: 0.0 (incorrect)
             Ground truth: correct answer
             
-            Based on this feedback, generate an observation to write into memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             The observation must be a JSON object matching this schema:
             // Observation: Raw text observation to store in memory.
@@ -1131,9 +1101,7 @@
             obs
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1191,9 +1159,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1227,9 +1193,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1242,7 +1206,7 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Based on this feedback, generate an observation to write into memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             The observation must be a JSON object matching this schema:
             // Observation: Raw text observation to store in memory.
@@ -1304,9 +1268,7 @@
             parsed observation value
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1364,9 +1326,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1400,9 +1360,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1415,7 +1373,7 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Based on this feedback, generate an observation to write into memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             The observation must be a JSON object matching this schema:
             // Observation: Raw text observation to store in memory.
@@ -1477,9 +1435,7 @@
             obs stored
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1537,9 +1493,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1573,9 +1527,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1588,7 +1540,7 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Based on this feedback, generate an observation to write into memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             The observation must be a JSON object matching this schema:
             // Observation: Raw text observation to store in memory.
@@ -1650,9 +1602,7 @@
             stored via online
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1666,7 +1616,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: fact
             
@@ -1730,9 +1680,7 @@
             fact
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1746,7 +1694,7 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            
             
             Question: Q?
             
@@ -1766,7 +1714,7 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            
             
             Question: Q?
             
@@ -1790,7 +1738,7 @@
             empty
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
+  
           ''',
           'role': 'user',
         }),
@@ -1800,7 +1748,7 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            
             
             Question: Q?
             
@@ -1824,7 +1772,7 @@
             empty
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
+  
           ''',
           'role': 'user',
         }),
@@ -1837,7 +1785,7 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Based on this feedback, generate an observation to write into memory.
+            
             
             The observation must be a JSON object matching this schema:
             // Observation: Observation(raw: 'str')
@@ -1855,7 +1803,7 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            
             
             Question: VQ?
             
@@ -1875,7 +1823,7 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            
             
             Question: VQ?
             
@@ -1899,7 +1847,7 @@
             obs
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
+  
           ''',
           'role': 'user',
         }),
@@ -1913,7 +1861,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: fact
             
@@ -1977,9 +1925,7 @@
             fact
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1993,7 +1939,7 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory.
+            Given the following text, create an Observation object to store this information in memory. Include all key information.
             
             Text: fact
             
@@ -2057,9 +2003,7 @@
             fact
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide your answer.
-            
-            When answering questions, give a short and direct answer and nothing else.
+            Based on the above memory and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
