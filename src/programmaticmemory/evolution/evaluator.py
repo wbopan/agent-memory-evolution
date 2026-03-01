@@ -29,7 +29,6 @@ from programmaticmemory.evolution.sandbox import (
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 from programmaticmemory.evolution.types import (
     DataItem,
-    EvalMode,
     EvalResult,
     FailedCase,
     MemoryProgram,
@@ -185,9 +184,12 @@ class MemoryEvaluator:
         program: MemoryProgram,
         train_data: list[DataItem],
         val_data: list[DataItem],
-        eval_mode: EvalMode = EvalMode.OFFLINE,
     ) -> EvalResult:
-        """Run evaluation pipeline and return results."""
+        """Run evaluation pipeline and return results.
+
+        Pipeline is inferred from train data: items with raw_text use batch
+        observation ingestion; items without raw_text use interactive QA training.
+        """
         compile_result = compile_memory_program(program.source_code)
         if isinstance(compile_result, CompileError):
             self.logger.log(f"Compile failed: {compile_result.message}", header="EVAL")
@@ -207,7 +209,7 @@ class MemoryEvaluator:
             return EvalResult(score=0.0, logs=[f"Memory instantiation failed: {e}"])
 
         try:
-            if eval_mode == EvalMode.OFFLINE:
+            if train_data and train_data[0].raw_text:
                 return self._evaluate_offline(
                     memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
                 )
@@ -215,6 +217,9 @@ class MemoryEvaluator:
                 return self._evaluate_online(
                     memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
                 )
+        except RuntimeViolationError as e:
+            self.logger.log(f"Runtime violation: {e}", header="EVAL")
+            return EvalResult(score=0.0, logs=[f"Runtime violation: {e}"], runtime_violation=str(e))
         finally:
             toolkit.close()
 
@@ -250,7 +255,9 @@ class MemoryEvaluator:
                 continue
             try:
                 obs = obs_cls(**_parse_json_from_llm(content))
-                memory.write(obs)
+                _guarded_write(memory, obs)
+            except RuntimeViolationError:
+                raise
             except Exception as e:
                 logs.append(f"Obs parse/write failed: {e}")
 
@@ -274,8 +281,12 @@ class MemoryEvaluator:
     ) -> EvalResult:
         """Online: Interleaved multi-turn train, then evaluate val."""
         logs: list[str] = []
-        self._online_train_batched(memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs)
-        return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+        train_examples = self._online_train_batched(
+            memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs
+        )
+        result = self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+        result.train_examples = train_examples
+        return result
 
     def _online_train_batched(
         self,
@@ -286,10 +297,10 @@ class MemoryEvaluator:
         query_schema: str,
         train_data: list[DataItem],
         logs: list[str],
-    ) -> None:
+    ) -> list[TrainExample]:
         """Online train batched: 3 rounds of batch_completion, then serial writes."""
         if not train_data:
-            return
+            return []
 
         # Round 1: query generation for all items
         round1_messages = [
@@ -341,16 +352,23 @@ class MemoryEvaluator:
         ]
         round3_responses = self._batch_llm_call(round3_messages)
 
-        # Serial writes
-        for obs_content in round3_responses:
+        # Serial writes + capture train examples
+        train_examples: list[TrainExample] = []
+        for r3_msgs, obs_content in zip(round3_messages, round3_responses, strict=True):
             if obs_content is None:
                 logs.append("Train observation generation failed (batch error)")
                 continue
+            if len(train_examples) < 3:
+                train_examples.append(TrainExample(messages=[*r3_msgs, {"role": "assistant", "content": obs_content}]))
             try:
                 obs = obs_cls(**_parse_json_from_llm(obs_content))
-                memory.write(obs)
+                _guarded_write(memory, obs)
+            except RuntimeViolationError:
+                raise
             except Exception as e:
                 logs.append(f"Train observation parse/write failed: {e}")
+
+        return train_examples
 
     # ── Shared helpers ─────────────────────────────────────────────────────
 
@@ -378,8 +396,10 @@ class MemoryEvaluator:
                 slots.append(None)
                 continue
             try:
-                retrieved = memory.read(query)
+                retrieved = _guarded_read(memory, query)
                 retrieved_str = str(retrieved) if retrieved is not None else ""
+            except RuntimeViolationError:
+                raise
             except Exception as e:
                 retrieved_str = f"Read error: {e}"
                 logs.append(f"{log_prefix} read failed: {e}")

@@ -6,6 +6,7 @@ Key verification points from the design document:
 - Memory lifecycle: re-instantiation → empty memory (state isolation)
 """
 
+import textwrap
 import time
 from unittest.mock import MagicMock, patch
 
@@ -22,7 +23,7 @@ from programmaticmemory.evolution.evaluator import (
     _parse_json_from_llm,
 )
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
-from programmaticmemory.evolution.types import DataItem, EvalMode, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, MemoryProgram
 
 # ── Scorer Tests ────────────────────────────────────────────────────────────
 
@@ -227,7 +228,7 @@ class TestMemoryEvaluatorOffline:
         ]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         # Train should be exactly 1 call with 2 messages
         assert len(batch_mock.captured_calls) == 3  # train + val round1 + val round2
@@ -253,7 +254,7 @@ class TestMemoryEvaluatorOffline:
         val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert result.score == 0.0
         assert len(result.failed_cases) == 1
@@ -291,7 +292,7 @@ class TestMemoryEvaluatorOffline:
         ]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert result.score == 1.0
         assert len(batch_mock.captured_calls) == 3  # train + 2 val rounds
@@ -320,11 +321,11 @@ class TestMemoryEvaluatorOnline:
         mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="obs stored")]
+        train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="", question="VQ?", expected_answer="obs stored")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert len(batch_mock.captured_calls) == 5  # 3 train rounds + 2 val rounds
         # Round 1: 1 query prompt (1 msg each)
@@ -358,11 +359,11 @@ class TestMemoryEvaluatorOnline:
         mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+        train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        result = evaluator.evaluate(program, train, val)
 
         # No parse errors in logs means query was parsed successfully
         assert not any("query parse failed" in log for log in result.logs)
@@ -383,11 +384,11 @@ class TestMemoryEvaluatorOnline:
         mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+        train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert not any("observation parse failed" in log for log in result.logs)
         assert batch_mock.captured_calls == snapshot
@@ -407,11 +408,11 @@ class TestMemoryEvaluatorOnline:
         mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="stored via online")]
+        train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="", question="VQ?", expected_answer="stored via online")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert result.score == 1.0
         assert batch_mock.captured_calls == snapshot
@@ -431,11 +432,11 @@ class TestMemoryEvaluatorOnline:
         mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="correct answer")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+        train = [DataItem(raw_text="", question="Q?", expected_answer="correct answer")]
+        val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        evaluator.evaluate(program, train, val)
 
         # Round 3 (call index 2) should contain feedback in the last user message
         step3_messages = batch_mock.captured_calls[2][0]
@@ -467,7 +468,7 @@ class TestValidationPipeline:
         val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        evaluator.evaluate(program, train, val)
 
         # Should be exactly 3 batch_completion calls: 1 train obs + 2 val rounds
         assert len(batch_mock.captured_calls) == 3
@@ -514,11 +515,11 @@ class Memory:
         return " ".join(self.store) if self.store else "empty"
 """
         program = MemoryProgram(source_code=tracking_program)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
+        train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
+        val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        evaluator.evaluate(program, train, val)
 
         # 5 batch calls: 3 train rounds + 2 val rounds
         assert len(batch_mock.captured_calls) == 5
@@ -541,7 +542,7 @@ class Memory:
         val = [DataItem(raw_text="x", question="Q?", expected_answer="correct")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert len(result.failed_cases) == 1
         fc = result.failed_cases[0]
@@ -568,7 +569,7 @@ class Memory:
         val = [DataItem(raw_text="x", question="What is X?", expected_answer="the answer")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        evaluator.evaluate(program, train, val)
 
         # Val round 2 (call index 2): each item should have 3 messages
         step2_msgs = batch_mock.captured_calls[2][0]
@@ -600,7 +601,7 @@ class TestEvaluatorEdgeCases:
         val = [DataItem(raw_text="x", question="q?", expected_answer="answer")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert result.score is not None
         assert len(result.per_case_scores) == 1
@@ -623,7 +624,7 @@ class TestEvaluatorEdgeCases:
         val = [DataItem(raw_text="x", question="q?", expected_answer="a")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert result.score == 0.0
         assert len(result.failed_cases) == 1
@@ -644,7 +645,6 @@ class TestEvaluatorEdgeCases:
                 program,
                 [DataItem(raw_text="x", question="q", expected_answer="a")],
                 [],
-                eval_mode=EvalMode.OFFLINE,
             )
         assert result.score == 0.0
         assert batch_mock.captured_calls == snapshot
@@ -671,7 +671,7 @@ class TestEvaluatorEdgeCases:
         ]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         assert result.score == 0.5
         assert len(result.per_case_scores) == 2
@@ -706,7 +706,7 @@ class TestEvaluatorEdgeCases:
         val = [DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris")]
 
         evaluator = MemoryEvaluator(task_model="mock/model")
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        result = evaluator.evaluate(program, train, val)
 
         # Should still complete; only 1 item written to memory
         assert result.score is not None
@@ -766,3 +766,53 @@ class TestGuardedRead:
         memory.read.side_effect = ValueError("boom")
         with pytest.raises(ValueError, match="boom"):
             _guarded_read(memory, MagicMock())
+
+
+# ── Runtime Violation Early Abort Tests ────────────────────────────────────
+
+OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
+    from dataclasses import dataclass
+
+    @dataclass
+    class Observation:
+        content: str
+
+    @dataclass
+    class Query:
+        question: str
+
+    class Memory:
+        def __init__(self, toolkit):
+            pass
+
+        def write(self, obs):
+            pass
+
+        def read(self, query):
+            return "x" * 5000
+""")
+
+
+class TestRuntimeViolationEarlyAbort:
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_oversized_read_aborts_eval(self, mock_litellm):
+        """Eval aborts on first memory.read() returning >1000 chars."""
+        batch_mock = _make_batch_mock(
+            [
+                ['{"content": "hello"}'],  # train obs batch
+                ['{"question": "what?"}'],  # val round 1: query gen
+                # No round 2 needed — abort happens before answer generation
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = MemoryProgram(source_code=OVERSIZED_READ_PROGRAM)
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        train = [DataItem(raw_text="hello", question="q", expected_answer="a")]
+        val = [DataItem(raw_text="x", question="what?", expected_answer="x")]
+
+        result = evaluator.evaluate(program, train, val)
+
+        assert result.score == 0.0
+        assert result.runtime_violation is not None
+        assert "5000" in result.runtime_violation
