@@ -199,13 +199,13 @@ class MemoryEvaluator:
                 logs=[f"Compile error: {compile_result.message} — {compile_result.details}"],
             )
 
-        obs_cls, query_cls, memory_cls = compile_result
-        obs_schema = extract_dataclass_schema(obs_cls)
-        query_schema = extract_dataclass_schema(query_cls)
+        compiled = compile_result
+        obs_schema = extract_dataclass_schema(compiled.obs_cls)
+        query_schema = extract_dataclass_schema(compiled.query_cls)
 
         toolkit = Toolkit(self.toolkit_config)
         try:
-            memory = memory_cls(toolkit)
+            memory = compiled.memory_cls(toolkit)
         except Exception as e:
             return EvalResult(score=0.0, logs=[f"Memory instantiation failed: {e}"])
 
@@ -216,7 +216,17 @@ class MemoryEvaluator:
                     header="EVAL",
                 )
                 return self._evaluate_offline(
-                    memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
+                    memory,
+                    compiled.obs_cls,
+                    compiled.query_cls,
+                    obs_schema,
+                    query_schema,
+                    train_data,
+                    val_data,
+                    toolkit,
+                    instruction_observation=compiled.instruction_observation,
+                    instruction_query=compiled.instruction_query,
+                    instruction_response=compiled.instruction_response,
                 )
             else:
                 self.logger.log(
@@ -224,7 +234,17 @@ class MemoryEvaluator:
                     header="EVAL",
                 )
                 return self._evaluate_online(
-                    memory, obs_cls, query_cls, obs_schema, query_schema, train_data, val_data, toolkit
+                    memory,
+                    compiled.obs_cls,
+                    compiled.query_cls,
+                    obs_schema,
+                    query_schema,
+                    train_data,
+                    val_data,
+                    toolkit,
+                    instruction_observation=compiled.instruction_observation,
+                    instruction_query=compiled.instruction_query,
+                    instruction_response=compiled.instruction_response,
                 )
         except RuntimeViolationError as e:
             self.logger.log(f"Runtime violation: {e}", header="EVAL")
@@ -244,6 +264,10 @@ class MemoryEvaluator:
         train_data: list[DataItem],
         val_data: list[DataItem],
         toolkit: Toolkit,
+        *,
+        instruction_observation: str = "",
+        instruction_query: str = "",
+        instruction_response: str = "",
     ) -> EvalResult:
         """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
         logs: list[str] = []
@@ -251,7 +275,12 @@ class MemoryEvaluator:
         # Batch all observation generation prompts in one call
         self.logger.log(f"Train: generating observations for {len(train_data)} items", header="EVAL")
         all_messages = [
-            [{"role": "user", "content": build_observation_generation_prompt(item.raw_text, obs_schema)}]
+            [
+                {
+                    "role": "user",
+                    "content": build_observation_generation_prompt(item.raw_text, obs_schema, instruction_observation),
+                }
+            ]
             for item in train_data
         ]
         responses = self._batch_llm_call(all_messages)
@@ -280,7 +309,16 @@ class MemoryEvaluator:
 
         # Val: multi-turn query → read → answer → score
         self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
-        result = self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+        result = self._evaluate_val(
+            memory,
+            query_cls,
+            query_schema,
+            val_data,
+            logs,
+            toolkit,
+            instruction_query=instruction_query,
+            instruction_response=instruction_response,
+        )
         result.train_examples = train_examples
         return result
 
@@ -296,16 +334,38 @@ class MemoryEvaluator:
         train_data: list[DataItem],
         val_data: list[DataItem],
         toolkit: Toolkit,
+        *,
+        instruction_observation: str = "",
+        instruction_query: str = "",
+        instruction_response: str = "",
     ) -> EvalResult:
         """Online: Interleaved multi-turn train, then evaluate val."""
         logs: list[str] = []
         self.logger.log(f"Train: interactive QA for {len(train_data)} items (3 rounds)", header="EVAL")
         train_examples = self._online_train_batched(
-            memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs
+            memory,
+            obs_cls,
+            query_cls,
+            obs_schema,
+            query_schema,
+            train_data,
+            logs,
+            instruction_observation=instruction_observation,
+            instruction_query=instruction_query,
+            instruction_response=instruction_response,
         )
         self.logger.log("Train: interactive QA complete", header="EVAL")
         self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
-        result = self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+        result = self._evaluate_val(
+            memory,
+            query_cls,
+            query_schema,
+            val_data,
+            logs,
+            toolkit,
+            instruction_query=instruction_query,
+            instruction_response=instruction_response,
+        )
         result.train_examples = train_examples
         return result
 
@@ -318,6 +378,10 @@ class MemoryEvaluator:
         query_schema: str,
         train_data: list[DataItem],
         logs: list[str],
+        *,
+        instruction_observation: str = "",
+        instruction_query: str = "",
+        instruction_response: str = "",
     ) -> list[TrainExample]:
         """Online train batched: 3 rounds of batch_completion, then serial writes."""
         if not train_data:
@@ -325,14 +389,21 @@ class MemoryEvaluator:
 
         # Round 1: query generation for all items
         round1_messages = [
-            [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema)}]
+            [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in train_data
         ]
         round1_responses = self._batch_llm_call(round1_messages)
 
         # Parse queries + serial reads
         slots = self._parse_queries_and_read(
-            query_cls, memory, round1_messages, round1_responses, logs, log_prefix="Train"
+            query_cls,
+            memory,
+            round1_messages,
+            round1_responses,
+            logs,
+            log_prefix="Train",
+            instruction_query=instruction_query,
+            instruction_response=instruction_response,
         )
 
         # Round 2: answer generation for valid slots
@@ -365,7 +436,7 @@ class MemoryEvaluator:
                 {
                     "role": "user",
                     "content": build_observation_with_feedback_prompt(
-                        evaluation_result, item.expected_answer, obs_schema
+                        evaluation_result, item.expected_answer, obs_schema, instruction_observation
                     ),
                 }
             ]
@@ -401,6 +472,9 @@ class MemoryEvaluator:
         responses: list[str | None],
         logs: list[str],
         log_prefix: str = "Val",
+        *,
+        instruction_query: str = "",
+        instruction_response: str = "",
     ) -> list[_QuerySlot | None]:
         """Parse batch query responses, read memory for each. Returns slots aligned with data."""
         slots: list[_QuerySlot | None] = []
@@ -424,7 +498,7 @@ class MemoryEvaluator:
             except Exception as e:
                 retrieved_str = f"Read error: {e}"
                 logs.append(f"{log_prefix} read failed: {e}")
-            retrieved_prompt = build_retrieved_memory_prompt(retrieved_str)
+            retrieved_prompt = build_retrieved_memory_prompt(retrieved_str, instruction_response)
             slots.append(_QuerySlot(query, content, retrieved_str, query_prompt, retrieved_prompt))
         return slots
 
@@ -456,6 +530,9 @@ class MemoryEvaluator:
         val_data: list[DataItem],
         logs: list[str],
         toolkit: Toolkit,
+        *,
+        instruction_query: str = "",
+        instruction_response: str = "",
     ) -> EvalResult:
         """Two-round batched val: all query prompts → serial reads → all answer prompts."""
         if not val_data:
@@ -463,14 +540,21 @@ class MemoryEvaluator:
 
         # Round 1: batch all query generation
         round1_messages = [
-            [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema)}]
+            [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in val_data
         ]
         round1_responses = self._batch_llm_call(round1_messages)
 
         # Parse queries and do serial memory reads
         slots = self._parse_queries_and_read(
-            query_cls, memory, round1_messages, round1_responses, logs, log_prefix="Val"
+            query_cls,
+            memory,
+            round1_messages,
+            round1_responses,
+            logs,
+            log_prefix="Val",
+            instruction_query=instruction_query,
+            instruction_response=instruction_response,
         )
 
         # Round 2: batch answer generation only for successful slots
