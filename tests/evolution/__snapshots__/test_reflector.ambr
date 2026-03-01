@@ -46,8 +46,8 @@
           
           Three module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
-          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           
           These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
@@ -148,8 +148,8 @@
         
         Three module-level string constants provide the natural-language instructions used in task agent prompts:
         
-        - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
-        - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+        - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+        - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
         - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
         
         These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
@@ -237,8 +237,8 @@
           
           Three module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
-          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           
           These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
@@ -333,8 +333,8 @@
           
           Three module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
-          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           
           These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
@@ -444,8 +444,8 @@
           
           Three module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
-          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           
           These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
@@ -533,8 +533,8 @@
         
         Three module-level string constants provide the natural-language instructions used in task agent prompts:
         
-        - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it.
-        - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries.
+        - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+        - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
         - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
         
         These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
