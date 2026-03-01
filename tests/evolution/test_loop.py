@@ -8,7 +8,7 @@ from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalMode, EvalResult, FailedCase, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, MemoryProgram
 
 
 def _make_dataset():
@@ -16,7 +16,6 @@ def _make_dataset():
         train=[DataItem(raw_text="Fact 1", question="Q1?", expected_answer="A1")],
         val=[DataItem(raw_text="x", question="Q1?", expected_answer="A1")],
         test=[],
-        eval_mode=EvalMode.OFFLINE,
     )
 
 
@@ -58,6 +57,7 @@ class TestEvolutionLoop:
 
         reflector = MagicMock(spec=Reflector)
         reflector.reflect_and_mutate.return_value = child_program
+        reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
             evaluator=evaluator,
@@ -86,6 +86,7 @@ class TestEvolutionLoop:
 
         reflector = MagicMock(spec=Reflector)
         reflector.reflect_and_mutate.return_value = child
+        reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
             evaluator=evaluator,
@@ -159,6 +160,7 @@ class TestEvolutionLoop:
 
         reflector = MagicMock(spec=Reflector)
         reflector.reflect_and_mutate.return_value = MemoryProgram(source_code="child", generation=1)
+        reflector.max_fix_attempts = 3
 
         tracker = MagicMock()
 
@@ -174,3 +176,107 @@ class TestEvolutionLoop:
         # Initial eval logged + iteration logged + summary
         assert tracker.log_metrics.call_count >= 2
         assert tracker.log_summary.call_count == 1
+
+
+class TestEvolutionLoopRuntimeFix:
+    """Tests for runtime violation fix loop in EvolutionLoop."""
+
+    def test_runtime_violation_triggers_fix_and_reeval(self):
+        """Runtime violation -> fix_runtime_violation called -> re-eval succeeds."""
+        initial = MemoryProgram(source_code="initial")
+        child = MemoryProgram(source_code="child", generation=1)
+        dataset = _make_dataset()
+
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.5),  # initial eval
+            EvalResult(score=0.0, runtime_violation="memory.read() returned 5000 chars (limit: 1000)"),  # child
+            EvalResult(score=0.8),  # re-eval after fix
+        ]
+
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = child
+        reflector.fix_runtime_violation.return_value = "fixed code"
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            initial_program=initial,
+            max_iterations=1,
+        )
+        state = loop.run()
+
+        # fix_runtime_violation was called with the child's source and violation message
+        reflector.fix_runtime_violation.assert_called_once_with(
+            "child", "memory.read() returned 5000 chars (limit: 1000)"
+        )
+        # evaluator called 3 times: initial, child (violation), fixed child
+        assert evaluator.evaluate.call_count == 3
+        # Fixed child was accepted (0.8 > 0.5)
+        assert state.best_score == 0.8
+
+    def test_runtime_violation_fix_returns_none(self):
+        """Runtime violation -> fix returns None -> iteration uses score=0."""
+        initial = MemoryProgram(source_code="initial")
+        child = MemoryProgram(source_code="child", generation=1)
+        dataset = _make_dataset()
+
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.5),  # initial
+            EvalResult(score=0.0, runtime_violation="memory.read() timed out after 5.0s"),  # child
+        ]
+
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = child
+        reflector.fix_runtime_violation.return_value = None
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            initial_program=initial,
+            max_iterations=1,
+        )
+        state = loop.run()
+
+        # Fix failed, best stays at initial
+        assert state.best_score == 0.5
+        assert evaluator.evaluate.call_count == 2
+
+    def test_runtime_violation_fix_loop_retries(self):
+        """First fix still violates -> loop retries -> second fix succeeds."""
+        initial = MemoryProgram(source_code="initial")
+        child = MemoryProgram(source_code="child", generation=1)
+        dataset = _make_dataset()
+
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.5),  # initial
+            EvalResult(score=0.0, runtime_violation="memory.read() returned 5000 chars (limit: 1000)"),  # child
+            EvalResult(
+                score=0.0, runtime_violation="memory.read() returned 3000 chars (limit: 1000)"
+            ),  # fix1 still violates
+            EvalResult(score=0.7),  # fix2 works
+        ]
+
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = child
+        reflector.fix_runtime_violation.side_effect = ["fix1", "fix2"]
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            initial_program=initial,
+            max_iterations=1,
+        )
+        state = loop.run()
+
+        assert reflector.fix_runtime_violation.call_count == 2
+        assert evaluator.evaluate.call_count == 4
+        assert state.best_score == 0.7

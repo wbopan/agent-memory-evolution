@@ -63,9 +63,7 @@ class EvolutionLoop:
         current = self.initial_program
         ds = self.dataset
         self.logger.log(
-            f"Starting evolution: max_iter={self.max_iterations}, "
-            f"train={len(ds.train)}, val={len(ds.val)}, "
-            f"eval_mode={ds.eval_mode.value}",
+            f"Starting evolution: max_iter={self.max_iterations}, train={len(ds.train)}, val={len(ds.val)}",
             header="EVOLUTION",
         )
 
@@ -73,7 +71,7 @@ class EvolutionLoop:
         if self.output_manager:
             self.output_manager.set_phase(0, "train")
         self.logger.log(f"Evaluating initial program (hash={current.hash})", header="EVOLUTION")
-        eval_result = self.evaluator.evaluate(current, ds.train, ds.val, ds.eval_mode)
+        eval_result = self.evaluator.evaluate(current, ds.train, ds.val)
         best_score = eval_result.score
         best_program = current
         self.logger.log(f"Initial score: {best_score:.3f}", header="EVOLUTION")
@@ -118,7 +116,27 @@ class EvolutionLoop:
             # Evaluate child
             if self.output_manager:
                 self.output_manager.set_phase(i, "train")
-            child_result = self.evaluator.evaluate(child, ds.train, ds.val, ds.eval_mode)
+            child_result = self.evaluator.evaluate(child, ds.train, ds.val)
+
+            # Runtime violation fix loop
+            for _fix_attempt in range(self.reflector.max_fix_attempts):
+                if not child_result.runtime_violation:
+                    break
+                self.logger.log(
+                    f"Runtime violation: {child_result.runtime_violation}, attempting fix",
+                    header="EVOLUTION",
+                )
+                fixed_code = self.reflector.fix_runtime_violation(child.source_code, child_result.runtime_violation)
+                if fixed_code is None:
+                    self.logger.log("Runtime fix failed, giving up", header="EVOLUTION")
+                    break
+                child = MemoryProgram(
+                    source_code=fixed_code,
+                    generation=current.generation + 1,
+                    parent_hash=current.hash,
+                )
+                child_result = self.evaluator.evaluate(child, ds.train, ds.val)
+
             child_score = child_result.score
             self.logger.log(
                 f"Child score: {child_score:.3f} (best: {best_score:.3f})",
