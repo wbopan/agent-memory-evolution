@@ -11,7 +11,8 @@ from programmaticmemory.evolution.types import TrainExample
 class ReflectionPromptConfig:
     """Controls what content is included in the reflection prompt."""
 
-    max_failed_cases: int = 3
+    max_failed_cases: int = 2
+    max_success_cases: int = 1
     max_train_examples: int = 1
     max_memory_log_chars: int = 0  # 0 = exclude memory logs entirely
 
@@ -49,10 +50,24 @@ These limits are enforced during evaluation. Violating them results in score = 0
 - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
 - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
 - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+
+## Instruction Constants (required)
+
+Three module-level string constants control how the task agent LLM behaves:
+
+- INSTRUCTION_OBSERVATION: Appended to the observation generation prompt. Guide what information to extract and how to structure it.
+- INSTRUCTION_QUERY: Appended to the query generation prompt. Guide how to formulate retrieval queries.
+- INSTRUCTION_RESPONSE: Appended to the answer generation prompt. Control answer format, length, and style.
+
+Set to empty string "" if no special instruction is needed.
 """
 
 INITIAL_MEMORY_PROGRAM = '''\
 from dataclasses import dataclass, field
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = "When answering questions, give a short and direct answer and nothing else."
 
 
 @dataclass
@@ -128,6 +143,7 @@ def build_reflection_user_prompt(
     iteration: int,
     train_examples: list[TrainExample] | None = None,
     config: ReflectionPromptConfig | None = None,
+    success_cases: list[dict] | None = None,
 ) -> str:
     """Build the user prompt for the reflection LLM."""
     if config is None:
@@ -135,6 +151,7 @@ def build_reflection_user_prompt(
 
     # Apply limits
     limited_cases = failed_cases[: config.max_failed_cases]
+    limited_success = (success_cases or [])[: config.max_success_cases]
     limited_examples = (train_examples or [])[: config.max_train_examples]
 
     # Detect log deduplication: check if all cases share identical memory_logs
@@ -189,6 +206,29 @@ These are the outputs of `toolkit.logger.debug()` calls within `write()` and `re
 
 {deduplicated_logs_section}"""
 
+    # Build success cases section
+    success_section = ""
+    if limited_success:
+        success_parts: list[str] = []
+        for i, case in enumerate(limited_success, 1):
+            case_parts: list[str] = []
+            case_parts.append(f"<question>{case.get('question', 'N/A')}</question>\n")
+            case_parts.append(f"<expected>{case.get('expected', 'N/A')}</expected>\n")
+            case_parts.append(f"<model_generation>{case.get('output', 'N/A')}</model_generation>\n")
+            case_parts.append(f"<score>{case.get('score', 0)}</score>\n")
+            if case.get("conversation_history"):
+                case_parts.append("<conversation>\n")
+                case_parts.append(_render_messages(case["conversation_history"], indent="  "))
+                case_parts.append("</conversation>\n")
+            success_parts.append(f'<case id="{i}">\n{"".join(case_parts)}</case>\n')
+        success_section = f"""
+The following case(s) show successful performance — the current program handled these correctly. \
+Preserve the behavior that makes these work.
+
+<success_cases>
+{"".join(success_parts)}</success_cases>
+"""
+
     failed_cases_header = """
 The following cases show poor performance on the validation set after memory has been written \
 (using the same write process shown in the write examples above). \
@@ -206,7 +246,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <rules>
 1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-2. The code must define exactly three classes: Observation, Query, Memory.
+2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
 3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
 5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
@@ -220,7 +260,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 </current_program>
 
 <evaluation_score>{score:.3f}</evaluation_score>
-{train_section}{deduplicated_logs_section}
+{train_section}{deduplicated_logs_section}{success_section}
 {failed_cases_header}
 
 <failed_cases>
@@ -234,9 +274,9 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 </task>"""
 
 
-def build_observation_generation_prompt(raw_text: str, schema: str) -> str:
+def build_observation_generation_prompt(raw_text: str, schema: str, instruction: str = "") -> str:
     """Prompt the task agent LLM to generate an Observation from raw text."""
-    return f"""\
+    prompt = f"""\
 Given the following text, create an Observation object to store this information in memory.
 
 Text: {raw_text}
@@ -245,14 +285,17 @@ The Observation must conform to this schema:
 {schema}
 
 Output ONLY a valid JSON object matching the schema fields. No explanation."""
+    if instruction:
+        prompt += f"\n\n{instruction}"
+    return prompt
 
 
-def build_query_generation_prompt(question: str, schema: str) -> str:
+def build_query_generation_prompt(question: str, schema: str, instruction: str = "") -> str:
     """Prompt the task agent LLM to generate a Query from a question.
 
     Used as a user message in the multi-turn conversation (Step 1).
     """
-    return f"""\
+    prompt = f"""\
 Given the following question, generate a query to retrieve relevant memory.
 
 Question: {question}
@@ -261,33 +304,40 @@ The query must be a JSON object matching this schema:
 {schema}
 
 Respond with the JSON only."""
+    if instruction:
+        prompt += f"\n\n{instruction}"
+    return prompt
 
 
-def build_retrieved_memory_prompt(retrieved: str) -> str:
+def build_retrieved_memory_prompt(retrieved: str, instruction: str = "") -> str:
     """Prompt the task agent LLM to answer based on retrieved memory.
 
     Used as a user message in the multi-turn conversation (Step 2).
     The LLM sees the full conversation history including its own query from Step 1.
     """
-    return f"""\
+    prompt = f"""\
 <retrieved_memory>
 {retrieved}
 </retrieved_memory>
 
 Based on the above memory and the original question, provide your answer."""
+    if instruction:
+        prompt += f"\n\n{instruction}"
+    return prompt
 
 
 def build_observation_with_feedback_prompt(
     evaluation_result: str,
     ground_truth: str,
     schema: str,
+    instruction: str = "",
 ) -> str:
     """Prompt the task agent LLM to generate an Observation informed by feedback.
 
     Used as a user message in Type B train (Step 3).
     The LLM sees the full conversation history including query, retrieval, and answer.
     """
-    return f"""\
+    prompt = f"""\
 Evaluation result: {evaluation_result}
 Ground truth: {ground_truth}
 
@@ -297,6 +347,9 @@ The observation must be a JSON object matching this schema:
 {schema}
 
 Respond with the JSON only."""
+    if instruction:
+        prompt += f"\n\n{instruction}"
+    return prompt
 
 
 def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> str:
@@ -309,7 +362,7 @@ Fix the error and output the complete corrected code in a ```python``` block.
 
 Rules:
 1. Output ONLY the corrected code in a ```python``` block. No explanation needed.
-2. The code must define exactly three classes: Observation, Query, Memory.
+2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
 4. Make minimal changes — fix only what's broken.
 
