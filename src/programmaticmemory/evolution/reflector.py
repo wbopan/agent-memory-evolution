@@ -8,6 +8,7 @@ import litellm
 import weave
 
 from programmaticmemory.evolution.prompts import (
+    ReflectionPromptConfig,
     build_compile_fix_prompt,
     build_reflection_user_prompt,
 )
@@ -34,11 +35,13 @@ class Reflector:
         temperature: float = 0.7,
         max_fix_attempts: int = 3,
         toolkit_config: ToolkitConfig | None = None,
+        prompt_config: ReflectionPromptConfig | None = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
         self.max_fix_attempts = max_fix_attempts
         self.toolkit_config = toolkit_config
+        self.prompt_config = prompt_config
         self.logger = get_logger()
 
     def _validate_code(self, code: str) -> tuple[str, str] | None:
@@ -82,7 +85,7 @@ class Reflector:
         """
         # Build failed case dicts for the prompt
         failed_dicts = []
-        for fc in eval_result.failed_cases[:5]:
+        for fc in eval_result.failed_cases:
             failed_dicts.append(
                 {
                     "question": fc.question,
@@ -100,6 +103,7 @@ class Reflector:
             failed_cases=failed_dicts,
             iteration=iteration,
             train_examples=eval_result.train_examples or None,
+            config=self.prompt_config,
         )
 
         self.logger.log(f"Reflecting on iteration {iteration}, score={eval_result.score:.3f}", header="REFLECT")

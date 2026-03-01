@@ -1,65 +1,5 @@
 # serializer version: 1
-# name: TestReflector.test_reflection_no_code_block_returns_none
-  list([
-    dict({
-      'content': '''
-        You are an expert Python programmer specializing in memory system design.
-        
-        Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
-        
-        You are designing a Memory Program that implements three classes:
-        
-        1. **Observation** (dataclass): Defines what information is captured when writing to memory.
-           - Must be a @dataclass with typed fields
-           - An external LLM will populate instances by generating JSON matching your field definitions
-           - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
-           - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
-           - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
-        
-        2. **Query** (dataclass): Defines what parameters are used when reading from memory.
-           - Must be a @dataclass with typed fields
-           - An external LLM will populate instances by generating JSON matching your field definitions
-           - Same JSON-compatible type restriction and field description support as Observation
-        
-        3. **Memory** (class): The core memory system.
-           - `__init__(self, toolkit)`: Receives a Toolkit with:
-             - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
-             - `toolkit.chroma`: chromadb ephemeral client
-             - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
-             - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-           - `write(self, observation: Observation) -> None`: Store information
-           - `read(self, query: Query) -> str`: Retrieve relevant information as a string
-        
-        Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
-        
-        
-        ## Rules
-        1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-        2. The code must define exactly three classes: Observation, Query, Memory.
-        3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
-        4. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
-        
-        ## Current Memory Program (iteration 1)
-        
-        ```python
-        x
-        ```
-        
-        ## Evaluation Score: 0.500
-        
-        ## Failed Cases
-        
-        
-        ## Task
-        1. Diagnose why these cases fail.
-        2. Propose specific improvements to the Memory Program.
-        3. Output the complete improved code in a ```python``` block.
-      ''',
-      'role': 'user',
-    }),
-  ])
-# ---
-# name: TestReflector.test_reflection_passes_failed_cases
+# name: TestReflector.test_prompt_config_limits_failed_cases
   list([
     list([
       dict({
@@ -68,6 +8,7 @@
           
           Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
+          <interface_spec>
           You are designing a Memory Program that implements three classes:
           
           1. **Observation** (dataclass): Defines what information is captured when writing to memory.
@@ -93,36 +34,213 @@
           
           Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
           
+          ## Runtime Constraints
           
-          ## Rules
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+          
+          </interface_spec>
+          
+          <rules>
           1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
           2. The code must define exactly three classes: Observation, Query, Memory.
           3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
-          4. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          4. `read()` must return at most 1000 characters — do not return all stored text.
+          5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          </rules>
           
-          ## Current Memory Program (iteration 5)
-          
+          <current_program iteration="1">
           ```python
           code here
           ```
+          </current_program>
           
-          ## Evaluation Score: 0.200
+          <evaluation_score>0.100</evaluation_score>
           
-          ## Failed Cases
+          <failed_cases>
+          <case id="1">
+          <question>Question 1?</question>
+          <expected>right_1</expected>
+          <got>wrong_1</got>
+          <score>0.0</score>
+          </case>
           
-          ### Failed Case 1
-          Question: What is X?
-          Expected: 42
-          Got: unknown
-          Score: 0.0
-          Memory logs:
-            - Stored: X=42
+          <case id="2">
+          <question>Question 2?</question>
+          <expected>right_2</expected>
+          <got>wrong_2</got>
+          <score>0.0</score>
+          </case>
           
+          </failed_cases>
           
-          ## Task
+          <task>
           1. Diagnose why these cases fail.
           2. Propose specific improvements to the Memory Program.
           3. Output the complete improved code in a ```python``` block.
+          </task>
+        ''',
+        'role': 'user',
+      }),
+    ]),
+  ])
+# ---
+# name: TestReflector.test_reflection_no_code_block_returns_none
+  list([
+    dict({
+      'content': '''
+        You are an expert Python programmer specializing in memory system design.
+        
+        Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+        
+        <interface_spec>
+        You are designing a Memory Program that implements three classes:
+        
+        1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+           - Must be a @dataclass with typed fields
+           - An external LLM will populate instances by generating JSON matching your field definitions
+           - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+           - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+           - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+        
+        2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+           - Must be a @dataclass with typed fields
+           - An external LLM will populate instances by generating JSON matching your field definitions
+           - Same JSON-compatible type restriction and field description support as Observation
+        
+        3. **Memory** (class): The core memory system.
+           - `__init__(self, toolkit)`: Receives a Toolkit with:
+             - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+             - `toolkit.chroma`: chromadb ephemeral client
+             - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+             - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+           - `write(self, observation: Observation) -> None`: Store information
+           - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+        
+        Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+        
+        ## Runtime Constraints
+        
+        These limits are enforced during evaluation. Violating them results in score = 0.
+        
+        - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+        - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+        - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+        
+        </interface_spec>
+        
+        <rules>
+        1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
+        2. The code must define exactly three classes: Observation, Query, Memory.
+        3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        4. `read()` must return at most 1000 characters — do not return all stored text.
+        5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+        </rules>
+        
+        <current_program iteration="1">
+        ```python
+        x
+        ```
+        </current_program>
+        
+        <evaluation_score>0.500</evaluation_score>
+        
+        <failed_cases>
+        
+        </failed_cases>
+        
+        <task>
+        1. Diagnose why these cases fail.
+        2. Propose specific improvements to the Memory Program.
+        3. Output the complete improved code in a ```python``` block.
+        </task>
+      ''',
+      'role': 'user',
+    }),
+  ])
+# ---
+# name: TestReflector.test_reflection_passes_failed_cases
+  list([
+    list([
+      dict({
+        'content': '''
+          You are an expert Python programmer specializing in memory system design.
+          
+          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          
+          <interface_spec>
+          You are designing a Memory Program that implements three classes:
+          
+          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as Observation
+          
+          3. **Memory** (class): The core memory system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, observation: Observation) -> None`: Store information
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+          
+          </interface_spec>
+          
+          <rules>
+          1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
+          2. The code must define exactly three classes: Observation, Query, Memory.
+          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          4. `read()` must return at most 1000 characters — do not return all stored text.
+          5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          </rules>
+          
+          <current_program iteration="5">
+          ```python
+          code here
+          ```
+          </current_program>
+          
+          <evaluation_score>0.200</evaluation_score>
+          
+          <failed_cases>
+          <case id="1">
+          <question>What is X?</question>
+          <expected>42</expected>
+          <got>unknown</got>
+          <score>0.0</score>
+          <memory_logs>
+            - Stored: X=42
+          </memory_logs>
+          </case>
+          
+          </failed_cases>
+          
+          <task>
+          1. Diagnose why these cases fail.
+          2. Propose specific improvements to the Memory Program.
+          3. Output the complete improved code in a ```python``` block.
+          </task>
         ''',
         'role': 'user',
       }),
@@ -138,6 +256,7 @@
           
           Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
+          <interface_spec>
           You are designing a Memory Program that implements three classes:
           
           1. **Observation** (dataclass): Defines what information is captured when writing to memory.
@@ -163,28 +282,41 @@
           
           Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
           
+          ## Runtime Constraints
           
-          ## Rules
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+          
+          </interface_spec>
+          
+          <rules>
           1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
           2. The code must define exactly three classes: Observation, Query, Memory.
           3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
-          4. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          4. `read()` must return at most 1000 characters — do not return all stored text.
+          5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          </rules>
           
-          ## Current Memory Program (iteration 1)
-          
+          <current_program iteration="1">
           ```python
           x
           ```
+          </current_program>
           
-          ## Evaluation Score: 0.000
+          <evaluation_score>0.000</evaluation_score>
           
-          ## Failed Cases
+          <failed_cases>
           
+          </failed_cases>
           
-          ## Task
+          <task>
           1. Diagnose why these cases fail.
           2. Propose specific improvements to the Memory Program.
           3. Output the complete improved code in a ```python``` block.
+          </task>
         ''',
         'role': 'user',
       }),
@@ -199,6 +331,7 @@
         
         Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
         
+        <interface_spec>
         You are designing a Memory Program that implements three classes:
         
         1. **Observation** (dataclass): Defines what information is captured when writing to memory.
@@ -224,34 +357,47 @@
         
         Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
         
+        ## Runtime Constraints
         
-        ## Rules
+        These limits are enforced during evaluation. Violating them results in score = 0.
+        
+        - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+        - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+        - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+        
+        </interface_spec>
+        
+        <rules>
         1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
         2. The code must define exactly three classes: Observation, Query, Memory.
         3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
-        4. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+        4. `read()` must return at most 1000 characters — do not return all stored text.
+        5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+        </rules>
         
-        ## Current Memory Program (iteration 3)
-        
+        <current_program iteration="3">
         ```python
         old code
         ```
+        </current_program>
         
-        ## Evaluation Score: 0.300
+        <evaluation_score>0.300</evaluation_score>
         
-        ## Failed Cases
+        <failed_cases>
+        <case id="1">
+        <question>q</question>
+        <expected>right</expected>
+        <got>wrong</got>
+        <score>0.0</score>
+        </case>
         
-        ### Failed Case 1
-        Question: q
-        Expected: right
-        Got: wrong
-        Score: 0.0
+        </failed_cases>
         
-        
-        ## Task
+        <task>
         1. Diagnose why these cases fail.
         2. Propose specific improvements to the Memory Program.
         3. Output the complete improved code in a ```python``` block.
+        </task>
       ''',
       'role': 'user',
     }),

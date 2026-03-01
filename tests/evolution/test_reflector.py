@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 
 from syrupy.assertion import SnapshotAssertion
 
+from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import CompileError, SmokeTestResult
 from programmaticmemory.evolution.types import EvalResult, FailedCase, MemoryProgram
@@ -221,6 +222,43 @@ class Memory:
         assert captured_kwargs[0]["model"] == "custom/reflect-model"
         assert captured_kwargs[0]["temperature"] == 0.9
         assert [kw["messages"] for kw in captured_kwargs] == snapshot
+
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_prompt_config_limits_failed_cases(self, mock_litellm, snapshot: SnapshotAssertion):
+        """ReflectionPromptConfig.max_failed_cases limits how many cases appear in the prompt."""
+        captured_messages = []
+
+        def capture_completion(*args, **kwargs):
+            captured_messages.append(kwargs.get("messages", []))
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = "No code."
+            return mock_resp
+
+        mock_litellm.completion = capture_completion
+
+        current = MemoryProgram(source_code="code here")
+        eval_result = EvalResult(
+            score=0.1,
+            failed_cases=[
+                FailedCase(question=f"Question {i}?", output=f"wrong_{i}", expected=f"right_{i}", score=0.0)
+                for i in range(1, 7)  # 6 failed cases
+            ],
+        )
+
+        config = ReflectionPromptConfig(max_failed_cases=2)
+        reflector = Reflector(model="mock/model", prompt_config=config)
+        reflector.reflect_and_mutate(current, eval_result, iteration=1)
+
+        assert len(captured_messages) == 1
+        messages = captured_messages[0]
+        user_content = messages[0]["content"]
+        # Only 2 cases should appear (not 5 or 6)
+        assert "Question 1?" in user_content
+        assert "Question 2?" in user_content
+        assert "Question 3?" not in user_content
+        assert "Question 6?" not in user_content
+        assert captured_messages == snapshot
 
 
 class TestReflectorCompileFixLoop:
