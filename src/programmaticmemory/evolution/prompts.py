@@ -11,9 +11,9 @@ from programmaticmemory.evolution.types import TrainExample
 class ReflectionPromptConfig:
     """Controls what content is included in the reflection prompt."""
 
-    max_failed_cases: int = 5
-    max_train_examples: int = 5
-    max_memory_log_chars: int = 2000  # 0 = exclude memory logs entirely
+    max_failed_cases: int = 3
+    max_train_examples: int = 1
+    max_memory_log_chars: int = 0  # 0 = exclude memory logs entirely
 
 
 MEMORY_INTERFACE_SPEC = """\
@@ -155,7 +155,7 @@ def build_reflection_user_prompt(
         case_parts: list[str] = []
         case_parts.append(f"<question>{case.get('question', 'N/A')}</question>\n")
         case_parts.append(f"<expected>{case.get('expected', 'N/A')}</expected>\n")
-        case_parts.append(f"<got>{case.get('output', 'N/A')}</got>\n")
+        case_parts.append(f"<model_generation>{case.get('output', 'N/A')}</model_generation>\n")
         case_parts.append(f"<score>{case.get('score', 0)}</score>\n")
         if case.get("conversation_history"):
             case_parts.append("<conversation>\n")
@@ -172,8 +172,27 @@ def build_reflection_user_prompt(
     if limited_examples:
         train_parts: list[str] = []
         for i, example in enumerate(limited_examples, 1):
-            train_parts.append(f'<example id="{i}">\n{_render_messages(example.messages)}</example>\n')
-        train_section = f"\n<train_examples>\n{''.join(train_parts)}</train_examples>\n"
+            train_parts.append(f'<conversation id="{i}">\n{_render_messages(example.messages)}</conversation>\n')
+        train_section = f"""
+The following are example write trajectories from the evaluation. \
+They show how the external LLM generates Observations from raw document text and how `memory.write()` is called. \
+Read these to understand the format of the source documents.
+
+<write_examples>
+{"".join(train_parts)}</write_examples>
+"""
+
+    if deduplicated_logs_section:
+        deduplicated_logs_section = f"""
+The following debug logs were produced by the current Memory Program during the write examples above. \
+These are the outputs of `toolkit.logger.debug()` calls within `write()` and `read()`.
+
+{deduplicated_logs_section}"""
+
+    failed_cases_header = """
+The following cases show poor performance on the validation set after memory has been written \
+(using the same write process shown in the write examples above). \
+Each case contains the full retrieval-and-answer conversation trajectory."""
 
     return f"""\
 You are an expert Python programmer specializing in memory system design.
@@ -191,6 +210,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
 5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
 </rules>
 
 <current_program iteration="{iteration}">
@@ -201,6 +221,8 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <evaluation_score>{score:.3f}</evaluation_score>
 {train_section}{deduplicated_logs_section}
+{failed_cases_header}
+
 <failed_cases>
 {failed_section}
 </failed_cases>

@@ -13,6 +13,7 @@ import sys
 from programmaticmemory.datasets import load_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
+from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.toolkit import ToolkitConfig
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
@@ -55,6 +56,26 @@ def main() -> None:
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")
     parser.add_argument("--weave-project", default="programmaticmemory", help="Weave project name")
+    parser.add_argument(
+        "--reflection-max-failed-cases", type=int, default=3, help="Max failed cases in reflection prompt (default: 3)"
+    )
+    parser.add_argument(
+        "--reflection-max-train-examples",
+        type=int,
+        default=1,
+        help="Max training examples in reflection prompt (default: 1)",
+    )
+    parser.add_argument(
+        "--reflection-max-memory-log-chars",
+        type=int,
+        default=0,
+        help="Max chars for memory logs in reflection prompt, 0 to exclude (default: 0)",
+    )
+    parser.add_argument(
+        "--drop-degraded-program",
+        action="store_true",
+        help="Revert to best program when child scores lower (default: keep child regardless)",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -76,7 +97,12 @@ def main() -> None:
         task_model=args.task_model,
         toolkit_config=toolkit_config,
     )
-    reflector = Reflector(model=args.reflect_model)
+    prompt_config = ReflectionPromptConfig(
+        max_failed_cases=args.reflection_max_failed_cases,
+        max_train_examples=args.reflection_max_train_examples,
+        max_memory_log_chars=args.reflection_max_memory_log_chars,
+    )
+    reflector = Reflector(model=args.reflect_model, prompt_config=prompt_config)
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
     # Local output directory
@@ -97,6 +123,7 @@ def main() -> None:
             max_iterations=args.iterations,
             tracker=tracker,
             output_manager=output_manager,
+            drop_degraded_program=args.drop_degraded_program,
         )
         state = loop.run()
 

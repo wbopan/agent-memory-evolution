@@ -46,6 +46,7 @@ class EvolutionLoop:
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
         output_manager: RunOutputManager | None = None,
+        drop_degraded_program: bool = False,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -55,6 +56,7 @@ class EvolutionLoop:
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
+        self.drop_degraded_program = drop_degraded_program
         self.logger = get_logger()
 
     @weave.op()
@@ -143,31 +145,41 @@ class EvolutionLoop:
                 header="EVOLUTION",
             )
 
-            accepted = child_score > best_score
+            improved = child_score > best_score
             if self.output_manager:
-                self.output_manager.write_program(i, child.source_code, accepted=accepted, score=child_score)
+                self.output_manager.write_program(i, child.source_code, accepted=improved, score=child_score)
             if self.output_manager and child_result.failed_cases:
                 self.output_manager.write_failed_cases(i, _serialize_failed_cases(child_result.failed_cases))
-            if accepted:
+            if improved:
                 self.logger.log(
-                    f"Accepted! {best_score:.3f} -> {child_score:.3f}",
+                    f"Improved! {best_score:.3f} -> {child_score:.3f}",
                     header="EVOLUTION",
                 )
-                current = child
-                eval_result = child_result
                 best_score = child_score
                 best_program = child
-            else:
+            elif self.drop_degraded_program:
                 self.logger.log(
-                    f"Rejected ({child_score:.3f} <= {best_score:.3f})",
+                    f"Dropped ({child_score:.3f} <= {best_score:.3f}), reverting to best",
                     header="EVOLUTION",
                 )
+            else:
+                self.logger.log(
+                    f"Degraded ({child_score:.3f} <= {best_score:.3f}), continuing anyway",
+                    header="EVOLUTION",
+                )
+
+            # Always advance to child unless drop_degraded_program is set and score didn't improve
+            if improved or not self.drop_degraded_program:
+                current = child
+                eval_result = child_result
+
+            accepted = improved or not self.drop_degraded_program
 
             state.history.append(EvolutionRecord(iteration=i, program=child, score=child_score, accepted=accepted))
             state.best_program = best_program
             state.best_score = best_score
             state.current_program = current
-            state.current_score = best_score
+            state.current_score = child_score if accepted else best_score
             state.total_iterations = i
 
             if self.tracker:

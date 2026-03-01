@@ -71,8 +71,8 @@ class TestEvolutionLoop:
         assert state.best_program == child_program
         assert state.history[-1].accepted is True
 
-    def test_child_rejected_when_worse(self):
-        """Child program is rejected when it scores lower."""
+    def test_child_kept_when_worse_by_default(self):
+        """Child program is kept as current even when it scores lower (default behavior)."""
         dataset = _make_dataset()
 
         initial = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
@@ -99,6 +99,39 @@ class TestEvolutionLoop:
 
         assert state.best_score == 0.7
         assert state.best_program == initial
+        assert state.current_program == child
+        assert state.history[-1].accepted is True
+
+    def test_child_dropped_when_worse_with_flag(self):
+        """Child program is dropped when drop_degraded_program=True and it scores lower."""
+        dataset = _make_dataset()
+
+        initial = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        child = MemoryProgram(source_code="worse", generation=1)
+
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.7, failed_cases=[]),
+            EvalResult(score=0.3, per_case_scores=[0.3]),
+        ]
+
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = child
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            initial_program=initial,
+            max_iterations=1,
+            drop_degraded_program=True,
+        )
+        state = loop.run()
+
+        assert state.best_score == 0.7
+        assert state.best_program == initial
+        assert state.current_program == initial
         assert state.history[-1].accepted is False
 
     def test_reflection_failure_skips_iteration(self):

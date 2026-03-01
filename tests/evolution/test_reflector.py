@@ -186,7 +186,8 @@ class Memory:
         assert "0.200" in user_content
         assert "What is X?" in user_content
         assert "42" in user_content
-        assert "Stored: X=42" in user_content
+        # Default config excludes memory logs (max_memory_log_chars=0)
+        assert "Stored: X=42" not in user_content
         assert captured_messages == snapshot
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")

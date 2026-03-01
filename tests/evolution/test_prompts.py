@@ -72,11 +72,13 @@ class TestBuildReflectionUserPrompt:
                 "memory_logs": ["Stored: fact about X", "Query: What is X"],
             }
         ]
+        config = ReflectionPromptConfig(max_memory_log_chars=2000)
         prompt = build_reflection_user_prompt(
             code="code here",
             score=0.0,
             failed_cases=cases,
             iteration=1,
+            config=config,
         )
         assert "What is X?" in prompt
         assert "42" in prompt
@@ -88,9 +90,9 @@ class TestBuildReflectionUserPrompt:
     def test_includes_all_cases(self, snapshot: SnapshotAssertion):
         cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
-        # Default max_failed_cases=5, so q0-q4 included, q5+ excluded
-        assert "q4" in prompt
-        assert "q5" not in prompt
+        # Default max_failed_cases=3, so q0-q2 included, q3+ excluded
+        assert "q2" in prompt
+        assert "q3" not in prompt
         assert prompt == snapshot
 
     def test_long_conversation_not_truncated(self):
@@ -120,7 +122,8 @@ class TestBuildReflectionUserPrompt:
                 "memory_logs": logs,
             }
         ]
-        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
+        config = ReflectionPromptConfig(max_memory_log_chars=2000)
+        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
         assert "log entry 0" in prompt
         assert "log entry 19" in prompt
 
@@ -149,21 +152,22 @@ class TestBuildReflectionUserPrompt:
             iteration=1,
             train_examples=examples,
         )
-        assert "<train_examples>" in prompt
+        assert "<write_examples>" in prompt
         assert "Hello world" in prompt
         assert prompt == snapshot
 
 
 class TestReflectionPromptConfig:
-    def test_max_failed_cases(self):
+    def test_max_failed_cases(self, snapshot: SnapshotAssertion):
         cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         config = ReflectionPromptConfig(max_failed_cases=2)
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
         assert "q0" in prompt
         assert "q1" in prompt
         assert "q2" not in prompt
+        assert prompt == snapshot
 
-    def test_max_train_examples(self):
+    def test_max_train_examples(self, snapshot: SnapshotAssertion):
         examples = [TrainExample(messages=[{"role": "user", "content": f"example {i}"}]) for i in range(10)]
         config = ReflectionPromptConfig(max_train_examples=2)
         prompt = build_reflection_user_prompt(
@@ -172,6 +176,7 @@ class TestReflectionPromptConfig:
         assert "example 0" in prompt
         assert "example 1" in prompt
         assert "example 2" not in prompt
+        assert prompt == snapshot
 
     def test_max_memory_log_chars_truncates(self):
         # Each log line "  - log entry NNN\n" is ~20 chars, 50 entries = ~1000 chars
@@ -198,7 +203,8 @@ class TestReflectionPromptConfig:
             {"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0, "memory_logs": shared_logs}
             for i in range(3)
         ]
-        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
+        config = ReflectionPromptConfig(max_memory_log_chars=2000)
+        prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
         # Each log string should appear exactly once (deduplicated into standalone section)
         for log in shared_logs:
             assert prompt.count(log) == 1

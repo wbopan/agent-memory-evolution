@@ -67,7 +67,7 @@ Seed: append everything, return everything
 Evaluate(program, data) → EvalResult → Reflect(code, failures) → new MemoryProgram → repeat
 ```
 
-Greedy serial: one candidate, one child per iteration, accept if score improves. Reflector handles compile/smoke-test validation internally; loop.py does not call `smoke_test`.
+Serial: one candidate, one child per iteration. By default, always continues with the latest child (even if score degrades); `drop_degraded_program=True` reverts to best on degradation. Reflector handles compile/smoke-test validation internally; loop.py does not call `smoke_test`.
 
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
@@ -76,7 +76,7 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - **reflector.py** — Calls LLM with current code + failed cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_memory_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `MemoryProgram` is guaranteed valid.
 - **sandbox.py** — `compile_memory_program()`: AST parse → check 3 required classes → validate import whitelist → exec. Returns `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
 - **toolkit.py** — Resource bundle (`db`: SQLite, `chroma`: ChromaDB, `llm_completion`: budget-limited LLM, `logger`). Instantiate via `Toolkit(config)`, created fresh per evaluation.
-- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). No system prompts — all LLM instructions are merged into user prompts via `build_reflection_user_prompt` and `build_compile_fix_prompt`.
+- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). No system prompts — all LLM instructions are merged into user prompts via `build_reflection_user_prompt` and `build_compile_fix_prompt`. Reflection prompt uses XML tags (`<interface_spec>`, `<current_program>`, `<write_examples>`, `<failed_cases>`, etc.) for structure. `ReflectionPromptConfig` controls limits (max cases, max examples, memory log budget).
 - **benchmarks/kv_memory.py** — Simple factual recall (`ExactMatchScorer`). Train has `raw_text`.
 - **benchmarks/locomo.py** — LoCoMo multi-session conversation QA (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (`TokenF1Scorer`). Train has `raw_text`.
@@ -130,6 +130,7 @@ Greedy serial: one candidate, one child per iteration, accept if score improves.
 - Import whitelist for Memory Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
 - A Memory Program is a **complete Python module**: import statements + three class definitions (Observation, Query, Memory). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
+- Prompt template changes in `prompts.py` cascade to snapshots in `test_prompts.ambr` AND `test_reflector.ambr` — always run `--snapshot-update` for both after editing prompts
 - Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.
 - All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
 - Memory Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).

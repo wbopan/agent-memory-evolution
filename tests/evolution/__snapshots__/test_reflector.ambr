@@ -50,6 +50,7 @@
           3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
           </rules>
           
           <current_program iteration="1">
@@ -60,18 +61,21 @@
           
           <evaluation_score>0.100</evaluation_score>
           
+          
+          The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
+          
           <failed_cases>
           <case id="1">
           <question>Question 1?</question>
           <expected>right_1</expected>
-          <got>wrong_1</got>
+          <model_generation>wrong_1</model_generation>
           <score>0.0</score>
           </case>
           
           <case id="2">
           <question>Question 2?</question>
           <expected>right_2</expected>
-          <got>wrong_2</got>
+          <model_generation>wrong_2</model_generation>
           <score>0.0</score>
           </case>
           
@@ -138,6 +142,7 @@
         3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
         4. `read()` must return at most 1000 characters — do not return all stored text.
         5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+        6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
         </rules>
         
         <current_program iteration="1">
@@ -147,6 +152,9 @@
         </current_program>
         
         <evaluation_score>0.500</evaluation_score>
+        
+        
+        The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
         
         <failed_cases>
         
@@ -213,6 +221,7 @@
           3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
           </rules>
           
           <current_program iteration="5">
@@ -223,15 +232,15 @@
           
           <evaluation_score>0.200</evaluation_score>
           
+          
+          The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
+          
           <failed_cases>
           <case id="1">
           <question>What is X?</question>
           <expected>42</expected>
-          <got>unknown</got>
+          <model_generation>unknown</model_generation>
           <score>0.0</score>
-          <memory_logs>
-            - Stored: X=42
-          </memory_logs>
           </case>
           
           </failed_cases>
@@ -298,6 +307,7 @@
           3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+          6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
           </rules>
           
           <current_program iteration="1">
@@ -307,6 +317,9 @@
           </current_program>
           
           <evaluation_score>0.000</evaluation_score>
+          
+          
+          The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
           
           <failed_cases>
           
@@ -373,6 +386,7 @@
         3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
         4. `read()` must return at most 1000 characters — do not return all stored text.
         5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+        6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
         </rules>
         
         <current_program iteration="3">
@@ -383,11 +397,14 @@
         
         <evaluation_score>0.300</evaluation_score>
         
+        
+        The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
+        
         <failed_cases>
         <case id="1">
         <question>q</question>
         <expected>right</expected>
-        <got>wrong</got>
+        <model_generation>wrong</model_generation>
         <score>0.0</score>
         </case>
         
