@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from programmaticmemory.evolution.types import TrainExample
+
+
+@dataclass
+class ReflectionPromptConfig:
+    """Controls what content is included in the reflection prompt."""
+
+    max_failed_cases: int = 5
+    max_train_examples: int = 5
+    max_memory_log_chars: int = 2000  # 0 = exclude memory logs entirely
+
 
 MEMORY_INTERFACE_SPEC = """\
 You are designing a Memory Program that implements three classes:
@@ -29,6 +41,14 @@ You are designing a Memory Program that implements three classes:
    - `read(self, query: Query) -> str`: Retrieve relevant information as a string
 
 Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+
+## Runtime Constraints
+
+These limits are enforced during evaluation. Violating them results in score = 0.
+
+- **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+- **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+- **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
 """
 
 INITIAL_MEMORY_PROGRAM = '''\
@@ -88,37 +108,72 @@ def _render_messages(messages: list[dict[str, str]], indent: str = "") -> str:
     return "".join(parts)
 
 
+def _truncate_memory_logs(logs: list[str], max_chars: int) -> str:
+    """Render memory logs with a character budget, keeping head and tail."""
+    if max_chars <= 0:
+        return ""
+    full = "".join(f"  - {log}\n" for log in logs)
+    if len(full) <= max_chars:
+        return full
+    head = max_chars // 2
+    tail = max_chars - head
+    omitted = len(full) - max_chars
+    return full[:head] + f"\n  ... [{omitted} chars omitted] ...\n" + full[-tail:]
+
+
 def build_reflection_user_prompt(
     code: str,
     score: float,
     failed_cases: list[dict],
     iteration: int,
     train_examples: list[TrainExample] | None = None,
+    config: ReflectionPromptConfig | None = None,
 ) -> str:
     """Build the user prompt for the reflection LLM."""
-    parts: list[str] = []
-    for i, case in enumerate(failed_cases, 1):
-        parts.append(f"\n### Failed Case {i}\n")
-        parts.append(f"Question: {case.get('question', 'N/A')}\n")
-        parts.append(f"Expected: {case.get('expected', 'N/A')}\n")
-        parts.append(f"Got: {case.get('output', 'N/A')}\n")
-        parts.append(f"Score: {case.get('score', 0)}\n")
+    if config is None:
+        config = ReflectionPromptConfig()
+
+    # Apply limits
+    limited_cases = failed_cases[: config.max_failed_cases]
+    limited_examples = (train_examples or [])[: config.max_train_examples]
+
+    # Detect log deduplication: check if all cases share identical memory_logs
+    deduplicated_logs_section = ""
+    logs_are_deduplicated = False
+    cases_with_logs = [c for c in limited_cases if c.get("memory_logs")]
+    if len(cases_with_logs) >= 2:
+        first_logs = cases_with_logs[0]["memory_logs"]
+        if all(c["memory_logs"] == first_logs for c in cases_with_logs[1:]):
+            # All cases have identical logs — render once as standalone section
+            rendered = _truncate_memory_logs(first_logs, config.max_memory_log_chars)
+            if rendered:
+                deduplicated_logs_section = f"\n<memory_debug_logs>\n{rendered}</memory_debug_logs>\n"
+            logs_are_deduplicated = True
+
+    failed_parts: list[str] = []
+    for i, case in enumerate(limited_cases, 1):
+        case_parts: list[str] = []
+        case_parts.append(f"<question>{case.get('question', 'N/A')}</question>\n")
+        case_parts.append(f"<expected>{case.get('expected', 'N/A')}</expected>\n")
+        case_parts.append(f"<got>{case.get('output', 'N/A')}</got>\n")
+        case_parts.append(f"<score>{case.get('score', 0)}</score>\n")
         if case.get("conversation_history"):
-            parts.append("Conversation:\n")
-            parts.append(_render_messages(case["conversation_history"], indent="  "))
-        if case.get("memory_logs"):
-            parts.append("Memory logs:\n")
-            for log in case["memory_logs"]:
-                parts.append(f"  - {log}\n")
-    failed_section = "".join(parts)
+            case_parts.append("<conversation>\n")
+            case_parts.append(_render_messages(case["conversation_history"], indent="  "))
+            case_parts.append("</conversation>\n")
+        if case.get("memory_logs") and not logs_are_deduplicated:
+            rendered = _truncate_memory_logs(case["memory_logs"], config.max_memory_log_chars)
+            if rendered:
+                case_parts.append(f"<memory_logs>\n{rendered}</memory_logs>\n")
+        failed_parts.append(f'<case id="{i}">\n{"".join(case_parts)}</case>\n')
+    failed_section = "\n".join(failed_parts)
 
     train_section = ""
-    if train_examples:
-        train_parts: list[str] = ["## Training Write Examples\n"]
-        for i, example in enumerate(train_examples, 1):
-            train_parts.append(f"\n### Write Example {i}\n")
-            train_parts.append(_render_messages(example.messages))
-        train_section = "\n" + "".join(train_parts)
+    if limited_examples:
+        train_parts: list[str] = []
+        for i, example in enumerate(limited_examples, 1):
+            train_parts.append(f'<example id="{i}">\n{_render_messages(example.messages)}</example>\n')
+        train_section = f"\n<train_examples>\n{''.join(train_parts)}</train_examples>\n"
 
     return f"""\
 You are an expert Python programmer specializing in memory system design.
@@ -126,29 +181,35 @@ You are an expert Python programmer specializing in memory system design.
 Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), \
 its evaluation score, and failed cases, diagnose the issues and fix them.
 
+<interface_spec>
 {MEMORY_INTERFACE_SPEC}
+</interface_spec>
 
-## Rules
+<rules>
 1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
 2. The code must define exactly three classes: Observation, Query, Memory.
 3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
-4. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+4. `read()` must return at most 1000 characters — do not return all stored text.
+5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
+</rules>
 
-## Current Memory Program (iteration {iteration})
-
+<current_program iteration="{iteration}">
 ```python
 {code}
 ```
+</current_program>
 
-## Evaluation Score: {score:.3f}
-{train_section}
-## Failed Cases
+<evaluation_score>{score:.3f}</evaluation_score>
+{train_section}{deduplicated_logs_section}
+<failed_cases>
 {failed_section}
+</failed_cases>
 
-## Task
+<task>
 1. Diagnose why these cases fail.
 2. Propose specific improvements to the Memory Program.
-3. Output the complete improved code in a ```python``` block."""
+3. Output the complete improved code in a ```python``` block.
+</task>"""
 
 
 def build_observation_generation_prompt(raw_text: str, schema: str) -> str:
