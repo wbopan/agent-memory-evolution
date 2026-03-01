@@ -402,3 +402,64 @@ class TestReflectorCompileFixLoop:
         assert child is not None
         assert child.source_code == "finally good"
         assert mock_litellm.completion.call_count == 3  # reflection + 2 fix attempts
+
+
+class TestReflectorRuntimeFix:
+    """Tests for Reflector.fix_runtime_violation."""
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_fix_succeeds(self, mock_litellm, mock_compile, mock_smoke):
+        """LLM returns valid fix -> compile+smoke pass -> return fixed code."""
+        fixed_code = "class Observation:\n  pass\nclass Query:\n  pass\nclass Memory:\n  pass"
+        mock_litellm.completion.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content=f"```python\n{fixed_code}\n```"))]
+        )
+        mock_compile.return_value = (MagicMock(), MagicMock(), MagicMock())
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        reflector = Reflector()
+        result = reflector.fix_runtime_violation("old code", "memory.read() returned 5000 chars (limit: 1000)")
+
+        assert result == fixed_code
+        # _try_fix was called — verify the prompt includes "Runtime violation"
+        call_args = mock_litellm.completion.call_args
+        prompt = call_args.kwargs["messages"][0]["content"]
+        assert "Runtime violation" in prompt
+
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_fix_no_code_block_returns_none(self, mock_litellm):
+        """LLM returns no code block -> return None."""
+        mock_litellm.completion.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="I don't know how to fix this."))]
+        )
+        reflector = Reflector()
+        result = reflector.fix_runtime_violation("old code", "memory.read() timed out after 5.0s")
+
+        assert result is None
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_fix_with_compile_error_enters_compile_fix_loop(self, mock_litellm, mock_compile, mock_smoke):
+        """First fix has compile error -> compile-fix loop fixes it."""
+        first_fix = "bad code"
+        second_fix = "good code"
+        mock_litellm.completion.side_effect = [
+            # First call: _try_fix for runtime violation -> code with compile error
+            MagicMock(choices=[MagicMock(message=MagicMock(content=f"```python\n{first_fix}\n```"))]),
+            # Second call: compile-fix loop's _try_fix -> valid code
+            MagicMock(choices=[MagicMock(message=MagicMock(content=f"```python\n{second_fix}\n```"))]),
+        ]
+        mock_compile.side_effect = [
+            CompileError(message="Syntax error", details="invalid syntax"),  # first_fix fails
+            (MagicMock(), MagicMock(), MagicMock()),  # second_fix compiles
+        ]
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        reflector = Reflector()
+        result = reflector.fix_runtime_violation("old code", "memory.read() timed out")
+
+        assert result == second_fix
+        assert mock_litellm.completion.call_count == 2

@@ -99,6 +99,7 @@ class Reflector:
             score=eval_result.score,
             failed_cases=failed_dicts,
             iteration=iteration,
+            train_examples=eval_result.train_examples or None,
         )
 
         self.logger.log(f"Reflecting on iteration {iteration}, score={eval_result.score:.3f}", header="REFLECT")
@@ -147,4 +148,38 @@ class Reflector:
                 )
 
         self.logger.log(f"All {self.max_fix_attempts} fix attempts exhausted", header="REFLECT")
+        return None
+
+    def fix_runtime_violation(self, code: str, violation: str) -> str | None:
+        """Fix a runtime violation. Returns validated (compile+smoke) code or None.
+
+        Calls LLM to fix the violation, then validates. If the fix introduces
+        compile/smoke errors, enters the compile-fix loop.
+        """
+        self.logger.log(f"Fixing runtime violation: {violation}", header="REFLECT")
+
+        fixed = self._try_fix(code, "Runtime violation", violation)
+        if fixed is None:
+            self.logger.log("Runtime fix: no code block in LLM response", header="REFLECT")
+            return None
+
+        validation_error = self._validate_code(fixed)
+        if validation_error is None:
+            return fixed
+
+        # Compile-fix loop for the fixed code
+        for attempt in range(1, self.max_fix_attempts + 1):
+            error_type, error_details = validation_error
+            self.logger.log(
+                f"Runtime fix compile-fix attempt {attempt}/{self.max_fix_attempts}: {error_details}",
+                header="REFLECT",
+            )
+            fixed = self._try_fix(fixed, error_type, error_details)
+            if fixed is None:
+                continue
+            validation_error = self._validate_code(fixed)
+            if validation_error is None:
+                return fixed
+
+        self.logger.log("Runtime fix: all compile-fix attempts exhausted", header="REFLECT")
         return None
