@@ -7,6 +7,7 @@ matching the design document's specified interaction pattern.
 from __future__ import annotations
 
 import collections
+import concurrent.futures
 import json
 import re
 from typing import Any, NamedTuple
@@ -26,8 +27,49 @@ from programmaticmemory.evolution.sandbox import (
     extract_dataclass_schema,
 )
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
-from programmaticmemory.evolution.types import DataItem, EvalMode, EvalResult, FailedCase, MemoryProgram, Scorer
+from programmaticmemory.evolution.types import (
+    DataItem,
+    EvalMode,
+    EvalResult,
+    FailedCase,
+    MemoryProgram,
+    Scorer,
+    TrainExample,
+)
 from programmaticmemory.logging.logger import get_logger
+
+MEMORY_OP_TIMEOUT = 5.0
+MEMORY_READ_MAX_CHARS = 1000
+
+
+class RuntimeViolationError(Exception):
+    """Raised when memory.write/read violates runtime constraints (timeout or output size)."""
+
+
+def _guarded_write(memory: Any, obs: Any, timeout: float = MEMORY_OP_TIMEOUT) -> None:
+    """Wrap memory.write(obs) with timeout."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(memory.write, obs)
+        try:
+            future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            raise RuntimeViolationError(f"memory.write() timed out after {timeout}s")
+
+
+def _guarded_read(
+    memory: Any, query: Any, timeout: float = MEMORY_OP_TIMEOUT, max_chars: int = MEMORY_READ_MAX_CHARS
+) -> Any:
+    """Wrap memory.read(query) with timeout + output length check."""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        future = pool.submit(memory.read, query)
+        try:
+            result = future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            raise RuntimeViolationError(f"memory.read() timed out after {timeout}s")
+    result_str = str(result) if result is not None else ""
+    if len(result_str) > max_chars:
+        raise RuntimeViolationError(f"memory.read() returned {len(result_str)} chars (limit: {max_chars})")
+    return result
 
 
 class ExactMatchScorer:
@@ -109,12 +151,6 @@ def _parse_json_from_llm(text: str) -> dict:
     return json.loads(text)
 
 
-def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str:
-    """Task agent LLM call (separate from Toolkit's LLM)."""
-    response = litellm.completion(model=model, messages=messages, temperature=temperature, caching=True)
-    return response.choices[0].message.content
-
-
 class _QuerySlot(NamedTuple):
     """Parsed result from a query generation + memory read step."""
 
@@ -137,12 +173,10 @@ class MemoryEvaluator:
         scorer: Scorer | None = None,
         task_model: str = "openrouter/deepseek/deepseek-v3.2",
         toolkit_config: ToolkitConfig | None = None,
-        batch_process: bool = True,
     ) -> None:
         self.scorer = scorer or ExactMatchScorer()
         self.task_model = task_model
         self.toolkit_config = toolkit_config
-        self.batch_process = batch_process
         self.logger = get_logger()
 
     @weave.op()
@@ -200,36 +234,30 @@ class MemoryEvaluator:
         """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
         logs: list[str] = []
 
-        if self.batch_process:
-            # Batch all observation generation prompts in one call
-            all_messages = [
-                [{"role": "user", "content": build_observation_generation_prompt(item.raw_text, obs_schema)}]
-                for item in train_data
-            ]
-            responses = self._batch_llm_call(all_messages)
-            for item, content in zip(train_data, responses, strict=True):
-                if content is None:
-                    logs.append(f"Failed to generate observation for: {item.raw_text}")
-                    continue
-                try:
-                    obs = obs_cls(**_parse_json_from_llm(content))
-                    memory.write(obs)
-                except Exception as e:
-                    logs.append(f"Obs parse/write failed: {e}")
-        else:
-            # Train: generate observations via LLM and write
-            for item in train_data:
-                obs = self._generate_observation_standalone(item.raw_text, obs_cls, obs_schema)
-                if obs is None:
-                    logs.append(f"Failed to generate observation for: {item.raw_text}")
-                    continue
-                try:
-                    memory.write(obs)
-                except Exception as e:
-                    logs.append(f"Write failed: {e}")
+        # Batch all observation generation prompts in one call
+        all_messages = [
+            [{"role": "user", "content": build_observation_generation_prompt(item.raw_text, obs_schema)}]
+            for item in train_data
+        ]
+        responses = self._batch_llm_call(all_messages)
+
+        train_examples = []
+        for idx, (msgs, item, content) in enumerate(zip(all_messages, train_data, responses, strict=True)):
+            if idx < 3 and content is not None:
+                train_examples.append(TrainExample(messages=[*msgs, {"role": "assistant", "content": content}]))
+            if content is None:
+                logs.append(f"Failed to generate observation for: {item.raw_text}")
+                continue
+            try:
+                obs = obs_cls(**_parse_json_from_llm(content))
+                memory.write(obs)
+            except Exception as e:
+                logs.append(f"Obs parse/write failed: {e}")
 
         # Val: multi-turn query → read → answer → score
-        return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+        result = self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
+        result.train_examples = train_examples
+        return result
 
     # ── Online ──────────────────────────────────────────────────────────────
 
@@ -246,108 +274,8 @@ class MemoryEvaluator:
     ) -> EvalResult:
         """Online: Interleaved multi-turn train, then evaluate val."""
         logs: list[str] = []
-        if self.batch_process:
-            self._online_train_batched(memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs)
-        else:
-            self._online_train_sequential(
-                memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs, toolkit
-            )
+        self._online_train_batched(memory, obs_cls, query_cls, obs_schema, query_schema, train_data, logs)
         return self._evaluate_val(memory, query_cls, query_schema, val_data, logs, toolkit)
-
-    def _online_train_sequential(
-        self,
-        memory: Any,
-        obs_cls: type,
-        query_cls: type,
-        obs_schema: str,
-        query_schema: str,
-        train_data: list[DataItem],
-        logs: list[str],
-        toolkit: Toolkit,
-    ) -> None:
-        """Online train sequential: one item at a time, multi-turn conversation per item.
-
-        Each train sample is a multi-turn conversation:
-          Step 1: generate query (user → assistant)
-          Step 2: read memory + answer (user → assistant)
-          Step 3: generate observation with feedback (user → assistant)
-          Step 4: write observation to memory
-        """
-        for item in train_data:
-            messages: list[dict[str, str]] = []
-
-            # Step 1: generate query
-            messages.append(
-                {
-                    "role": "user",
-                    "content": build_query_generation_prompt(item.question, query_schema),
-                }
-            )
-            try:
-                query_json = _llm_call(self.task_model, messages)
-            except Exception as e:
-                logs.append(f"Train query generation failed: {e}")
-                continue
-            messages.append({"role": "assistant", "content": query_json})
-
-            try:
-                query = query_cls(**_parse_json_from_llm(query_json))
-            except Exception as e:
-                logs.append(f"Train query parse failed: {e}")
-                continue
-
-            # Read memory
-            try:
-                retrieved = memory.read(query)
-                retrieved_str = str(retrieved) if retrieved is not None else ""
-            except Exception as e:
-                retrieved_str = f"Read error: {e}"
-                logs.append(f"Train read failed: {e}")
-
-            # Step 2: answer based on retrieved memory
-            messages.append(
-                {
-                    "role": "user",
-                    "content": build_retrieved_memory_prompt(retrieved_str),
-                }
-            )
-            try:
-                answer = _llm_call(self.task_model, messages)
-            except Exception as e:
-                logs.append(f"Train answer generation failed: {e}")
-                continue
-            messages.append({"role": "assistant", "content": answer})
-
-            # Score for feedback
-            score = self.scorer(answer, item.expected_answer)
-            evaluation_result = f"Score: {score:.1f} ({'correct' if score >= 1.0 else 'incorrect'})"
-
-            # Step 3: generate observation with feedback context
-            messages.append(
-                {
-                    "role": "user",
-                    "content": build_observation_with_feedback_prompt(
-                        evaluation_result, item.expected_answer, obs_schema
-                    ),
-                }
-            )
-            try:
-                obs_json = _llm_call(self.task_model, messages)
-            except Exception as e:
-                logs.append(f"Train observation generation failed: {e}")
-                continue
-
-            try:
-                obs = obs_cls(**_parse_json_from_llm(obs_json))
-            except Exception as e:
-                logs.append(f"Train observation parse failed: {e}")
-                continue
-
-            # Step 4: write to memory
-            try:
-                memory.write(obs)
-            except Exception as e:
-                logs.append(f"Train write failed: {e}")
 
     def _online_train_batched(
         self,
@@ -372,7 +300,7 @@ class MemoryEvaluator:
 
         # Parse queries + serial reads
         slots = self._parse_queries_and_read(
-            query_cls, query_schema, memory, train_data, round1_responses, logs, log_prefix="Train"
+            query_cls, memory, round1_messages, round1_responses, logs, log_prefix="Train"
         )
 
         # Round 2: answer generation for valid slots
@@ -429,16 +357,16 @@ class MemoryEvaluator:
     def _parse_queries_and_read(
         self,
         query_cls: type,
-        query_schema: str,
         memory: Any,
-        data: list[DataItem],
+        round1_messages: list[list[dict]],
         responses: list[str | None],
         logs: list[str],
         log_prefix: str = "Val",
     ) -> list[_QuerySlot | None]:
         """Parse batch query responses, read memory for each. Returns slots aligned with data."""
         slots: list[_QuerySlot | None] = []
-        for item, content in zip(data, responses, strict=True):
+        for msgs, content in zip(round1_messages, responses, strict=True):
+            query_prompt = msgs[0]["content"]
             if content is None:
                 logs.append(f"{log_prefix} query generation failed (batch error)")
                 slots.append(None)
@@ -455,7 +383,6 @@ class MemoryEvaluator:
             except Exception as e:
                 retrieved_str = f"Read error: {e}"
                 logs.append(f"{log_prefix} read failed: {e}")
-            query_prompt = build_query_generation_prompt(item.question, query_schema)
             retrieved_prompt = build_retrieved_memory_prompt(retrieved_str)
             slots.append(_QuerySlot(query, content, retrieved_str, query_prompt, retrieved_prompt))
         return slots
@@ -478,142 +405,7 @@ class MemoryEvaluator:
             logs=logs,
         )
 
-    # ── Shared validation ───────────────────────────────────────────────────
-
     def _evaluate_val(
-        self,
-        memory: Any,
-        query_cls: type,
-        query_schema: str,
-        val_data: list[DataItem],
-        logs: list[str],
-        toolkit: Toolkit,
-    ) -> EvalResult:
-        """Validation: query → read → answer → score. No writes."""
-        if self.batch_process:
-            return self._evaluate_val_batched(memory, query_cls, query_schema, val_data, logs, toolkit)
-        return self._evaluate_val_sequential(memory, query_cls, query_schema, val_data, logs, toolkit)
-
-    def _evaluate_val_sequential(
-        self,
-        memory: Any,
-        query_cls: type,
-        query_schema: str,
-        val_data: list[DataItem],
-        logs: list[str],
-        toolkit: Toolkit,
-    ) -> EvalResult:
-        """Validation: multi-turn query → read → answer → score. No writes.
-
-        Each val sample is a multi-turn conversation:
-          Step 1: generate query (user → assistant)
-          Step 2: read memory + answer (user → assistant)
-        """
-        scores: list[float] = []
-        outputs: list[str] = []
-        failed_cases: list[FailedCase] = []
-
-        for item in val_data:
-            messages: list[dict[str, str]] = []
-
-            # Step 1: generate query
-            messages.append(
-                {
-                    "role": "user",
-                    "content": build_query_generation_prompt(item.question, query_schema),
-                }
-            )
-            try:
-                query_json = _llm_call(self.task_model, messages)
-            except Exception as e:
-                self.logger.log(f"Val query generation failed: {e}", header="EVAL")
-                scores.append(0.0)
-                outputs.append("")
-                failed_cases.append(
-                    FailedCase(
-                        question=item.question,
-                        output="",
-                        expected=item.expected_answer,
-                        score=0.0,
-                        memory_logs=list(toolkit.logger.logs),
-                    )
-                )
-                continue
-            messages.append({"role": "assistant", "content": query_json})
-
-            try:
-                query = query_cls(**_parse_json_from_llm(query_json))
-            except Exception as e:
-                self.logger.log(f"Val query parse failed: {e}", header="EVAL")
-                scores.append(0.0)
-                outputs.append("")
-                failed_cases.append(
-                    FailedCase(
-                        question=item.question,
-                        output="",
-                        expected=item.expected_answer,
-                        score=0.0,
-                        conversation_history=list(messages),
-                        memory_logs=list(toolkit.logger.logs),
-                    )
-                )
-                continue
-
-            # Read memory
-            try:
-                retrieved = memory.read(query)
-                retrieved_str = str(retrieved) if retrieved is not None else ""
-            except Exception as e:
-                retrieved_str = f"Read error: {e}"
-                logs.append(f"Val read failed: {e}")
-
-            # Step 2: answer based on retrieved memory
-            messages.append(
-                {
-                    "role": "user",
-                    "content": build_retrieved_memory_prompt(retrieved_str),
-                }
-            )
-            try:
-                answer = _llm_call(self.task_model, messages)
-            except Exception as e:
-                self.logger.log(f"Val answer generation failed: {e}", header="EVAL")
-                scores.append(0.0)
-                outputs.append("")
-                failed_cases.append(
-                    FailedCase(
-                        question=item.question,
-                        output="",
-                        expected=item.expected_answer,
-                        score=0.0,
-                        conversation_history=list(messages),
-                        memory_logs=list(toolkit.logger.logs),
-                    )
-                )
-                continue
-            messages.append({"role": "assistant", "content": answer})
-
-            outputs.append(answer)
-
-            # Score
-            score = self.scorer(answer, item.expected_answer)
-            scores.append(score)
-
-            if score < 1.0:
-                failed_cases.append(
-                    FailedCase(
-                        question=item.question,
-                        output=answer,
-                        expected=item.expected_answer,
-                        score=score,
-                        conversation_history=list(messages),
-                        memory_logs=list(toolkit.logger.logs),
-                    )
-                )
-
-        return self._build_eval_result(scores, outputs, failed_cases, logs)
-
-    def _evaluate_val_batched(
         self,
         memory: Any,
         query_cls: type,
@@ -635,7 +427,7 @@ class MemoryEvaluator:
 
         # Parse queries and do serial memory reads
         slots = self._parse_queries_and_read(
-            query_cls, query_schema, memory, val_data, round1_responses, logs, log_prefix="Val"
+            query_cls, memory, round1_messages, round1_responses, logs, log_prefix="Val"
         )
 
         # Round 2: batch answer generation only for successful slots
@@ -654,6 +446,7 @@ class MemoryEvaluator:
         scores: list[float] = []
         outputs: list[str] = []
         failed_cases: list[FailedCase] = []
+        log_snapshot = list(toolkit.logger.logs)
 
         valid_idx = 0
         for i, item in enumerate(val_data):
@@ -667,7 +460,7 @@ class MemoryEvaluator:
                         output="",
                         expected=item.expected_answer,
                         score=0.0,
-                        memory_logs=list(toolkit.logger.logs),
+                        memory_logs=log_snapshot,
                     )
                 )
                 continue
@@ -685,7 +478,7 @@ class MemoryEvaluator:
                         output="",
                         expected=item.expected_answer,
                         score=0.0,
-                        memory_logs=list(toolkit.logger.logs),
+                        memory_logs=log_snapshot,
                     )
                 )
                 continue
@@ -707,27 +500,11 @@ class MemoryEvaluator:
                         expected=item.expected_answer,
                         score=score,
                         conversation_history=conv,
-                        memory_logs=list(toolkit.logger.logs),
+                        memory_logs=log_snapshot,
                     )
                 )
 
         return self._build_eval_result(scores, outputs, failed_cases, logs)
-
-    # ── Standalone helpers (offline only) ────────────────────────────────────
-
-    def _generate_observation_standalone(self, raw_text: str, obs_cls: type, obs_schema: str) -> Any | None:
-        """Generate an Observation from raw text via a single LLM call.
-
-        Used only for offline train (batch ingest). Online uses the multi-turn flow.
-        """
-        prompt = build_observation_generation_prompt(raw_text, obs_schema)
-        try:
-            response = _llm_call(self.task_model, [{"role": "user", "content": prompt}])
-            data = _parse_json_from_llm(response)
-            return obs_cls(**data)
-        except Exception as e:
-            self.logger.log(f"Observation generation failed: {e}", header="EVAL")
-            return None
 
     def _batch_llm_call(self, all_messages: list[list[dict]]) -> list[str | None]:
         """Fan out independent LLM calls via litellm.batch_completion.

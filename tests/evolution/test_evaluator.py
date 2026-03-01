@@ -6,6 +6,7 @@ Key verification points from the design document:
 - Memory lifecycle: re-instantiation → empty memory (state isolation)
 """
 
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +16,9 @@ from programmaticmemory.evolution.evaluator import (
     ExactMatchScorer,
     LLMJudgeScorer,
     MemoryEvaluator,
+    RuntimeViolationError,
+    _guarded_read,
+    _guarded_write,
     _parse_json_from_llm,
 )
 from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
@@ -100,28 +104,35 @@ class TestParseJsonFromLLM:
             _parse_json_from_llm("not json at all")
 
 
-# ── Mock LLM helper ────────────────────────────────────────────────────────
+# ── Batch mock helper ────────────────────────────────────────────────────────
 
 
-def _mock_completion_factory(responses: list[str]):
-    """Create a mock litellm.completion that returns responses in order,
-    and captures the messages arg for each call."""
+def _make_batch_mock(response_batches: list[list[str]]):
+    """Create a mock for litellm.batch_completion.
+
+    response_batches: one list of strings per expected call to batch_completion.
+    Each inner list maps 1:1 to the messages passed in that call.
+    captured_calls stores the messages argument for each call.
+    """
     call_idx = [0]
-    captured_calls: list[list[dict]] = []
+    captured_calls: list[list[list[dict]]] = []
 
-    def mock_completion(*args, **kwargs):
+    def mock_batch_completion(*args, **kwargs):
         idx = call_idx[0]
         call_idx[0] += 1
-        messages = kwargs.get("messages") or (args[0] if args else [])
-        captured_calls.append(list(messages))  # deep copy of messages at call time
-        resp = responses[idx % len(responses)]
-        mock_resp = MagicMock()
-        mock_resp.choices = [MagicMock()]
-        mock_resp.choices[0].message.content = resp
-        return mock_resp
+        messages = kwargs.get("messages", [])
+        captured_calls.append([list(m) for m in messages])
+        batch = response_batches[idx % len(response_batches)]
+        results = []
+        for text in batch:
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = text
+            results.append(mock_resp)
+        return results
 
-    mock_completion.captured_calls = captured_calls
-    return mock_completion
+    mock_batch_completion.captured_calls = captured_calls
+    return mock_batch_completion
 
 
 # ── Memory lifecycle tests ──────────────────────────────────────────────────
@@ -196,53 +207,62 @@ class TestMemoryEvaluatorOffline:
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_basic_offline_evaluation(self, mock_litellm, snapshot: SnapshotAssertion):
         """Offline: batch ingest → query → answer → score."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "The capital of France is Paris."}',  # train: obs generation
-                '{"raw": "capital of France"}',  # val: query generation
-                "Paris",  # val: answer
+                ['{"raw": "France capital is Paris."}', '{"raw": "Germany capital is Berlin."}'],  # train batch
+                ['{"raw": "capital of France"}', '{"raw": "capital of Germany"}'],  # val round 1: queries
+                ["Paris", "Berlin"],  # val round 2: answers
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
-        val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
+        train = [
+            DataItem(raw_text="France capital is Paris.", question="q", expected_answer="e"),
+            DataItem(raw_text="Germany capital is Berlin.", question="q", expected_answer="e"),
+        ]
+        val = [
+            DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris"),
+            DataItem(raw_text="x", question="Capital of Germany?", expected_answer="Berlin"),
+        ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
+        # Train should be exactly 1 call with 2 messages
+        assert len(batch_mock.captured_calls) == 3  # train + val round1 + val round2
+        assert len(batch_mock.captured_calls[0]) == 2  # 2 train items in one batch
         assert result.score == 1.0
-        assert len(result.per_case_scores) == 1
+        assert len(result.per_case_scores) == 2
         assert result.failed_cases == []
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_offline_wrong_answer(self, mock_litellm, snapshot: SnapshotAssertion):
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "The capital of France is Paris."}',
-                '{"raw": "capital"}',
-                "London",
+                ['{"raw": "The capital of France is Paris."}'],  # train batch
+                ['{"raw": "capital"}'],  # val round 1: query
+                ["London"],  # val round 2: wrong answer
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 0.0
         assert len(result.failed_cases) == 1
         assert result.failed_cases[0].output == "London"
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     def test_compile_error_returns_zero(self):
         program = MemoryProgram(source_code="invalid python {{{}}")
-        evaluator = MemoryEvaluator(batch_process=False)
+        evaluator = MemoryEvaluator()
         result = evaluator.evaluate(
             program,
             [DataItem(raw_text="x", question="q", expected_answer="a")],
@@ -253,32 +273,32 @@ class TestMemoryEvaluatorOffline:
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_offline_val_uses_multiturn(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Val flow should use accumulated messages (Step 1 → Step 2)."""
-        mock_fn = _mock_completion_factory(
+        """Val uses exactly 2 batch_completion rounds with multi-turn messages."""
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "fact"}',  # train obs
-                '{"raw": "query"}',  # val Step 1: query gen
-                "answer",  # val Step 2: answer
+                ['{"raw": "obs1"}'],  # offline train (1 item)
+                ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
+                ["correct1", "correct2"],  # val round 2: both answers
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
-        val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
+        val = [
+            DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
+            DataItem(raw_text="x", question="Q2?", expected_answer="correct2"),
+        ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
-        evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
-        # Val Step 2 call (3rd call overall) should have 3 messages:
-        # user (query prompt) + assistant (query json) + user (retrieved memory prompt)
-        val_step2_messages = mock_fn.captured_calls[2]
-        assert len(val_step2_messages) == 3
-        assert val_step2_messages[0]["role"] == "user"  # query gen prompt
-        assert val_step2_messages[1]["role"] == "assistant"  # query json
-        assert val_step2_messages[2]["role"] == "user"  # retrieved memory prompt
-        assert "<retrieved_memory>" in val_step2_messages[2]["content"]
-        assert mock_fn.captured_calls == snapshot
+        assert result.score == 1.0
+        assert len(batch_mock.captured_calls) == 3  # train + 2 val rounds
+        assert len(batch_mock.captured_calls[1]) == 2  # round 1: 2 queries
+        assert len(batch_mock.captured_calls[2]) == 2  # round 2: 2 answers (3 msgs each)
+        assert len(batch_mock.captured_calls[2][0]) == 3  # each answer msg = query+response+retrieved
+        assert batch_mock.captured_calls == snapshot
 
 
 # ── Online Pipeline Tests ──────────────────────────────────────────────────
@@ -287,152 +307,143 @@ class TestMemoryEvaluatorOffline:
 class TestMemoryEvaluatorOnline:
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_online_train_messages_accumulate(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Online train: messages list grows across steps (design doc requirement).
-
-        Step 1: +user +assistant = 2 messages
-        Step 2: +user +assistant = 4 messages
-        Step 3: +user = 5 messages (call), then +assistant = 6 messages
-        """
-        mock_fn = _mock_completion_factory(
+        """Online train: 3 batch rounds for train + 2 for val, messages grow across rounds."""
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "query value"}',  # train Step 1: query gen
-                "my answer",  # train Step 2: answer
-                '{"raw": "observation"}',  # train Step 3: obs gen with feedback
-                '{"raw": "val query"}',  # val Step 1: query gen
-                "val answer",  # val Step 2: answer
+                ['{"raw": "q"}'],  # online train round 1: query gen
+                ["my answer"],  # online train round 2: answer gen
+                ['{"raw": "obs stored"}'],  # online train round 3: obs gen
+                ['{"raw": "vq"}'],  # val round 1: query gen
+                ["obs stored"],  # val round 2: answer
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="val answer")]
+        val = [DataItem(raw_text="x", question="VQ?", expected_answer="obs stored")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
-        evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
-        # Train Step 1 (call 0): 1 user message
-        assert len(mock_fn.captured_calls[0]) == 1
-        assert mock_fn.captured_calls[0][0]["role"] == "user"
-
-        # Train Step 2 (call 1): 3 messages (user + assistant + user)
-        assert len(mock_fn.captured_calls[1]) == 3
-        assert mock_fn.captured_calls[1][0]["role"] == "user"  # query gen prompt
-        assert mock_fn.captured_calls[1][1]["role"] == "assistant"  # query json
-        assert mock_fn.captured_calls[1][2]["role"] == "user"  # retrieved memory prompt
-        assert "<retrieved_memory>" in mock_fn.captured_calls[1][2]["content"]
-
-        # Train Step 3 (call 2): 5 messages (user + asst + user + asst + user)
-        assert len(mock_fn.captured_calls[2]) == 5
-        assert mock_fn.captured_calls[2][3]["role"] == "assistant"  # answer
-        assert mock_fn.captured_calls[2][4]["role"] == "user"  # obs gen with feedback
-        assert "Ground truth" in mock_fn.captured_calls[2][4]["content"]
-        assert "A" in mock_fn.captured_calls[2][4]["content"]  # expected answer in feedback
-        assert mock_fn.captured_calls == snapshot
+        assert len(batch_mock.captured_calls) == 5  # 3 train rounds + 2 val rounds
+        # Round 1: 1 query prompt (1 msg each)
+        assert len(batch_mock.captured_calls[0]) == 1
+        assert len(batch_mock.captured_calls[0][0]) == 1  # 1 user message
+        # Round 2: 3 messages (user + assistant + user)
+        assert len(batch_mock.captured_calls[1][0]) == 3
+        assert batch_mock.captured_calls[1][0][0]["role"] == "user"
+        assert batch_mock.captured_calls[1][0][1]["role"] == "assistant"
+        assert batch_mock.captured_calls[1][0][2]["role"] == "user"
+        assert "<retrieved_memory>" in batch_mock.captured_calls[1][0][2]["content"]
+        # Round 3: 5 messages (user + asst + user + asst + user)
+        assert len(batch_mock.captured_calls[2][0]) == 5
+        assert batch_mock.captured_calls[2][0][3]["role"] == "assistant"  # answer
+        assert batch_mock.captured_calls[2][0][4]["role"] == "user"  # obs gen with feedback
+        assert result.score == 1.0
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_online_step1_output_parses_to_query(self, mock_litellm, snapshot: SnapshotAssertion):
         """Step 1 mock output should be parseable into a Query dataclass."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "parsed query"}',
-                "answer",
-                '{"raw": "obs"}',
-                '{"raw": "vq"}',
-                "va",
+                ['{"raw": "parsed query"}'],  # train round 1
+                ["answer"],  # train round 2
+                ['{"raw": "obs"}'],  # train round 3
+                ['{"raw": "vq"}'],  # val round 1
+                ["va"],  # val round 2
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         # No parse errors in logs means query was parsed successfully
         assert not any("query parse failed" in log for log in result.logs)
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_online_step3_output_parses_to_observation(self, mock_litellm, snapshot: SnapshotAssertion):
         """Step 3 mock output should be parseable into an Observation dataclass."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "q"}',
-                "answer",
-                '{"raw": "parsed observation value"}',  # Step 3 obs
-                '{"raw": "vq"}',
-                "va",
+                ['{"raw": "q"}'],  # train round 1
+                ["answer"],  # train round 2
+                ['{"raw": "parsed observation value"}'],  # train round 3: obs
+                ['{"raw": "vq"}'],  # val round 1
+                ["va"],  # val round 2
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
         assert not any("observation parse failed" in log for log in result.logs)
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_online_write_called_and_memory_updates(self, mock_litellm, snapshot: SnapshotAssertion):
         """After Step 3+4, memory.write should be called and memory state should update."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "q"}',
-                "answer",
-                '{"raw": "stored via online"}',  # This obs should be written
-                '{"raw": "vq"}',  # val query
-                "stored via online",  # val answer (should contain written data)
+                ['{"raw": "q"}'],  # train round 1
+                ["answer"],  # train round 2
+                ['{"raw": "stored via online"}'],  # train round 3: obs written
+                ['{"raw": "vq"}'],  # val round 1
+                ["stored via online"],  # val round 2: answer matches
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="stored via online")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
-        # The observation "stored via online" should have been written during train
-        # and the val answer (mocked) says "stored via online" which matches expected
         assert result.score == 1.0
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_online_step3_includes_feedback_and_ground_truth(self, mock_litellm, snapshot: SnapshotAssertion):
         """Step 3 prompt must include evaluation result and ground truth."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "q"}',
-                "wrong answer",  # incorrect answer
-                '{"raw": "obs"}',
-                '{"raw": "vq"}',
-                "va",
+                ['{"raw": "q"}'],  # train round 1
+                ["wrong answer"],  # train round 2: incorrect answer
+                ['{"raw": "obs"}'],  # train round 3
+                ['{"raw": "vq"}'],  # val round 1
+                ["va"],  # val round 2
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="correct answer")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
-        # Step 3 (call index 2) should contain feedback
-        step3_messages = mock_fn.captured_calls[2]
+        # Round 3 (call index 2) should contain feedback in the last user message
+        step3_messages = batch_mock.captured_calls[2][0]
         step3_user_prompt = step3_messages[-1]["content"]
         assert "Ground truth" in step3_user_prompt
         assert "correct answer" in step3_user_prompt
         assert "incorrect" in step3_user_prompt  # evaluation result
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
 
 # ── Validation Pipeline Tests ──────────────────────────────────────────────
@@ -442,39 +453,39 @@ class TestValidationPipeline:
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_val_only_step1_and_step2(self, mock_litellm, snapshot: SnapshotAssertion):
         """Validation should only do Step 1 (query gen) + Step 2 (answer), no Step 3/4."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "fact"}',  # train obs
-                '{"raw": "query"}',  # val Step 1
-                "answer",  # val Step 2
+                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "query"}'],  # val round 1: query
+                ["answer"],  # val round 2: answer
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
-        # Should be exactly 3 LLM calls: 1 train obs + 2 val (query + answer)
-        assert len(mock_fn.captured_calls) == 3
-        assert mock_fn.captured_calls == snapshot
+        # Should be exactly 3 batch_completion calls: 1 train obs + 2 val rounds
+        assert len(batch_mock.captured_calls) == 3
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_val_does_not_call_write(self, mock_litellm, snapshot: SnapshotAssertion):
         """memory.write must NOT be called during validation phase."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "q"}',
-                "ans",
-                '{"raw": "obs"}',  # train (online: 3 calls)
-                '{"raw": "vq"}',
-                "va",  # val: 2 calls
+                ['{"raw": "q"}'],  # online train round 1
+                ["ans"],  # online train round 2
+                ['{"raw": "obs"}'],  # online train round 3
+                ['{"raw": "vq"}'],  # val round 1
+                ["va"],  # val round 2
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         # Use a memory program that tracks write calls
         tracking_program = """\
@@ -506,35 +517,30 @@ class Memory:
         train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="x", question="VQ?", expected_answer="va")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
+        evaluator = MemoryEvaluator(task_model="mock/model")
+        evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
 
-        # Check that write was called during train but NOT during val
-        # The toolkit logger captured WRITE_CALLED entries — count them
-        write_logs = [log for log in result.logs if "WRITE_CALLED" in log]
-        # No direct WRITE_CALLED in result.logs (those are evaluator logs),
-        # but we can check the memory_logs in failed cases or check via toolkit
-        # The key check: only 3 LLM calls for train + 2 for val = 5 total
-        assert len(mock_fn.captured_calls) == 5
-        assert mock_fn.captured_calls == snapshot
+        # 5 batch calls: 3 train rounds + 2 val rounds
+        assert len(batch_mock.captured_calls) == 5
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_val_conversation_history_in_failed_cases(self, mock_litellm, snapshot: SnapshotAssertion):
         """Failed cases should include the full multi-turn conversation history."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "fact"}',  # train obs
-                '{"raw": "query"}',  # val Step 1
-                "wrong answer",  # val Step 2
+                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "query"}'],  # val round 1: query
+                ["wrong answer"],  # val round 2: wrong answer
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="correct")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert len(result.failed_cases) == 1
@@ -543,34 +549,34 @@ class Memory:
         assert len(fc.conversation_history) == 4
         roles = [m["role"] for m in fc.conversation_history]
         assert roles == ["user", "assistant", "user", "assistant"]
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_val_multiturn_messages_structure(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Val Step 2 LLM call should see query gen prompt + query response + retrieved prompt."""
-        mock_fn = _mock_completion_factory(
+        """Val round 2 batch call should contain multi-turn messages per item."""
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "fact"}',
-                '{"raw": "my query"}',
-                "the answer",
+                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "my query"}'],  # val round 1: query
+                ["the answer"],  # val round 2: answer
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is X?", expected_answer="the answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
-        # Val Step 2 (call index 2): should have 3 messages
-        step2_msgs = mock_fn.captured_calls[2]
+        # Val round 2 (call index 2): each item should have 3 messages
+        step2_msgs = batch_mock.captured_calls[2][0]
         assert len(step2_msgs) == 3
         assert "What is X?" in step2_msgs[0]["content"]  # query gen mentions question
         assert step2_msgs[1]["content"] == '{"raw": "my query"}'  # assistant's query
         assert "<retrieved_memory>" in step2_msgs[2]["content"]  # retrieved memory prompt
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
 
 # ── Edge Cases ──────────────────────────────────────────────────────────────
@@ -579,56 +585,61 @@ class Memory:
 class TestEvaluatorEdgeCases:
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_observation_generation_failure_skips_item(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Offline: if obs generation fails, item is skipped but eval continues."""
-        mock_fn = _mock_completion_factory(
+        """Offline: if obs generation fails (bad JSON), item is skipped but eval continues."""
+        batch_mock = _make_batch_mock(
             [
-                "not valid json at all",  # train obs fails
-                '{"raw": "query"}',  # val query
-                "some answer",  # val answer
+                ["not valid json at all"],  # train obs fails
+                ['{"raw": "query"}'],  # val round 1: query
+                ["some answer"],  # val round 2: answer
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="answer")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score is not None
         assert len(result.per_case_scores) == 1
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_query_generation_failure_scores_zero(self, mock_litellm, snapshot: SnapshotAssertion):
         """If query generation fails during val, that item scores 0."""
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "fact"}',
-                "not valid json",  # val query gen fails
+                ['{"raw": "fact"}'],  # train obs
+                ["not valid json"],  # val round 1: query gen fails
+                [],  # val round 2: no valid slots, empty batch
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="a")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 0.0
         assert len(result.failed_cases) == 1
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     def test_empty_val_data(self, snapshot: SnapshotAssertion):
         """Empty val data should return score 0 without crashing."""
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
-            mock_fn = _mock_completion_factory(['{"raw": "x"}'])
-            mock_litellm.completion = mock_fn
+            batch_mock = _make_batch_mock(
+                [
+                    ['{"raw": "x"}'],  # train obs
+                ]
+            )
+            mock_litellm.batch_completion = batch_mock
             result = evaluator.evaluate(
                 program,
                 [DataItem(raw_text="x", question="q", expected_answer="a")],
@@ -636,21 +647,18 @@ class TestEvaluatorEdgeCases:
                 eval_mode=EvalMode.OFFLINE,
             )
         assert result.score == 0.0
-        assert mock_fn.captured_calls == snapshot
+        assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_multiple_val_items(self, mock_litellm, snapshot: SnapshotAssertion):
-        mock_fn = _mock_completion_factory(
+        batch_mock = _make_batch_mock(
             [
-                '{"raw": "f1"}',
-                '{"raw": "f2"}',  # train obs x2
-                '{"raw": "q1"}',
-                "correct1",  # val item 1 (correct)
-                '{"raw": "q2"}',
-                "wrong",  # val item 2 (wrong)
+                ['{"raw": "f1"}', '{"raw": "f2"}'],  # train obs x2
+                ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
+                ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
         )
-        mock_litellm.completion = mock_fn
+        mock_litellm.batch_completion = batch_mock
 
         program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
         train = [
@@ -662,134 +670,12 @@ class TestEvaluatorEdgeCases:
             DataItem(raw_text="x", question="Q2?", expected_answer="right answer"),
         ]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=False)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         assert result.score == 0.5
         assert len(result.per_case_scores) == 2
         assert len(result.failed_cases) == 1
-        assert mock_fn.captured_calls == snapshot
-
-
-# ── Batch Process Tests ──────────────────────────────────────────────────────
-
-
-class TestMemoryEvaluatorBatch:
-    """Tests for batch_process=True path (default)."""
-
-    def _make_batch_mock(self, response_batches: list[list[str]]):
-        """Create a mock for litellm.batch_completion.
-
-        response_batches: one list of strings per expected call to batch_completion.
-        Each inner list maps 1:1 to the messages passed in that call.
-        captured_calls stores the messages argument for each call.
-        """
-        call_idx = [0]
-        captured_calls: list[list[list[dict]]] = []
-
-        def mock_batch_completion(*args, **kwargs):
-            idx = call_idx[0]
-            call_idx[0] += 1
-            messages = kwargs.get("messages", [])
-            captured_calls.append([list(m) for m in messages])
-            batch = response_batches[idx % len(response_batches)]
-            results = []
-            for text in batch:
-                mock_resp = MagicMock()
-                mock_resp.choices = [MagicMock()]
-                mock_resp.choices[0].message.content = text
-                results.append(mock_resp)
-            return results
-
-        mock_batch_completion.captured_calls = captured_calls
-        return mock_batch_completion
-
-    @patch("programmaticmemory.evolution.evaluator.litellm")
-    def test_offline_train_single_batch_call(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Offline train: all obs prompts go in ONE batch_completion call."""
-        batch_mock = self._make_batch_mock(
-            [
-                ['{"raw": "France capital is Paris."}', '{"raw": "Germany capital is Berlin."}'],  # train batch
-                ['{"raw": "capital of France"}', '{"raw": "capital of Germany"}'],  # val round 1: queries
-                ["Paris", "Berlin"],  # val round 2: answers
-            ]
-        )
-        mock_litellm.batch_completion = batch_mock
-
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [
-            DataItem(raw_text="France capital is Paris.", question="q", expected_answer="e"),
-            DataItem(raw_text="Germany capital is Berlin.", question="q", expected_answer="e"),
-        ]
-        val = [
-            DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris"),
-            DataItem(raw_text="x", question="Capital of Germany?", expected_answer="Berlin"),
-        ]
-
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
-
-        # Train should be exactly 1 call with 2 messages
-        assert len(batch_mock.captured_calls) == 3  # train + val round1 + val round2
-        assert len(batch_mock.captured_calls[0]) == 2  # 2 train items in one batch
-        assert result.score == 1.0
-        assert batch_mock.captured_calls == snapshot
-
-    @patch("programmaticmemory.evolution.evaluator.litellm")
-    def test_val_two_batch_rounds(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Val with batch_process=True uses exactly 2 batch_completion rounds."""
-        batch_mock = self._make_batch_mock(
-            [
-                ['{"raw": "obs1"}'],  # offline train (1 item)
-                ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
-                ["correct1", "correct2"],  # val round 2: both answers
-            ]
-        )
-        mock_litellm.batch_completion = batch_mock
-
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
-        val = [
-            DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
-            DataItem(raw_text="x", question="Q2?", expected_answer="correct2"),
-        ]
-
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
-
-        assert result.score == 1.0
-        assert len(batch_mock.captured_calls) == 3  # train + 2 val rounds
-        assert len(batch_mock.captured_calls[1]) == 2  # round 1: 2 queries
-        assert len(batch_mock.captured_calls[2]) == 2  # round 2: 2 answers (3 msgs each)
-        assert len(batch_mock.captured_calls[2][0]) == 3  # each answer msg = query+response+retrieved
-        assert batch_mock.captured_calls == snapshot
-
-    @patch("programmaticmemory.evolution.evaluator.litellm")
-    def test_online_train_three_batch_rounds(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Online train batch_process=True: 3 rounds for train + 2 rounds for val."""
-        batch_mock = self._make_batch_mock(
-            [
-                ['{"raw": "q"}'],  # online train round 1: query gen
-                ["my answer"],  # online train round 2: answer gen
-                ['{"raw": "obs stored"}'],  # online train round 3: obs gen
-                ['{"raw": "vq"}'],  # val round 1: query gen
-                ["obs stored"],  # val round 2: answer
-            ]
-        )
-        mock_litellm.batch_completion = batch_mock
-
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        train = [DataItem(raw_text="fact", question="Q?", expected_answer="A")]
-        val = [DataItem(raw_text="x", question="VQ?", expected_answer="obs stored")]
-
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
-        result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.ONLINE)
-
-        assert len(batch_mock.captured_calls) == 5  # 3 train rounds + 2 val rounds
-        assert len(batch_mock.captured_calls[0]) == 1  # round 1: 1 query prompt (1 msg each)
-        assert len(batch_mock.captured_calls[2]) == 1  # round 3: 1 obs prompt
-        assert len(batch_mock.captured_calls[2][0]) == 5  # obs prompt has 5 messages (full context)
-        assert result.score == 1.0
         assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
@@ -819,9 +705,64 @@ class TestMemoryEvaluatorBatch:
         ]
         val = [DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris")]
 
-        evaluator = MemoryEvaluator(task_model="mock/model", batch_process=True)
+        evaluator = MemoryEvaluator(task_model="mock/model")
         result = evaluator.evaluate(program, train, val, eval_mode=EvalMode.OFFLINE)
 
         # Should still complete; only 1 item written to memory
         assert result.score is not None
         assert len(result.per_case_scores) == 1
+
+
+# ── Guarded Write/Read Tests ─────────────────────────────────────────────
+
+
+class TestGuardedWrite:
+    def test_normal_write_succeeds(self):
+        memory = MagicMock()
+        obs = MagicMock()
+        _guarded_write(memory, obs)
+        memory.write.assert_called_once_with(obs)
+
+    def test_timeout_raises_violation(self):
+        memory = MagicMock()
+        memory.write.side_effect = lambda obs: time.sleep(10)
+        with pytest.raises(RuntimeViolationError, match="timed out"):
+            _guarded_write(memory, MagicMock(), timeout=0.1)
+
+    def test_exception_propagates(self):
+        memory = MagicMock()
+        memory.write.side_effect = ValueError("boom")
+        with pytest.raises(ValueError, match="boom"):
+            _guarded_write(memory, MagicMock())
+
+
+class TestGuardedRead:
+    def test_normal_read_succeeds(self):
+        memory = MagicMock()
+        memory.read.return_value = "short"
+        result = _guarded_read(memory, MagicMock())
+        assert result == "short"
+
+    def test_timeout_raises_violation(self):
+        memory = MagicMock()
+        memory.read.side_effect = lambda q: time.sleep(10)
+        with pytest.raises(RuntimeViolationError, match="timed out"):
+            _guarded_read(memory, MagicMock(), timeout=0.1)
+
+    def test_oversized_output_raises_violation(self):
+        memory = MagicMock()
+        memory.read.return_value = "x" * 2000
+        with pytest.raises(RuntimeViolationError, match="2000 chars"):
+            _guarded_read(memory, MagicMock(), max_chars=1000)
+
+    def test_none_return_passes(self):
+        memory = MagicMock()
+        memory.read.return_value = None
+        result = _guarded_read(memory, MagicMock())
+        assert result is None
+
+    def test_exception_propagates(self):
+        memory = MagicMock()
+        memory.read.side_effect = ValueError("boom")
+        with pytest.raises(ValueError, match="boom"):
+            _guarded_read(memory, MagicMock())
