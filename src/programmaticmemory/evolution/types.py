@@ -79,6 +79,13 @@ class FailedCase:
 
 
 @dataclass
+class TrainExample:
+    """One training write: the full message exchange that generated an Observation."""
+
+    messages: list[dict[str, str]]  # [{"role":"user",...}, {"role":"assistant",...}]
+
+
+@dataclass
 class EvalResult:
     """Aggregated evaluation result for a memory program."""
 
@@ -87,6 +94,8 @@ class EvalResult:
     per_case_outputs: list[str] = field(default_factory=list)
     failed_cases: list[FailedCase] = field(default_factory=list)
     logs: list[str] = field(default_factory=list)
+    train_examples: list[TrainExample] = field(default_factory=list)
+    runtime_violation: str | None = None
 
 
 @dataclass
