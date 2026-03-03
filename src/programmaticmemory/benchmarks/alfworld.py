@@ -63,9 +63,9 @@ def _derive_expected(task_type: str, traj_data: dict) -> str:
     return ""
 
 
-def _parse_trials(base_dir: Path) -> list[DataItem]:
-    """Parse all valid trial directories under base_dir."""
-    items = []
+def _parse_trials(base_dir: Path) -> list[tuple[str, DataItem]]:
+    """Parse all valid trial directories under base_dir. Returns (task_type, DataItem) pairs."""
+    items: list[tuple[str, DataItem]] = []
     if not base_dir.exists():
         return items
 
@@ -100,7 +100,7 @@ def _parse_trials(base_dir: Path) -> list[DataItem]:
             task_type = task_dir.name.split("-")[0] if "-" in task_dir.name else task_dir.name
             expected = _derive_expected(task_type, traj_data)
 
-            items.append(DataItem(raw_text="", question=task_desc, expected_answer=expected))
+            items.append((task_type, DataItem(raw_text="", question=task_desc, expected_answer=expected)))
 
     return items
 
@@ -110,6 +110,7 @@ def load_alfworld(
     *,
     num_train: int = 50,
     num_val: int | None = None,
+    category: str | None = None,
     seed: int = 42,
     data_dir: str | Path | None = None,
 ) -> Dataset:
@@ -118,6 +119,7 @@ def load_alfworld(
     Args:
         num_train: Number of training items.
         num_val: Number of validation items (None = all remaining).
+        category: Filter to a specific task type (e.g. "heat", "cool"). None = all.
         seed: Random seed for shuffling.
         data_dir: Override data directory.
 
@@ -130,7 +132,16 @@ def load_alfworld(
     json_dir = dest_dir / "json_2.1.1"
     valid_dir = json_dir / "valid_unseen"
 
-    items = _parse_trials(valid_dir)
+    typed_items = _parse_trials(valid_dir)
+
+    if category is not None:
+        filtered = [(t, item) for t, item in typed_items if t == category]
+        if not filtered:
+            available = sorted({t for t, _ in typed_items})
+            raise ValueError(f"category {category!r} not found. Available: {available}")
+        typed_items = filtered
+
+    items = [item for _, item in typed_items]
 
     rng = random.Random(seed)
     rng.shuffle(items)

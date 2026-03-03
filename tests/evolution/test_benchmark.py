@@ -354,9 +354,9 @@ class TestALFWorldBenchmark:
         from programmaticmemory.benchmarks.alfworld import _parse_trials
 
         base = alfworld_data_dir / "alfworld" / "json_2.1.1" / "valid_unseen"
-        items = _parse_trials(base)
-        assert len(items) == 4
-        questions = [i.question for i in items]
+        typed_items = _parse_trials(base)
+        assert len(typed_items) == 4
+        questions = [item.question for _, item in typed_items]
         assert "Clean the cup." not in questions
 
     def test_loads_solvable_tasks(self, alfworld_data_dir):
@@ -381,6 +381,26 @@ class TestALFWorldBenchmark:
         d1 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         d2 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         assert [i.question for i in d1.train] == [i.question for i in d2.train]
+
+    def test_category_filters_by_task_type(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="heat")
+        all_items = ds.train + ds.val
+        assert len(all_items) == 1
+        assert all_items[0].expected_answer == "microwave"
+
+    def test_category_none_returns_all(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir, category=None)
+        assert len(ds.train) + len(ds.val) == 4
+
+    def test_category_no_match_raises(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        with pytest.raises(ValueError, match="category"):
+            load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="nonexistent")
 
 
 # ── NYT Connections ──────────────────────────────────────────────────────────
