@@ -2,42 +2,35 @@
 # name: test_compile_fix_disallowed_import
   dict({
     'fixed_code': '''
-      import json
-      import re
-      import math
-      import hashlib
-      import collections
-      import dataclasses
-      import typing
-      import datetime
-      import textwrap
-      import sqlite3
-      import chromadb
       from dataclasses import dataclass, field
-      from typing import Optional, List
       
-      INSTRUCTION_OBSERVATION = "Extract relevant information from the current context and structure it according to the Observation schema."
-      INSTRUCTION_QUERY = "Formulate a retrieval query based on the user's information need, structured according to the Query schema."
-      INSTRUCTION_RESPONSE = "Generate a concise, accurate answer based on the retrieved information, using a clear and helpful style."
+      
+      INSTRUCTION_OBSERVATION = "Extract and capture the most relevant facts from the provided input for later retrieval."
+      INSTRUCTION_QUERY = "Formulate a focused query that describes the needed information succinctly."
+      INSTRUCTION_RESPONSE = "Provide a concise, actionable response referencing stored knowledge when appropriate."
+      
       
       @dataclass
       class Observation:
-          raw: str = field(metadata={"description": "The raw text content of the observation"})
+          raw: str = field(metadata={"description": "Raw textual observation captured for the knowledge base."})
+      
       
       @dataclass
       class Query:
-          raw: str = field(metadata={"description": "The raw text query for retrieving information"})
+          raw: str = field(metadata={"description": "Raw query text describing the needed information."})
+      
       
       class KnowledgeBase:
           def __init__(self, toolkit):
               self.toolkit = toolkit
               self.store = []
-              
+      
           def write(self, observation: Observation) -> None:
               self.store.append(observation.raw)
               self.toolkit.logger.debug(f"Stored: {observation.raw[:80]}")
-              
+      
           def read(self, query: Query) -> str:
+              self.toolkit.logger.debug(f"Query received: {query.raw}")
               result = "\n".join(self.store) if self.store else "No information stored."
               return result[:1000]
     ''',
@@ -48,33 +41,24 @@
 # name: test_compile_fix_runtime_bug
   dict({
     'fixed_code': '''
-      import json
-      import re
-      import math
-      import hashlib
-      import collections
-      import dataclasses
-      import typing
-      import datetime
-      import textwrap
-      import sqlite3
-      import chromadb
       from dataclasses import dataclass, field
-      from typing import Optional, List
       
-      INSTRUCTION_OBSERVATION = "Extract relevant information from the given text and structure it according to the Observation schema."
-      INSTRUCTION_QUERY = "Formulate a retrieval query based on the user's question, matching the Query schema."
-      INSTRUCTION_RESPONSE = "Generate a concise answer based on the retrieved information, keeping it under 1000 characters."
       
+      INSTRUCTION_OBSERVATION = "Extract the most important detail from the provided text for storage."
+      INSTRUCTION_QUERY = "Formulate a simple keyword query that captures what should be retrieved from the knowledge base."
+      INSTRUCTION_RESPONSE = "Return a concise summary of relevant stored knowledge that answers the query."
+      
+      def process_text(text: str) -> str:
+          return text.strip()
       
       @dataclass
       class Observation:
-          raw: str = field(metadata={"description": "The raw text content to be stored in the knowledge base"})
+          raw: str = field(metadata={"description": "The full text to store in the knowledge base."})
       
       
       @dataclass
       class Query:
-          raw: str = field(metadata={"description": "The raw query text for retrieving information from the knowledge base"})
+          raw: str = field(metadata={"description": "The text describing what information to retrieve."})
       
       
       class KnowledgeBase:
@@ -83,13 +67,11 @@
               self.store = []
       
           def write(self, observation: Observation) -> None:
-              self.store.append(observation.raw)
+              processed = process_text(observation.raw)
+              self.store.append(processed)
       
           def read(self, query: Query) -> str:
-              result = "\n".join(self.store) if self.store else "No information stored."
-              if len(result) > 1000:
-                  result = result[:997] + "..."
-              return result
+              return "\n".join(self.store) if self.store else "No information stored."
     ''',
     'original_smoke_error': "Runtime: name 'process_text' is not defined",
   })
@@ -110,16 +92,12 @@
     'num_failed': 0,
     'num_outputs': 1,
     'score': 1.0,
-    'val_output': 'Green apple',
+    'val_output': 'green apple',
   })
 # ---
 # name: test_observation_generation
   dict({
-    'output': '''
-      {
-        "raw": "The capital of France is Paris."
-      }
-    ''',
+    'output': '{"raw":"The capital of France is Paris."}',
     'prompt': '''
       Given the following text, create an Observation object to store this information in memory.
       
@@ -137,7 +115,7 @@
 # ---
 # name: test_observation_with_feedback
   dict({
-    'output': '{"raw": "The answer \'Paris\' was marked as incorrect, indicating that the correct answer to the question was not Paris."}',
+    'output': '{"raw":"Evaluation result score 0.0 (incorrect) with ground truth Paris."}',
     'prompt': '''
       Evaluation result: Score: 0.0 (incorrect)
       Ground truth: Paris
@@ -885,13 +863,7 @@
 # ---
 # name: test_query_generation
   dict({
-    'output': '''
-      ```json
-      {
-          "raw": "capital of France"
-      }
-      ```
-    ''',
+    'output': '{"raw":"capital of France"}',
     'prompt': '''
       Given the following question, generate a query to retrieve relevant memory.
       
@@ -910,340 +882,151 @@
 # name: test_reflection
   dict({
     'output': '''
-      ## Diagnosis
+      Diagnosis:
+      - The knowledge base was simply storing raw strings and returning the entire corpus regardless of the incoming question, so queries like “What is the capital of France?” never retrieved the relevant fact while returning unstructured data that the answerer couldn’t interpret.
+      - There was no structured way for the agent to specify what topic or keywords it was looking for, so the read() implementation had no mechanism for targeted retrieval.
+      - The new requirements also ask for explicit instructions so the observation/query agents can populate structured fields, which were missing and prevented the system from collecting actionable metadata.
       
-      The current program fails because it implements a naive "store everything, return everything" approach. The key issues are:
-      
-      1. **No structured storage**: Observations are stored as raw strings without any indexing or organization.
-      2. **No intelligent retrieval**: The `read()` method returns ALL stored text (truncated to 1000 chars), which is essentially a memory dump rather than relevant retrieval.
-      3. **No query understanding**: The Query class only contains raw text, but there's no mechanism to understand what information is being asked for.
-      4. **Poor performance**: With this design, as more observations are written, the returned text becomes increasingly irrelevant and may exceed the 1000-character limit with useless information.
-      
-      In the failed case, even if the knowledge base contains information about France's capital, the system returns ALL stored observations concatenated together, making it hard for the LLM to extract the specific answer.
-      
-      ## Proposed Improvements
-      
-      1. **Add structured fields to Observation**: Include topic, entities, and key facts to enable better organization.
-      2. **Add structured fields to Query**: Include intent and target entities to enable targeted retrieval.
-      3. **Implement proper storage**: Use SQLite for structured storage and Chroma for semantic search.
-      4. **Implement intelligent retrieval**: Combine keyword matching with semantic search to find relevant information.
-      5. **Limit response size**: Return only the most relevant observations, not everything.
-      
-      Here's the fixed code:
+      Fixes:
+      1. Introduce structured Observation/Query dataclasses so facts are recorded with a topic, details, and optional source, and queries can specify topics plus detail keywords.
+      2. Implement a SQLite-backed knowledge store with basic filtering using topic and keyword matches.
+      3. Limit read() output to at most 1000 characters while still returning the most recent relevant entries and logging actions for transparency.
+      4. Update the instruction constants to guide the LLMs to emit structured JSON for writing and querying, and to keep responses focused and concise.
       
       ```python
-      import sqlite3
-      import chromadb
       from dataclasses import dataclass, field
-      from typing import List, Optional
-      import json
-      import hashlib
+      from typing import Optional
       
-      # Instruction constants - provide clear guidance for the task LLM
-      INSTRUCTION_OBSERVATION = """Extract structured information from the text. Identify the main topic, key entities mentioned, and the most important facts. Store this in a structured format for efficient retrieval."""
-      INSTRUCTION_QUERY = """Analyze the question to identify what information is being sought. Determine the main topic, target entities, and the type of answer needed (fact, list, comparison, etc.)."""
-      INSTRUCTION_RESPONSE = """Based on the retrieved knowledge, provide a concise, direct answer to the original question. Do not include explanations, justifications, or additional context unless absolutely necessary."""
+      # Clear instructions guide the observation/query agents and final response format.
+      INSTRUCTION_OBSERVATION = (
+          "Summarize a single fact by providing a topic, a concise detail about that topic, "
+          "and an optional source if available; output must match the Observation schema."
+      )
+      INSTRUCTION_QUERY = (
+          "Frame a query by naming the topic of interest and listing any keywords "
+          "that should appear in the detail; follow the Query schema for your response."
+      )
+      INSTRUCTION_RESPONSE = (
+          "Answer the user question with one or two factual sentences derived from the retrieved knowledge."
+      )
       
       
       @dataclass
       class Observation:
-          """Structured observation for knowledge base storage."""
-          # Core content fields
-          topic: str = field(metadata={"description": "Main topic or subject of the information"})
-          content: str = field(metadata={"description": "Key factual content to store"})
-          raw_text: str = field(metadata={"description": "Original raw text for reference"})
-          
-          # Metadata for retrieval
-          entities: List[str] = field(default_factory=list, metadata={"description": "Named entities mentioned (people, places, concepts)"})
-          keywords: List[str] = field(default_factory=list, metadata={"description": "Important keywords for search"})
-          
-          # Optional temporal context
-          timestamp: Optional[str] = field(default=None, metadata={"description": "When this information was relevant (YYYY-MM-DD format if available)"})
+          # Structured information keeps stored facts searchable and easy to match.
+          topic: str = field(metadata={"description": "Short topic name or title for this fact"})
+          details: str = field(metadata={"description": "Supporting detail or explanation for the topic"})
+          source: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional source or reference for provenance"}
+          )
       
       
       @dataclass
       class Query:
-          """Structured query for knowledge base retrieval."""
-          # Core query fields
-          intent: str = field(metadata={"description": "What type of information is being sought (fact, list, definition, comparison)"})
-          target_topic: str = field(metadata={"description": "Main topic or subject being asked about"})
-          
-          # Target entities for precise retrieval
-          target_entities: List[str] = field(default_factory=list, metadata={"description": "Specific entities mentioned in the question"})
-          
-          # Optional constraints
-          time_constraint: Optional[str] = field(default=None, metadata={"description": "Temporal constraint if specified (e.g., 'current', 'historical')"})
+          # Topic + keywords let the read() method focus its retrieval.
+          topic: Optional[str] = field(
+              default=None,
+              metadata={"description": "Primary topic to match when searching the knowledge base"}
+          )
+          detail_keywords: list[str] = field(
+              default_factory=list,
+              metadata={"description": "List of keywords to look for inside the detail text"}
+          )
       
       
       class KnowledgeBase:
-          """Intelligent knowledge base with structured storage and semantic retrieval."""
-          
+          """SQLite-backed knowledge base that filters observations by topic and keywords."""
+      
           def __init__(self, toolkit):
               self.toolkit = toolkit
-              self.logger = toolkit.logger
-              
-              # Initialize SQLite table for structured storage
-              self._init_sqlite()
-              
-              # Initialize Chroma collection for semantic search
-              self._init_chroma()
-              
-              self.logger.debug("KnowledgeBase initialized with SQLite and Chroma")
-          
-          def _init_sqlite(self):
-              """Initialize SQLite database with structured tables."""
-              cursor = self.toolkit.db.cursor()
-              cursor.execute("""
-                  CREATE TABLE IF NOT EXISTS observations (
-                      id TEXT PRIMARY KEY,
-                      topic TEXT NOT NULL,
-                      content TEXT NOT NULL,
-                      raw_text TEXT NOT NULL,
-                      entities TEXT,  -- JSON array
-                      keywords TEXT,  -- JSON array
-                      timestamp TEXT,
-                      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+              self.db = toolkit.db
+              # Always ensure the table exists so writes can proceed without race conditions.
+              with self.db:
+                  self.db.execute(
+                      """
+                      CREATE TABLE IF NOT EXISTS observations (
+                          id INTEGER PRIMARY KEY AUTOINCREMENT,
+                          topic TEXT NOT NULL,
+                          details TEXT NOT NULL,
+                          source TEXT
+                      )
+                      """
                   )
-              """)
-              
-              # Create indexes for efficient querying
-              cursor.execute("CREATE INDEX IF NOT EXISTS idx_topic ON observations(topic)")
-              cursor.execute("CREATE INDEX IF NOT EXISTS idx_entities ON observations(entities)")
-              self.toolkit.db.commit()
-          
-          def _init_chroma(self):
-              """Initialize Chroma collection for semantic search."""
-              # Create or get collection
-              self.chroma_collection = self.toolkit.chroma.create_collection(
-                  name="knowledge_base",
-                  metadata={"hnsw:space": "cosine"}
-              )
-          
-          def _generate_id(self, observation: Observation) -> str:
-              """Generate a unique ID for an observation based on its content."""
-              # Use hash of topic + content to avoid exact duplicates
-              content_hash = hashlib.md5(
-                  f"{observation.topic}:{observation.content}".encode()
-              ).hexdigest()[:16]
-              return content_hash
-          
+              self.toolkit.logger.debug("Knowledge base initialized with SQLite table.")
+      
           def write(self, observation: Observation) -> None:
-              """Store structured observation in both SQLite and Chroma."""
-              # Generate unique ID
-              obs_id = self._generate_id(observation)
-              
-              # Store in SQLite (structured data)
-              cursor = self.toolkit.db.cursor()
-              cursor.execute("""
-                  INSERT OR REPLACE INTO observations 
-                  (id, topic, content, raw_text, entities, keywords, timestamp)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)
-              """, (
-                  obs_id,
-                  observation.topic,
-                  observation.content,
-                  observation.raw_text,
-                  json.dumps(observation.entities),
-                  json.dumps(observation.keywords),
-                  observation.timestamp
-              ))
-              self.toolkit.db.commit()
-              
-              # Store in Chroma for semantic search
-              # Use content for embedding, store metadata for filtering
-              self.chroma_collection.add(
-                  documents=[observation.content],
-                  metadatas=[{
-                      "id": obs_id,
-                      "topic": observation.topic,
-                      "entities": json.dumps(observation.entities),
-                      "timestamp": observation.timestamp or ""
-                  }],
-                  ids=[obs_id]
+              """Insert a single structured fact into the SQLite store for later retrieval."""
+              with self.db:
+                  self.db.execute(
+                      "INSERT INTO observations (topic, details, source) VALUES (?, ?, ?)",
+                      (observation.topic, observation.details, observation.source),
+                  )
+              self.toolkit.logger.debug(
+                  f"Stored observation for topic='{observation.topic}' "
+                  f"with details='{observation.details[:50]}...' "
+                  f"and source='{observation.source}'."
               )
-              
-              self.logger.debug(f"Stored observation: {observation.topic} (ID: {obs_id})")
-          
+      
           def read(self, query: Query) -> str:
               """
-              Retrieve relevant information using hybrid search:
-              1. Keyword search in SQLite (exact matches)
-              2. Semantic search in Chroma (similarity)
-              3. Combine and rank results
+              Retrieve up to a few recent observations matching the topic and keyword filters.
+              The result is truncated to 1000 characters so it stays within the response budget.
               """
-              self.logger.debug(f"Processing query: {query.intent} about {query.target_topic}")
-              
-              # Strategy 1: Direct topic/entity match in SQLite
-              sql_results = self._sqlite_search(query)
-              
-              # Strategy 2: Semantic search in Chroma
-              chroma_results = self._chroma_search(query)
-              
-              # Combine and deduplicate results
-              all_results = self._combine_results(sql_results, chroma_results, query)
-              
-              # Format response within character limit
-              response = self._format_response(all_results, query)
-              
-              self.logger.debug(f"Returning {len(response)} characters")
-              return response
-          
-          def _sqlite_search(self, query: Query) -> List[dict]:
-              """Search SQLite for exact topic/entity matches."""
-              results = []
-              cursor = self.toolkit.db.cursor()
-              
-              # Build query based on available information
-              if query.target_entities:
-                  # Search by entities (exact match in JSON array)
-                  entity_conditions = []
-                  params = []
-                  for entity in query.target_entities:
-                      entity_conditions.append("entities LIKE ?")
-                      params.append(f'%"{entity}"%')
-                  
-                  query_sql = f"""
-                      SELECT content, topic, entities 
-                      FROM observations 
-                      WHERE topic LIKE ? OR {' OR '.join(entity_conditions)}
-                      ORDER BY 
-                          CASE WHEN topic = ? THEN 1 ELSE 0 END DESC,
-                          LENGTH(content) ASC
-                      LIMIT 3
-                  """
-                  params = [f"%{query.target_topic}%"] + params + [query.target_topic]
-              else:
-                  # Search by topic only
-                  query_sql = """
-                      SELECT content, topic, entities 
-                      FROM observations 
-                      WHERE topic LIKE ?
-                      ORDER BY LENGTH(content) ASC
-                      LIMIT 3
-                  """
-                  params = [f"%{query.target_topic}%"]
-              
-              cursor.execute(query_sql, params)
-              
-              for row in cursor.fetchall():
-                  results.append({
-                      "content": row[0],
-                      "topic": row[1],
-                      "entities": json.loads(row[2]) if row[2] else [],
-                      "source": "sqlite"
-                  })
-              
-              return results
-          
-          def _chroma_search(self, query: Query) -> List[dict]:
-              """Search Chroma for semantically similar content."""
-              results = []
-              
-              try:
-                  # Use the query's target topic for semantic search
-                  chroma_results = self.chroma_collection.query(
-                      query_texts=[query.target_topic],
-                      n_results=3,
-                      where={"topic": {"$eq": query.target_topic}} if query.target_topic else None
-                  )
-                  
-                  if chroma_results and chroma_results['documents']:
-                      for i, doc in enumerate(chroma_results['documents'][0]):
-                          metadata = chroma_results['metadatas'][0][i] if chroma_results['metadatas'] else {}
-                          results.append({
-                              "content": doc,
-                              "topic": metadata.get("topic", ""),
-                              "entities": json.loads(metadata.get("entities", "[]")),
-                              "source": "chroma"
-                          })
-              except Exception as e:
-                  self.logger.debug(f"Chroma search error: {e}")
-              
-              return results
-          
-          def _combine_results(self, sql_results: List[dict], chroma_results: List[dict], query: Query) -> List[dict]:
-              """Combine and deduplicate results from both sources."""
-              seen_contents = set()
-              combined = []
-              
-              # Prioritize SQLite results (exact matches)
-              for result in sql_results:
-                  content_hash = hashlib.md5(result["content"].encode()).hexdigest()
-                  if content_hash not in seen_contents:
-                      seen_contents.add(content_hash)
-                      result["score"] = 1.0  # Higher score for exact matches
-                      combined.append(result)
-              
-              # Add Chroma results if not already included
-              for result in chroma_results:
-                  content_hash = hashlib.md5(result["content"].encode()).hexdigest()
-                  if content_hash not in seen_contents:
-                      seen_contents.add(content_hash)
-                      result["score"] = 0.7  # Lower score for semantic matches
-                      combined.append(result)
-              
-              # Sort by relevance score
-              combined.sort(key=lambda x: x["score"], reverse=True)
-              
-              # Limit to most relevant results
-              return combined[:5]
-          
-          def _format_response(self, results: List[dict], query: Query) -> str:
-              """Format retrieved information into a concise response."""
-              if not results:
+              self.toolkit.logger.debug(
+                  f"Executing read with topic='{query.topic}' "
+                  f"and keywords={query.detail_keywords}."
+              )
+      
+              conditions = []
+              params = []
+      
+              if query.topic:
+                  conditions.append("topic LIKE ?")
+                  params.append(f"%{query.topic}%")
+      
+              for keyword in query.detail_keywords:
+                  clean_keyword = keyword.strip()
+                  if not clean_keyword:
+                      continue
+                  conditions.append("(details LIKE ? OR topic LIKE ?)")
+                  params.extend((f"%{clean_keyword}%", f"%{clean_keyword}%"))
+      
+              sql = "SELECT topic, details, COALESCE(source, '') FROM observations"
+              if conditions:
+                  sql += " WHERE " + " AND ".join(conditions)
+              sql += " ORDER BY id DESC LIMIT 5"
+      
+              rows = list(self.db.execute(sql, params))
+              self.toolkit.logger.debug(f"Retrieved {len(rows)} rows for the query.")
+      
+              if not rows:
+                  self.toolkit.logger.debug("No matching observations found.")
                   return "No relevant information found."
-              
-              # Build response based on query intent
-              if query.intent == "fact":
-                  # For factual queries, return the most specific answer
-                  response = results[0]["content"]
-              elif query.intent == "list":
-                  # For list queries, combine relevant points
-                  items = []
-                  for result in results:
-                      if result["content"] not in items:
-                          items.append(result["content"])
-                  response = "\n".join(f"- {item}" for item in items[:3])
-              else:
-                  # Default: combine most relevant information
-                  response_parts = []
-                  for result in results[:3]:
-                      response_parts.append(result["content"])
-                  response = "\n".join(response_parts)
-              
-              # Enforce character limit
-              if len(response) > 1000:
-                  # Truncate at last complete sentence within limit
-                  truncated = response[:1000]
-                  last_period = truncated.rfind('.')
-                  if last_period > 800:  # Only truncate at sentence if reasonable
-                      response = truncated[:last_period + 1]
-                  else:
-                      response = truncated + "..."
-              
-              return response
+      
+              response_parts = []
+              current_length = 0
+              max_length = 1000
+      
+              for topic, details, source in rows:
+                  snippet = f"{topic}: {details}"
+                  if source:
+                      snippet += f" (source: {source})"
+                  delimiter = "\n" if response_parts else ""
+                  snippet_length = len(delimiter) + len(snippet)
+                  if current_length + snippet_length > max_length:
+                      # If this is the first snippet and already too long, truncate it instead of dropping everything.
+                      if not response_parts:
+                          truncated = snippet[: max_length - len(" (truncated)")] + " (truncated)"
+                          response_parts.append(truncated)
+                      break
+                  response_parts.append(f"{delimiter}{snippet}" if response_parts else snippet)
+                  current_length += snippet_length
+      
+              result = "\n".join(part.lstrip("\n") for part in response_parts)
+              self.toolkit.logger.debug(f"Read result length: {len(result)} chars.")
+              return result[:max_length]
       ```
-      
-      ## Key Improvements Explained
-      
-      1. **Structured Observation**: Added `topic`, `content`, `entities`, and `keywords` fields to enable organized storage and targeted retrieval.
-      
-      2. **Structured Query**: Added `intent`, `target_topic`, and `target_entities` to understand what information is being sought.
-      
-      3. **Dual Storage System**:
-         - SQLite: Stores structured data for exact matching (topic, entities)
-         - Chroma: Enables semantic search for similar concepts
-      
-      4. **Hybrid Retrieval**: Combines exact matches (SQLite) with semantic similarity (Chroma) for robust information retrieval.
-      
-      5. **Response Limiting**: Returns only the most relevant information (3-5 results) and formats it based on query intent, ensuring the output stays under 1000 characters.
-      
-      6. **Efficient Design**: Uses indexes in SQLite and limits search results to avoid timeouts. No LLM calls are made during read/write operations, staying within budget constraints.
-      
-      This design ensures that when asked "What is the capital of France?", the system will:
-      1. Search for observations with topic "France" or entities containing "France"
-      2. Return the most relevant content about France's capital
-      3. Format a concise answer within the character limit
     ''',
     'prompt': '''
       You are an expert Python programmer specializing in knowledge base system design.
@@ -1301,8 +1084,9 @@
       2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
       3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
       4. `read()` must return at most 1000 characters — do not return all stored text.
-      5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
-      6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+      5. Keep it simple. Make minimal, targeted fixes.
+      6. Update INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE to steer the task LLM's output format.
+      7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
       </rules>
       
       <current_program iteration="1">
@@ -1377,307 +1161,146 @@
 # name: test_reflection_recovery
   dict({
     'reflected_code': '''
-      import json
+      from dataclasses import dataclass, field
       import re
       import sqlite3
-      from dataclasses import dataclass, field
-      from typing import Optional, List
-      from datetime import datetime
       
-      # Instruction constants as required by the interface spec
-      INSTRUCTION_OBSERVATION = """
-      Extract structured information from the document text. Identify the main entity, its attributes, and values.
-      Focus on factual information like codes, numbers, dates, names, and key details.
-      """
-      INSTRUCTION_QUERY = """
-      Formulate a query to retrieve specific information from the knowledge base.
-      Specify what entity and attribute you're looking for, and provide relevant keywords.
-      """
-      INSTRUCTION_RESPONSE = """
-      Provide a concise answer based on the retrieved information. Include only the most relevant facts.
-      Keep responses under 1000 characters and avoid unnecessary elaboration.
-      """
+      # These instructions are consumed by the task agent prompts.
+      # Keep them explicit and concise so observation/query generation is reliable.
+      INSTRUCTION_OBSERVATION = (
+          "Extract the key factual statement(s) from the provided text and store them verbatim "
+          "or near-verbatim in a concise single raw string. Preserve critical names, IDs, codes, and numbers."
+      )
+      
+      INSTRUCTION_QUERY = (
+          "Convert the user question into a direct retrieval query string that keeps the important entities "
+          "and requested fact exactly (project names, people, codes, dates, identifiers)."
+      )
+      
+      INSTRUCTION_RESPONSE = (
+          "Answer using only retrieved memory. Be concise and factual. If memory is insufficient, say you do not know."
+      )
       
       
       @dataclass
       class Observation:
-          """Structured observation capturing key information from documents."""
-          # Core entity being described
-          entity: str = field(metadata={"description": "The main subject or entity being described"})
-          
-          # Attribute of the entity (e.g., "access code", "launch date", "director")
-          attribute: str = field(metadata={"description": "The specific attribute or property of the entity"})
-          
-          # Value of the attribute
-          value: str = field(metadata={"description": "The value of the attribute"})
-          
-          # Raw text for fallback retrieval
-          raw: str = field(metadata={"description": "Original text for reference"})
-          
-          # Additional context or details
-          context: Optional[str] = field(default=None, metadata={"description": "Additional context or details"})
-          
-          # Timestamp for recency tracking
-          timestamp: str = field(default_factory=lambda: datetime.now().isoformat(), 
-                                metadata={"description": "When this observation was recorded"})
+          # JSON-compatible field type with description for the external LLM.
+          raw: str = field(
+              metadata={
+                  "description": "Concise factual memory text to store (include exact names/codes/values)."
+              }
+          )
       
       
       @dataclass
       class Query:
-          """Structured query for retrieving information from the knowledge base."""
-          # Raw query text for fallback
-          raw: str = field(metadata={"description": "Original query text"})
-          
-          # Target entity to search for
-          entity: Optional[str] = field(default=None, metadata={"description": "Entity to search for"})
-          
-          # Target attribute to search for
-          attribute: Optional[str] = field(default=None, metadata={"description": "Attribute to search for"})
-          
-          # Keywords for text search
-          keywords: Optional[List[str]] = field(default=None, metadata={"description": "Keywords for text search"})
+          # JSON-compatible field type with description for the external LLM.
+          raw: str = field(
+              metadata={
+                  "description": "Raw natural-language retrieval query containing the key entities and requested fact."
+              }
+          )
       
       
       class KnowledgeBase:
-          """Knowledge base with structured storage and retrieval."""
-          
+          """
+          Simple deterministic KB:
+          - write(): stores raw observation text in SQLite.
+          - read(): keyword-overlap retrieval over recent rows, returns short snippets (<=1000 chars).
+          Design goal: fast, robust, no LLM calls, and easy to debug.
+          """
+      
           def __init__(self, toolkit):
               self.toolkit = toolkit
-              self.logger = toolkit.logger
-              
-              # Initialize SQLite database for structured storage
-              self.db = toolkit.db
-              self._init_database()
-              
-              # Initialize ChromaDB for semantic search (fallback)
-              self.chroma = toolkit.chroma
-              self._init_chroma()
-              
-              # Counter for LLM calls to stay within budget
-              self.llm_call_count = 0
-              
-              self.logger.debug("KnowledgeBase initialized with SQLite and ChromaDB")
-          
-          def _init_database(self):
-              """Initialize SQLite tables for structured storage."""
-              cursor = self.db.cursor()
-              cursor.execute("""
-                  CREATE TABLE IF NOT EXISTS observations (
+              self.db: sqlite3.Connection = toolkit.db
+      
+              # WHY: SQLite storage is durable for the run and simple to query quickly.
+              self.db.execute(
+                  """
+                  CREATE TABLE IF NOT EXISTS memories (
                       id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      entity TEXT,
-                      attribute TEXT,
-                      value TEXT,
-                      context TEXT,
-                      raw TEXT,
-                      timestamp TEXT,
-                      UNIQUE(entity, attribute, value) ON CONFLICT REPLACE
+                      raw TEXT NOT NULL
                   )
-              """)
-              
-              # Create indexes for fast lookups
-              cursor.execute("CREATE INDEX IF NOT EXISTS idx_entity ON observations(entity)")
-              cursor.execute("CREATE INDEX IF NOT EXISTS idx_attribute ON observations(attribute)")
-              cursor.execute("CREATE INDEX IF NOT EXISTS idx_entity_attribute ON observations(entity, attribute)")
-              
+                  """
+              )
               self.db.commit()
-              self.logger.debug("SQLite database initialized")
-          
-          def _init_chroma(self):
-              """Initialize ChromaDB collection for semantic search."""
-              try:
-                  self.collection = self.chroma.create_collection(
-                      name="observations",
-                      metadata={"hnsw:space": "cosine"}
-                  )
-                  self.logger.debug("ChromaDB collection initialized")
-              except Exception as e:
-                  self.logger.debug(f"ChromaDB collection already exists or error: {e}")
-                  self.collection = self.chroma.get_collection("observations")
-          
+              self.toolkit.logger.debug("KnowledgeBase initialized; table 'memories' is ready.")
+      
           def write(self, observation: Observation) -> None:
-              """Store structured observation in both SQLite and ChromaDB."""
-              # Store in SQLite for structured queries
-              cursor = self.db.cursor()
-              cursor.execute("""
-                  INSERT OR REPLACE INTO observations 
-                  (entity, attribute, value, context, raw, timestamp)
-                  VALUES (?, ?, ?, ?, ?, ?)
-              """, (
-                  observation.entity,
-                  observation.attribute,
-                  observation.value,
-                  observation.context,
-                  observation.raw,
-                  observation.timestamp
-              ))
+              text = (observation.raw or "").strip()
+              if not text:
+                  self.toolkit.logger.debug("write() skipped empty observation.")
+                  return
+      
+              # Normalize whitespace so retrieval is more stable.
+              text = re.sub(r"\s+", " ", text)
+      
+              self.db.execute("INSERT INTO memories(raw) VALUES (?)", (text,))
               self.db.commit()
-              
-              # Store in ChromaDB for semantic search (using raw text)
-              try:
-                  # Generate a unique ID based on content hash
-                  import hashlib
-                  content_hash = hashlib.md5(observation.raw.encode()).hexdigest()
-                  
-                  self.collection.add(
-                      documents=[observation.raw],
-                      metadatas=[{
-                          "entity": observation.entity,
-                          "attribute": observation.attribute,
-                          "value": observation.value[:100] if observation.value else ""
-                      }],
-                      ids=[content_hash]
-                  )
-              except Exception as e:
-                  self.logger.debug(f"ChromaDB write failed (non-critical): {e}")
-              
-              self.logger.debug(f"Stored observation: {observation.entity}.{observation.attribute} = {observation.value[:50]}")
-          
+              self.toolkit.logger.debug(f"write() stored memory: {text[:120]}")
+      
           def read(self, query: Query) -> str:
-              """
-              Retrieve relevant information based on structured query.
-              Returns at most 1000 characters as required.
-              """
-              self.logger.debug(f"Processing query: entity={query.entity}, attribute={query.attribute}, keywords={query.keywords}")
-              
-              results = []
-              
-              # Strategy 1: Exact match using SQLite (most efficient)
-              if query.entity and query.attribute:
-                  cursor = self.db.cursor()
-                  cursor.execute("""
-                      SELECT value, context, raw, timestamp 
-                      FROM observations 
-                      WHERE entity LIKE ? AND attribute LIKE ?
-                      ORDER BY timestamp DESC
-                      LIMIT 5
-                  """, (f"%{query.entity}%", f"%{query.attribute}%"))
-                  
-                  for row in cursor.fetchall():
-                      value, context, raw, timestamp = row
-                      result = f"{value}"
-                      if context:
-                          result += f" (Context: {context[:100]})"
-                      results.append(result)
-              
-              # Strategy 2: Keyword search if no exact match found
-              if not results and query.keywords:
-                  cursor = self.db.cursor()
-                  keyword_conditions = []
-                  params = []
-                  
-                  for keyword in query.keywords[:3]:  # Limit to 3 keywords
-                      keyword_conditions.append("(raw LIKE ? OR entity LIKE ? OR attribute LIKE ? OR value LIKE ?)")
-                      params.extend([f"%{keyword}%"] * 4)
-                  
-                  if keyword_conditions:
-                      sql = f"""
-                          SELECT value, context, raw 
-                          FROM observations 
-                          WHERE {' OR '.join(keyword_conditions)}
-                          ORDER BY timestamp DESC
-                          LIMIT 3
-                      """
-                      cursor.execute(sql, params)
-                      
-                      for row in cursor.fetchall():
-                          value, context, raw = row
-                          results.append(f"{value}")
-                          if len(results) >= 3:
-                              break
-              
-              # Strategy 3: Semantic search using ChromaDB as fallback
-              if not results and self.llm_call_count < 10:  # Limit LLM usage
-                  try:
-                      # Use LLM to extract search terms from raw query
-                      if self.llm_call_count < 5:  # Conservative limit
-                          search_terms = self._extract_search_terms(query.raw)
-                          if search_terms:
-                              chroma_results = self.collection.query(
-                                  query_texts=[search_terms],
-                                  n_results=2
-                              )
-                              
-                              if chroma_results['documents']:
-                                  for doc in chroma_results['documents'][0]:
-                                      # Extract key information using simple pattern matching
-                                      extracted = self._extract_key_info(doc)
-                                      if extracted:
-                                          results.append(extracted)
-                      self.llm_call_count += 1
-                  except Exception as e:
-                      self.logger.debug(f"Semantic search failed: {e}")
-              
-              # Strategy 4: Fallback to raw text search
-              if not results:
-                  cursor = self.db.cursor()
-                  cursor.execute("""
-                      SELECT value, raw 
-                      FROM observations 
-                      WHERE raw LIKE ?
-                      ORDER BY timestamp DESC
-                      LIMIT 2
-                  """, (f"%{query.raw[:50]}%",))
-                  
-                  for row in cursor.fetchall():
-                      value, raw = row
-                      results.append(f"{value}")
-              
-              # Format final response
-              if results:
-                  # Join results, ensuring total length <= 1000 characters
-                  response = " | ".join(results[:3])  # Limit to 3 most relevant results
-                  if len(response) > 1000:
-                      response = response[:997] + "..."
-                  return response
+              q = (query.raw or "").strip()
+              self.toolkit.logger.debug(f"read() query='{q[:120]}'")
+      
+              rows = self.db.execute(
+                  "SELECT id, raw FROM memories ORDER BY id DESC LIMIT 300"
+              ).fetchall()
+      
+              if not rows:
+                  self.toolkit.logger.debug("read(): no rows in memory.")
+                  return "No information stored."
+      
+              def tokenize(s: str) -> set[str]:
+                  # WHY: lightweight tokenization is fast and good enough for factual matching.
+                  return set(re.findall(r"[a-z0-9]+", s.lower()))
+      
+              q_tokens = tokenize(q)
+              q_lower = q.lower()
+      
+              scored = []
+              for row_id, text in rows:
+                  t_lower = text.lower()
+                  t_tokens = tokenize(text)
+      
+                  score = 0
+                  if q_lower and q_lower in t_lower:
+                      score += 100  # strong bonus for direct phrase match
+                  if q_tokens:
+                      score += len(q_tokens & t_tokens)  # token overlap
+      
+                  # Include rows that have some evidence of relevance.
+                  if score > 0:
+                      scored.append((score, row_id, text))
+      
+              # Fallback: if no overlap found, return the most recent snippets.
+              if not scored:
+                  self.toolkit.logger.debug("read(): no overlap matches; returning recent fallback.")
+                  candidates = [text for _, text in rows[:3]]
               else:
-                  # Return a helpful message instead of "No information stored"
-                  return "No matching information found. Try being more specific or check if the information was previously stored."
-          
-          def _extract_search_terms(self, query_text: str) -> str:
-              """Use LLM to extract key search terms from query (minimal usage)."""
-              try:
-                  messages = [
-                      {"role": "system", "content": "Extract 2-3 key search terms from the query for information retrieval."},
-                      {"role": "user", "content": f"Query: {query_text}\n\nReturn only the search terms separated by commas."}
-                  ]
-                  response = self.toolkit.llm_completion(messages, max_tokens=50)
-                  return response.strip()
-              except Exception as e:
-                  self.logger.debug(f"LLM term extraction failed: {e}")
-                  return query_text
-          
-          def _extract_key_info(self, text: str) -> str:
-              """Extract key information using pattern matching (no LLM)."""
-              # Look for patterns like "code is XXXX", "value: YYYY", etc.
-              patterns = [
-                  r'code[\s:]+([A-Z0-9\-]+)',
-                  r'value[\s:]+([A-Za-z0-9\-\.]+)',
-                  r'is[\s:]+([A-Z0-9\-]+)',
-                  r'=([A-Z0-9\-]+)'
-              ]
-              
-              for pattern in patterns:
-                  match = re.search(pattern, text, re.IGNORECASE)
-                  if match:
-                      return match.group(1).strip()
-              
-              # Return first 50 characters if no pattern matches
-              return text[:50].strip()
+                  scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+                  candidates = [t for _, _, t in scored[:3]]
+                  self.toolkit.logger.debug(
+                      f"read(): matched {len(scored)} rows; top score={scored[0][0]}"
+                  )
+      
+              # Build compact output for downstream answer model.
+              result = "\n".join(f"- {c}" for c in candidates)
+      
+              # Hard cap required by runtime constraints.
+              if len(result) > 1000:
+                  result = result[:997] + "..."
+      
+              return result
     ''',
     'round1_score': 0.0,
-    'round2_output': 'The access code for Project Zephyr is DELTA-7742.',
+    'round2_output': "Project Zephyr's access code is DELTA-7742.",
     'round2_score': 1.0,
   })
 # ---
 # name: test_retrieved_memory_answer
   dict({
-    'step1_output': '''
-      ```json
-      {
-          "raw": "capital of France"
-      }
-      ```
-    ''',
+    'step1_output': '{"raw":"capital of France"}',
     'step1_prompt': '''
       Given the following question, generate a query to retrieve relevant memory.
       
@@ -1705,201 +1328,33 @@
   dict({
     'fixed_code': '''
       from dataclasses import dataclass, field
-      from typing import Optional, List
-      import json
-      import sqlite3
-      import chromadb
-      from datetime import datetime
       
-      INSTRUCTION_OBSERVATION = "Capture relevant information from your observations in a structured format. Focus on key facts, entities, and relationships that would be useful for future reference."
-      INSTRUCTION_QUERY = "Formulate specific queries to retrieve relevant information from the knowledge base. Include clear parameters and context to help narrow down the search."
-      INSTRUCTION_RESPONSE = "Provide concise, relevant answers based on the retrieved information. Keep responses focused and under 1000 characters. Include only the most pertinent information."
-      
+      INSTRUCTION_OBSERVATION = "Summarize new information into concise, structured entries for storage."
+      INSTRUCTION_QUERY = "Formulate retrieval requests that focus on the relevant stored context."
+      INSTRUCTION_RESPONSE = "Answer using only stored knowledge, keeping responses concise and grounded."
       
       @dataclass
       class Observation:
-          content: str = field(metadata={"description": "The main content or observation to store"})
-          category: Optional[str] = field(default=None, metadata={"description": "Optional category for classification"})
-          tags: List[str] = field(default_factory=list, metadata={"description": "List of tags for organization and search"})
-          source: Optional[str] = field(default=None, metadata={"description": "Optional source identifier"})
-          timestamp: str = field(default_factory=lambda: datetime.now().isoformat(), metadata={"description": "ISO format timestamp of when the observation was made"})
-          importance: int = field(default=1, metadata={"description": "Importance level from 1 (low) to 5 (high)"})
-      
+          raw: str = field(metadata={"description": "The raw text content representing the new knowledge to store."})
       
       @dataclass
       class Query:
-          search_text: str = field(metadata={"description": "Text to search for in the knowledge base"})
-          category_filter: Optional[str] = field(default=None, metadata={"description": "Optional category to filter results"})
-          min_importance: int = field(default=1, metadata={"description": "Minimum importance level (1-5)"})
-          tags: List[str] = field(default_factory=list, metadata={"description": "Tags to filter by (all must match)"})
-          max_results: int = field(default=5, metadata={"description": "Maximum number of results to return"})
-      
+          raw: str = field(metadata={"description": "The text describing the context or intent for retrieval."})
       
       class KnowledgeBase:
           def __init__(self, toolkit):
               self.toolkit = toolkit
-              self.logger = toolkit.logger
-              
-              # Create SQLite table for structured data
-              self.toolkit.db.execute("""
-                  CREATE TABLE IF NOT EXISTS observations (
-                      id INTEGER PRIMARY KEY AUTOINCREMENT,
-                      content TEXT NOT NULL,
-                      category TEXT,
-                      tags TEXT,
-                      source TEXT,
-                      timestamp TEXT,
-                      importance INTEGER,
-                      embedding_id TEXT
-                  )
-              """)
-              
-              # Create Chroma collection for embeddings
-              self.collection = self.toolkit.chroma.create_collection(name="knowledge_base")
-              
-              self.logger.debug("KnowledgeBase initialized")
+              self.store: list[str] = []
       
           def write(self, observation: Observation) -> None:
-              # Store in SQLite
-              tags_json = json.dumps(observation.tags)
-              
-              cursor = self.toolkit.db.execute("""
-                  INSERT INTO observations (content, category, tags, source, timestamp, importance)
-                  VALUES (?, ?, ?, ?, ?, ?)
-              """, (observation.content, observation.category, tags_json, 
-                    observation.source, observation.timestamp, observation.importance))
-              
-              # Get the inserted ID
-              obs_id = cursor.lastrowid
-              
-              # Create embedding and store in Chroma
-              embedding_id = f"obs_{obs_id}"
-              
-              # Generate embedding using LLM (simplified - in practice would use embedding model)
-              # For simplicity, we'll store a basic representation
-              text_to_embed = f"{observation.content} {observation.category or ''} {' '.join(observation.tags)}"
-              
-              self.collection.add(
-                  ids=[embedding_id],
-                  documents=[text_to_embed],
-                  metadatas=[{
-                      "id": obs_id,
-                      "category": observation.category or "",
-                      "importance": observation.importance
-                  }]
-              )
-              
-              # Update SQLite with embedding ID
-              self.toolkit.db.execute(
-                  "UPDATE observations SET embedding_id = ? WHERE id = ?",
-                  (embedding_id, obs_id)
-              )
-              
-              self.logger.debug(f"Observation written with ID {obs_id}")
+              self.toolkit.logger.debug(f"Writing observation of length {len(observation.raw)}")
+              self.store.append(observation.raw)
       
           def read(self, query: Query) -> str:
-              # First, try to find relevant observations using Chroma
-              if query.search_text:
-                  try:
-                      results = self.collection.query(
-                          query_texts=[query.search_text],
-                          n_results=min(query.max_results, 10),
-                          where={"importance": {"$gte": query.min_importance}} if query.min_importance > 1 else None
-                      )
-                      
-                      if results['ids'] and results['ids'][0]:
-                          # Get IDs from Chroma results
-                          chroma_ids = results['ids'][0]
-                          obs_ids = [int(id.split('_')[1]) for id in chroma_ids if id.startswith('obs_')]
-                          
-                          if obs_ids:
-                              # Fetch full records from SQLite
-                              placeholders = ','.join(['?'] * len(obs_ids))
-                              sql_query = f"""
-                                  SELECT content, category, timestamp, importance 
-                                  FROM observations 
-                                  WHERE id IN ({placeholders})
-                              """
-                              
-                              # Apply additional filters
-                              filters = []
-                              params = list(obs_ids)
-                              
-                              if query.category_filter:
-                                  filters.append("category = ?")
-                                  params.append(query.category_filter)
-                              
-                              if query.tags:
-                                  # For each tag, check if it exists in the JSON array
-                                  for tag in query.tags:
-                                      filters.append("tags LIKE ?")
-                                      params.append(f'%"{tag}"%')
-                              
-                              if filters:
-                                  sql_query += " AND " + " AND ".join(filters)
-                              
-                              sql_query += " ORDER BY importance DESC, timestamp DESC LIMIT ?"
-                              params.append(query.max_results)
-                              
-                              cursor = self.toolkit.db.execute(sql_query, params)
-                              results_data = cursor.fetchall()
-                              
-                              if results_data:
-                                  response_parts = []
-                                  for content, category, timestamp, importance in results_data:
-                                      response_parts.append(f"[{category or 'Uncategorized'}] {content}")
-                                  
-                                  response = "\n".join(response_parts)
-                                  if len(response) > 1000:
-                                      response = response[:997] + "..."
-                                  return response
-                  except Exception as e:
-                      self.logger.debug(f"Chroma search failed: {e}")
-              
-              # Fallback to SQLite-only search
-              filters = ["importance >= ?"]
-              params = [query.min_importance]
-              
-              if query.search_text:
-                  filters.append("content LIKE ?")
-                  params.append(f"%{query.search_text}%")
-              
-              if query.category_filter:
-                  filters.append("category = ?")
-                  params.append(query.category_filter)
-              
-              if query.tags:
-                  for tag in query.tags:
-                      filters.append("tags LIKE ?")
-                      params.append(f'%"{tag}"%')
-              
-              where_clause = " AND ".join(filters)
-              sql_query = f"""
-                  SELECT content, category, timestamp, importance 
-                  FROM observations 
-                  WHERE {where_clause}
-                  ORDER BY importance DESC, timestamp DESC 
-                  LIMIT ?
-              """
-              params.append(query.max_results)
-              
-              cursor = self.toolkit.db.execute(sql_query, params)
-              results = cursor.fetchall()
-              
-              if results:
-                  response_parts = []
-                  for content, category, timestamp, importance in results:
-                      response_parts.append(f"[{category or 'Uncategorized'}] {content}")
-                  
-                  response = "\n".join(response_parts)
-                  if len(response) > 1000:
-                      response = response[:997] + "..."
-                  return response
-              else:
-                  response = "No relevant information found in the knowledge base."
-                  if len(response) > 1000:
-                      response = response[:997] + "..."
-                  return response
+              aggregated = " ".join(self.store)
+              result = aggregated[:1000]
+              self.toolkit.logger.debug(f"Read query '{query.raw}' yielding {len(result)} characters")
+              return result
     ''',
     'runtime_violation': 'kb.read() returned 5000 chars (limit: 1000)',
   })
