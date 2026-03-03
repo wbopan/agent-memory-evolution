@@ -336,3 +336,183 @@ class TestALFWorldBenchmark:
         d1 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         d2 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         assert [i.question for i in d1.train] == [i.question for i in d2.train]
+
+
+# ── NYT Connections ──────────────────────────────────────────────────────────
+
+_NYT_CONNECTIONS_FIXTURE = [
+    {
+        "date": "2024/06/03",
+        "contest": "NYT Connections 358",
+        "words": [
+            "LASER",
+            "PLUCK",
+            "THREAD",
+            "WAX",
+            "COIL",
+            "SPOOL",
+            "WIND",
+            "WRAP",
+            "HONEYCOMB",
+            "ORGANISM",
+            "SOLAR PANEL",
+            "SPREADSHEET",
+            "BALL",
+            "MOVIE",
+            "SCHOOL",
+            "VITAMIN",
+        ],
+        "answers": [
+            {"answerDescription": "REMOVE, AS BODY HAIR", "words": ["LASER", "PLUCK", "THREAD", "WAX"]},
+            {"answerDescription": "TWIST AROUND", "words": ["COIL", "SPOOL", "WIND", "WRAP"]},
+            {
+                "answerDescription": "THINGS MADE OF CELLS",
+                "words": ["HONEYCOMB", "ORGANISM", "SOLAR PANEL", "SPREADSHEET"],
+            },
+            {"answerDescription": "B-___", "words": ["BALL", "MOVIE", "SCHOOL", "VITAMIN"]},
+        ],
+        "difficulty": 3.3,
+    },
+    {
+        "date": "2024/06/02",
+        "contest": "NYT Connections 357",
+        "words": [
+            "FOLLOWERS",
+            "LEMMINGS",
+            "PUPPETS",
+            "SHEEP",
+            "BEES",
+            "BIRDS",
+            "FLOWERS",
+            "STARS",
+            "BOARD",
+            "CARD",
+            "VIDEO",
+            "WAR",
+            "BRIDGE",
+            "POKER",
+            "RUMMY",
+            "SOLITAIRE",
+        ],
+        "answers": [
+            {"answerDescription": "CONFORMISTS", "words": ["FOLLOWERS", "LEMMINGS", "PUPPETS", "SHEEP"]},
+            {"answerDescription": "___ AND THE ___", "words": ["BEES", "BIRDS", "FLOWERS", "STARS"]},
+            {"answerDescription": "___ GAME", "words": ["BOARD", "CARD", "VIDEO", "WAR"]},
+            {"answerDescription": "CARD GAMES", "words": ["BRIDGE", "POKER", "RUMMY", "SOLITAIRE"]},
+        ],
+        "difficulty": 2.8,
+    },
+    {
+        "date": "2024/06/01",
+        "contest": "NYT Connections 356",
+        "words": [
+            "ANCHOR",
+            "HOST",
+            "LEAD",
+            "STAR",
+            "BUTTER",
+            "CROW",
+            "PEANUT",
+            "SCOTCH",
+            "BAND",
+            "BELT",
+            "RING",
+            "STRAP",
+            "ALMOND",
+            "CASHEW",
+            "PECAN",
+            "WALNUT",
+        ],
+        "answers": [
+            {"answerDescription": "MAIN PERFORMER", "words": ["ANCHOR", "HOST", "LEAD", "STAR"]},
+            {"answerDescription": "BAR ___", "words": ["BUTTER", "CROW", "PEANUT", "SCOTCH"]},
+            {"answerDescription": "THINGS THAT WRAP AROUND", "words": ["BAND", "BELT", "RING", "STRAP"]},
+            {"answerDescription": "TREE NUTS", "words": ["ALMOND", "CASHEW", "PECAN", "WALNUT"]},
+        ],
+        "difficulty": 2.5,
+    },
+]
+
+
+class TestNYTConnectionsBenchmark:
+    @pytest.fixture()
+    def nyt_data_dir(self, tmp_path):
+        dest = tmp_path / "nyt_connections"
+        dest.mkdir()
+        (dest / "ConnectionsFinalDataset.json").write_text(json.dumps(_NYT_CONNECTIONS_FIXTURE))
+        return tmp_path
+
+    def test_loads_correct_count(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir, train_ratio=0.5)
+        assert isinstance(ds, Dataset)
+        assert len(ds.train) + len(ds.val) == 3
+        assert len(ds.test) == 0
+
+    def test_raw_text_empty(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir)
+        for item in ds.train + ds.val:
+            assert item.raw_text == ""
+
+    def test_question_contains_task_description(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir)
+        for item in ds.train + ds.val:
+            assert "NYT Connections puzzle" in item.question
+            assert "Words:" in item.question
+            assert "four groups" in item.question
+
+    def test_question_contains_16_words(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir)
+        for item in ds.train + ds.val:
+            words_line = item.question.split("Words: ")[1]
+            words = [w.strip() for w in words_line.split(",")]
+            assert len(words) == 16
+
+    def test_expected_answer_has_4_groups(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir)
+        for item in ds.train + ds.val:
+            lines = [l for l in item.expected_answer.strip().split("\n") if l.strip()]
+            assert len(lines) == 4
+            for line in lines:
+                words = [w.strip() for w in line.split(",") if w.strip()]
+                assert len(words) == 4
+
+    def test_words_are_shuffled_deterministically(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        d1 = load_nyt_connections(data_dir=nyt_data_dir, seed=42)
+        d2 = load_nyt_connections(data_dir=nyt_data_dir, seed=42)
+        for a, b in zip(d1.train + d1.val, d2.train + d2.val, strict=False):
+            assert a.question == b.question
+
+    def test_different_seed_gives_different_order(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        d1 = load_nyt_connections(data_dir=nyt_data_dir, seed=42)
+        d2 = load_nyt_connections(data_dir=nyt_data_dir, seed=99)
+        q1 = [i.question for i in d1.train]
+        q2 = [i.question for i in d2.train]
+        assert q1 != q2
+
+    def test_train_val_non_overlapping(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir)
+        train_q = {i.question for i in ds.train}
+        val_q = {i.question for i in ds.val}
+        assert train_q.isdisjoint(val_q)
+
+    def test_scorer_is_connections_scorer(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import ConnectionsScorer, load_nyt_connections
+
+        ds = load_nyt_connections(data_dir=nyt_data_dir)
+        assert isinstance(ds.scorer, ConnectionsScorer)
