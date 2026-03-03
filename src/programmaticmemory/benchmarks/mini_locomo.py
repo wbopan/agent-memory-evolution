@@ -21,6 +21,7 @@ def load_mini_locomo(
     categories: tuple[int, ...] = (1, 2, 3, 4),
     seed: int = 42,
     data_dir: str | Path | None = None,
+    category: str | None = None,
 ) -> Dataset:
     """Load a single-conversation subset of LoCoMo for fast iteration.
 
@@ -32,10 +33,13 @@ def load_mini_locomo(
         categories: QA category filter (1-4 only; 5 excluded by default).
         seed: Random seed for shuffling.
         data_dir: Override data directory.
+        category: Not supported; raises ValueError if not None.
 
     Returns:
         Dataset with TokenF1Scorer.
     """
+    if category is not None:
+        raise ValueError("mini_locomo does not support category filtering")
     import json
 
     data_path = ensure_data(data_dir)

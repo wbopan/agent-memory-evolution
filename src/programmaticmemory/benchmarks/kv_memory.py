@@ -88,6 +88,7 @@ def load_kv_memory(
     num_items: int = 15,
     difficulty: str = "simple",
     seed: int = 42,
+    category: str | None = None,
 ) -> Dataset:
     """Load KV memory benchmark.
 
@@ -95,10 +96,13 @@ def load_kv_memory(
         num_items: Number of items to include (max 20 for simple, 5 for compound).
         difficulty: "simple" for basic KV recall, "compound" for multi-fact reasoning.
         seed: Random seed for shuffling.
+        category: Not supported; raises ValueError if not None.
 
     Returns:
         Dataset with ExactMatchScorer.
     """
+    if category is not None:
+        raise ValueError("kv_memory does not support category filtering")
     rng = random.Random(seed)
 
     if difficulty == "compound":

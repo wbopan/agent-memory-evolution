@@ -60,6 +60,10 @@ class TestKVMemoryBenchmark:
         ds = load_kv_memory(num_items=5)
         assert ds.train == ds.val
 
+    def test_category_rejects_non_none(self):
+        with pytest.raises(ValueError, match="category"):
+            load_kv_memory(num_items=3, category="something")
+
     def test_simple_answers_are_concise(self):
         ds = load_kv_memory(num_items=20, difficulty="simple")
         for item in ds.train:
@@ -196,6 +200,24 @@ class TestLoComoBenchmark:
         assert len(ds.val) == 3  # 2 QAs from conv1 (cat 1,3) + 1 from conv2 (cat 1)
 
 
+# ── Mini LoCoMo ──────────────────────────────────────────────────────────────
+
+
+class TestMiniLoComoBenchmark:
+    @pytest.fixture()
+    def locomo_data_dir(self, tmp_path):
+        dest = tmp_path / "locomo"
+        dest.mkdir()
+        (dest / "locomo10.json").write_text(json.dumps(_LOCOMO_FIXTURE))
+        return tmp_path
+
+    def test_category_rejects_non_none(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.mini_locomo import load_mini_locomo
+
+        with pytest.raises(ValueError, match="category"):
+            load_mini_locomo(data_dir=locomo_data_dir, category="something")
+
+
 # ── tau-bench ─────────────────────────────────────────────────────────────────
 
 _TAU_BENCH_TASKS_PY = """
@@ -264,6 +286,12 @@ class TestTauBenchBenchmark:
         train_q = {i.question for i in ds.train}
         val_q = {i.question for i in ds.val}
         assert train_q.isdisjoint(val_q)
+
+    def test_category_rejects_non_none(self, tau_data_dir):
+        from programmaticmemory.benchmarks.tau_bench import load_tau_bench
+
+        with pytest.raises(ValueError, match="category"):
+            load_tau_bench(data_dir=tau_data_dir, category="something")
 
     def test_deterministic_with_seed(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import load_tau_bench
@@ -575,6 +603,12 @@ class TestNYTConnectionsBenchmark:
         train_q = {i.question for i in ds.train}
         val_q = {i.question for i in ds.val}
         assert train_q.isdisjoint(val_q)
+
+    def test_category_rejects_non_none(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        with pytest.raises(ValueError, match="category"):
+            load_nyt_connections(data_dir=nyt_data_dir, category="something")
 
     def test_scorer_is_connections_scorer(self, nyt_data_dir):
         from programmaticmemory.benchmarks.nyt_connections import ConnectionsScorer, load_nyt_connections
