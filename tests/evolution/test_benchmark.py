@@ -516,3 +516,36 @@ class TestNYTConnectionsBenchmark:
 
         ds = load_nyt_connections(data_dir=nyt_data_dir)
         assert isinstance(ds.scorer, ConnectionsScorer)
+
+
+# ── load_dataset category parameter ──────────────────────────────────────────
+
+
+class TestLoadDatasetCategory:
+    def test_category_passed_to_loader(self):
+        """Category param is forwarded to the benchmark loader."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.datasets import _CUSTOM_REGISTRY, load_dataset
+
+        mock_loader = MagicMock(return_value=Dataset(train=[], val=[], test=[]))
+        _CUSTOM_REGISTRY["_test_cat"] = mock_loader
+        try:
+            load_dataset("_test_cat", category="heat")
+            mock_loader.assert_called_once_with(category="heat")
+        finally:
+            del _CUSTOM_REGISTRY["_test_cat"]
+
+    def test_category_none_not_passed(self):
+        """When category is None, it is still forwarded (loaders handle the default)."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.datasets import _CUSTOM_REGISTRY, load_dataset
+
+        mock_loader = MagicMock(return_value=Dataset(train=[], val=[], test=[]))
+        _CUSTOM_REGISTRY["_test_cat2"] = mock_loader
+        try:
+            load_dataset("_test_cat2")
+            mock_loader.assert_called_once_with(category=None)
+        finally:
+            del _CUSTOM_REGISTRY["_test_cat2"]

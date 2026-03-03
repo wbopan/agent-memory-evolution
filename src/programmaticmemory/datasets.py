@@ -34,6 +34,7 @@ def register_dataset(name: str):
 def load_dataset(
     name: str,
     *,
+    category: str | None = None,
     train_size: int | None = None,
     val_size: int | None = None,
     **kwargs: Any,
@@ -44,7 +45,7 @@ def load_dataset(
         available = sorted(_CUSTOM_REGISTRY)
         raise ValueError(f"Unknown dataset: {name!r}. Available: {available}")
 
-    dataset = _CUSTOM_REGISTRY[name](**kwargs)
+    dataset = _CUSTOM_REGISTRY[name](category=category, **kwargs)
 
     if train_size is not None:
         dataset.train = dataset.train[:train_size]
