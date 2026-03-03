@@ -13,15 +13,17 @@ import pytest
 from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.evaluator import MEMORY_READ_MAX_CHARS, MemoryEvaluator, _parse_json_from_llm
+from programmaticmemory.evolution.patcher import apply_patch
 from programmaticmemory.evolution.prompts import (
     INITIAL_KB_PROGRAM,
+    build_compile_fix_prompt,
     build_observation_generation_prompt,
     build_observation_with_feedback_prompt,
     build_query_generation_prompt,
     build_reflection_user_prompt,
     build_retrieved_memory_prompt,
 )
-from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
+from programmaticmemory.evolution.reflector import Reflector, _extract_patch
 from programmaticmemory.evolution.sandbox import (
     CompiledProgram,
     CompileError,
@@ -205,12 +207,13 @@ def test_reflection(snapshot: SnapshotAssertion):
         ],
     )
 
-    # Must extract a Python code block
-    code = _extract_code_block(output)
-    assert code is not None, "Failed to extract code block from reflection output"
+    # Must extract a patch and apply it
+    patch = _extract_patch(output)
+    assert patch is not None, "Failed to extract patch from reflection output"
+    patched_code = apply_patch(INITIAL_KB_PROGRAM, patch)
 
-    # Code must compile and define all three classes
-    compile_result = compile_kb_program(code)
+    # Patched code must compile and define all three classes
+    compile_result = compile_kb_program(patched_code)
     assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
     assert compile_result.obs_cls.__name__ == "Observation"
     assert compile_result.query_cls.__name__ == "Query"
@@ -637,5 +640,157 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
 
     assert {
         "runtime_violation": result.runtime_violation,
+        "fixed_code": fixed_code,
+    } == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3l. Patch Generation — reflection prompt → V4A patch → apply → compile
+# ---------------------------------------------------------------------------
+
+PATCH_MODEL = "openrouter/openai/gpt-5.1-codex-mini"
+
+
+@pytest.mark.llm
+def test_patch_generation_reflection(snapshot: SnapshotAssertion):
+    """Real model generates a valid V4A patch from the reflection prompt.
+
+    Sends the reflection prompt (with INITIAL_KB_PROGRAM, a low score, and a
+    realistic failed case) to gpt-5.1-codex-mini, extracts the patch, applies
+    it to INITIAL_KB_PROGRAM, and verifies the result compiles with all
+    required classes and constants.
+    """
+    failed_cases = [
+        {
+            "question": "What is Alice's favorite color?",
+            "expected": "blue",
+            "output": "I don't know",
+            "score": 0.0,
+            "conversation_history": [
+                {"role": "user", "content": "What is Alice's favorite color?"},
+                {"role": "assistant", "content": "I don't know"},
+            ],
+            "memory_logs": ["Query: alice favorite color, store size: 0"],
+        }
+    ]
+
+    user_prompt = build_reflection_user_prompt(
+        code=INITIAL_KB_PROGRAM,
+        score=0.200,
+        failed_cases=failed_cases,
+        iteration=1,
+    )
+
+    output = _llm_call(
+        PATCH_MODEL,
+        [{"role": "user", "content": user_prompt}],
+        temperature=0.0,
+    )
+
+    # Must extract a V4A patch
+    patch = _extract_patch(output)
+    assert patch is not None, f"Failed to extract patch from model output:\n{output[:500]}"
+
+    # Apply the patch to INITIAL_KB_PROGRAM
+    patched_code = apply_patch(INITIAL_KB_PROGRAM, patch)
+    assert patched_code != INITIAL_KB_PROGRAM, "Patch produced no changes"
+
+    # Patched code must compile and define all three classes + three constants
+    compile_result = compile_kb_program(patched_code)
+    assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
+    assert compile_result.obs_cls.__name__ == "Observation"
+    assert compile_result.query_cls.__name__ == "Query"
+    assert compile_result.kb_cls.__name__ == "KnowledgeBase"
+    assert isinstance(compile_result.instruction_observation, str)
+    assert isinstance(compile_result.instruction_query, str)
+    assert isinstance(compile_result.instruction_response, str)
+
+    assert {
+        "prompt": user_prompt,
+        "output": output,
+        "patched_code": patched_code,
+    } == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3m. Patch Generation — compile-fix prompt → V4A patch → apply → compile
+# ---------------------------------------------------------------------------
+
+PROGRAM_WITH_SYNTAX_ERROR = """\
+from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
+
+
+@dataclass
+class Observation:
+    raw: str
+
+
+@dataclass
+class Query:
+    raw: str
+
+
+class KnowledgeBase:
+    def __init__(self, toolkit):
+        self.toolkit = toolkit
+        self.store = []
+
+    def write(self, observation: Observation) -> None:
+        self.store.append(observation.raw)
+
+    def read(self, query: Query) -> str:
+        # Bug: missing closing parenthesis
+        return "\\n".join(self.store[:5] if self.store else "No information stored."
+"""
+
+
+@pytest.mark.llm
+def test_patch_generation_compile_fix(snapshot: SnapshotAssertion):
+    """Real model fixes a broken program via a V4A patch from the compile-fix prompt.
+
+    Sends a program with a syntax error to gpt-5.1-codex-mini via the
+    compile-fix prompt, extracts the patch, applies it, and verifies the
+    result compiles successfully.
+    """
+    # Step 1: Verify the program is broken
+    compile_result = compile_kb_program(PROGRAM_WITH_SYNTAX_ERROR)
+    assert isinstance(compile_result, CompileError), f"Expected CompileError, got {type(compile_result)}"
+
+    # Step 2: Build compile-fix prompt
+    user_prompt = build_compile_fix_prompt(
+        code=PROGRAM_WITH_SYNTAX_ERROR,
+        error_type=compile_result.message,
+        error_details=compile_result.details,
+    )
+
+    output = _llm_call(
+        PATCH_MODEL,
+        [{"role": "user", "content": user_prompt}],
+        temperature=0.0,
+    )
+
+    # Step 3: Extract and apply patch
+    patch = _extract_patch(output)
+    assert patch is not None, f"Failed to extract patch from model output:\n{output[:500]}"
+
+    fixed_code = apply_patch(PROGRAM_WITH_SYNTAX_ERROR, patch)
+
+    # Step 4: Verify the fix compiles
+    fixed_result = compile_kb_program(fixed_code)
+    assert isinstance(fixed_result, CompiledProgram), f"Fixed code still fails to compile: {fixed_result}"
+    assert fixed_result.obs_cls.__name__ == "Observation"
+    assert fixed_result.query_cls.__name__ == "Query"
+    assert fixed_result.kb_cls.__name__ == "KnowledgeBase"
+    assert isinstance(fixed_result.instruction_observation, str)
+    assert isinstance(fixed_result.instruction_query, str)
+    assert isinstance(fixed_result.instruction_response, str)
+
+    assert {
+        "prompt": user_prompt,
+        "output": output,
         "fixed_code": fixed_code,
     } == snapshot

@@ -154,6 +154,735 @@
     ''',
   })
 # ---
+# name: test_patch_generation_compile_fix
+  dict({
+    'fixed_code': '''
+      from dataclasses import dataclass, field
+      from typing import Optional
+      
+      INSTRUCTION_OBSERVATION = "Capture concise facts, context, and relevant tags when logging new knowledge."
+      INSTRUCTION_QUERY = "Describe the topic and any constraints so the system can surface the most useful entries."
+      INSTRUCTION_RESPONSE = "Present the matched knowledge in a brief, easy-to-read format with separators if multiple items exist."
+      
+      
+      @dataclass
+      class Observation:
+          content: str = field(metadata={"description": "The primary textual content of the observation."})
+          source: Optional[str] = field(default=None, metadata={"description": "Optional origin or reference for this information."})
+          tags: list[str] = field(default_factory=list, metadata={"description": "List of tags that help categorize the observation."})
+      
+      
+      @dataclass
+      class Query:
+          topic: str = field(metadata={"description": "The subject or keyword used to find relevant observations."})
+          limit: int = field(default=5, metadata={"description": "Maximum number of entries to return."})
+          tag_filter: Optional[str] = field(
+              default=None, metadata={"description": "Optional tag that must be present on matching observations."}
+          )
+      
+      
+      class KnowledgeBase:
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.store: list[Observation] = []
+              self.toolkit.logger.debug("KnowledgeBase initialized with empty store.")
+      
+          def write(self, observation: Observation) -> None:
+              snippet = observation.content[:50]
+              self.toolkit.logger.debug(f"Writing observation: {snippet!r}")
+              self.store.append(observation)
+              self.toolkit.logger.debug("Observation stored.")
+      
+          def read(self, query: Query) -> str:
+              self.toolkit.logger.debug(
+                  f"Reading query topic={query.topic!r} limit={query.limit} tag_filter={query.tag_filter!r}"
+              )
+              matches = []
+              topic_lower = query.topic.strip().lower()
+              limit = max(1, query.limit)
+              for observation in self.store:
+                  if query.tag_filter and query.tag_filter not in observation.tags:
+                      continue
+                  searchable = " ".join(filter(None, [observation.content, observation.source or ""]))
+                  if topic_lower and topic_lower not in searchable.lower():
+                      continue
+                  matches.append(searchable)
+                  if len(matches) >= limit:
+                      break
+              if not matches:
+                  self.toolkit.logger.debug("No matching information found.")
+                  return "No matching information found."
+              result = "\n---\n".join(matches)
+              if len(result) > 1000:
+                  result = result[:1000]
+                  self.toolkit.logger.debug("Result truncated to respect output limit.")
+              return result
+  
+    ''',
+    'output': '''
+      *** Begin Patch
+      *** Update File: program.py
+      @@
+      -from dataclasses import dataclass
+      -
+      -INSTRUCTION_OBSERVATION = ""
+      -INSTRUCTION_QUERY = ""
+      -INSTRUCTION_RESPONSE = ""
+      -
+      -
+      -@dataclass
+      -class Observation:
+      -    raw: str
+      -
+      -
+      -@dataclass
+      -class Query:
+      -    raw: str
+      -
+      -
+      -class KnowledgeBase:
+      -    def __init__(self, toolkit):
+      -        self.toolkit = toolkit
+      -        self.store = []
+      -
+      -    def write(self, observation: Observation) -> None:
+      -        self.store.append(observation.raw)
+      -
+      -    def read(self, query: Query) -> str:
+      -        # Bug: missing closing parenthesis
+      -        return "\n".join(self.store[:5] if self.store else "No information stored."
+      +from dataclasses import dataclass, field
+      +from typing import Optional
+      +
+      +INSTRUCTION_OBSERVATION = "Capture concise facts, context, and relevant tags when logging new knowledge."
+      +INSTRUCTION_QUERY = "Describe the topic and any constraints so the system can surface the most useful entries."
+      +INSTRUCTION_RESPONSE = "Present the matched knowledge in a brief, easy-to-read format with separators if multiple items exist."
+      +
+      +
+      +@dataclass
+      +class Observation:
+      +    content: str = field(metadata={"description": "The primary textual content of the observation."})
+      +    source: Optional[str] = field(default=None, metadata={"description": "Optional origin or reference for this information."})
+      +    tags: list[str] = field(default_factory=list, metadata={"description": "List of tags that help categorize the observation."})
+      +
+      +
+      +@dataclass
+      +class Query:
+      +    topic: str = field(metadata={"description": "The subject or keyword used to find relevant observations."})
+      +    limit: int = field(default=5, metadata={"description": "Maximum number of entries to return."})
+      +    tag_filter: Optional[str] = field(
+      +        default=None, metadata={"description": "Optional tag that must be present on matching observations."}
+      +    )
+      +
+      +
+      +class KnowledgeBase:
+      +    def __init__(self, toolkit):
+      +        self.toolkit = toolkit
+      +        self.store: list[Observation] = []
+      +        self.toolkit.logger.debug("KnowledgeBase initialized with empty store.")
+      +
+      +    def write(self, observation: Observation) -> None:
+      +        snippet = observation.content[:50]
+      +        self.toolkit.logger.debug(f"Writing observation: {snippet!r}")
+      +        self.store.append(observation)
+      +        self.toolkit.logger.debug("Observation stored.")
+      +
+      +    def read(self, query: Query) -> str:
+      +        self.toolkit.logger.debug(
+      +            f"Reading query topic={query.topic!r} limit={query.limit} tag_filter={query.tag_filter!r}"
+      +        )
+      +        matches = []
+      +        topic_lower = query.topic.strip().lower()
+      +        limit = max(1, query.limit)
+      +        for observation in self.store:
+      +            if query.tag_filter and query.tag_filter not in observation.tags:
+      +                continue
+      +            searchable = " ".join(filter(None, [observation.content, observation.source or ""]))
+      +            if topic_lower and topic_lower not in searchable.lower():
+      +                continue
+      +            matches.append(searchable)
+      +            if len(matches) >= limit:
+      +                break
+      +        if not matches:
+      +            self.toolkit.logger.debug("No matching information found.")
+      +            return "No matching information found."
+      +        result = "\n---\n".join(matches)
+      +        if len(result) > 1000:
+      +            result = result[:1000]
+      +            self.toolkit.logger.debug("Result truncated to respect output limit.")
+      +        return result
+      *** End Patch
+    ''',
+    'prompt': '''
+      You are an expert Python programmer. A Knowledge Base Program failed to compile or run.
+      Fix the error and output your fix as a patch.
+      
+      You are designing a Knowledge Base Program that implements three classes:
+      
+      1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+         - Must be a @dataclass with typed fields
+         - An external LLM will populate instances by generating JSON matching your field definitions
+         - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+         - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+         - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+      
+      2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+         - Must be a @dataclass with typed fields
+         - An external LLM will populate instances by generating JSON matching your field definitions
+         - Same JSON-compatible type restriction and field description support as Observation
+      
+      3. **KnowledgeBase** (class): The core knowledge base system.
+         - `__init__(self, toolkit)`: Receives a Toolkit with:
+           - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+           - `toolkit.chroma`: chromadb ephemeral client
+           - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+           - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+         - `write(self, observation: Observation) -> None`: Store information
+         - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+      
+      Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+      
+      ## Runtime Constraints
+      
+      These limits are enforced during evaluation. Violating them results in score = 0.
+      
+      - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+      - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+      - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+      
+      ## Instruction Constants (required)
+      
+      Three module-level string constants provide the natural-language instructions used in task agent prompts:
+      
+      - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+      - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+      - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+      
+      These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
+      
+      
+      Rules:
+      1. Output ONLY the fix as a patch. No explanation needed.
+      2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+      3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+      4. Make minimal changes — fix only what's broken.
+      
+      Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+      
+      Format:
+      ```
+      *** Begin Patch
+      *** Update File: program.py
+      @@ <optional context hint>
+       context line (1-2 lines before change)
+      -removed line
+      +added line
+       context line (1-2 lines after change)
+      *** End Patch
+      ```
+      
+      Rules:
+      - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+      - Include 1-2 context lines before and after each change for anchoring.
+      - Multiple hunks are allowed within one `*** Update File` block.
+      
+      Example — replacing a return value:
+      ```
+      *** Begin Patch
+      *** Update File: program.py
+      @@ return statement
+       def read(self, query: Query) -> str:
+      -    return "\n".join(self.store)
+      +    return "\n".join(self.store[-5:])
+      *** End Patch
+      ```
+      
+      ## Broken Code
+      
+      ```python
+      from dataclasses import dataclass
+      
+      INSTRUCTION_OBSERVATION = ""
+      INSTRUCTION_QUERY = ""
+      INSTRUCTION_RESPONSE = ""
+      
+      
+      @dataclass
+      class Observation:
+          raw: str
+      
+      
+      @dataclass
+      class Query:
+          raw: str
+      
+      
+      class KnowledgeBase:
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.store = []
+      
+          def write(self, observation: Observation) -> None:
+              self.store.append(observation.raw)
+      
+          def read(self, query: Query) -> str:
+              # Bug: missing closing parenthesis
+              return "\n".join(self.store[:5] if self.store else "No information stored."
+      
+      ```
+      
+      ## Error
+      
+      **Syntax error**: '(' was never closed (<unknown>, line 28)
+      
+      Fix the error and output your fix as a patch.
+    ''',
+  })
+# ---
+# name: test_patch_generation_reflection
+  dict({
+    'output': '''
+      Diagnosis:
+      - The current memory schema just stores raw text and read() blindly returns everything, so there’s no structured way to link “Alice” to “favorite color.” The LLM never sees facts with explicit subject/predicate/value, so even though “Alice’s favorite color is blue” might be written, the query “What is Alice’s favorite color?” can’t match it. 
+      - There’s no filtering in read(), so the assistant either gets overwhelmed by the whole store or returns nothing useful; we need a targeted retrieval strategy.
+      - The instructions do not describe how to populate structured observations or queries, so the LLM doesn’t know what JSON to emit.
+      
+      Fixes:
+      - Define Observation with explicit subject/predicate/value/source fields and Query with optional subject/predicate/detail fields, accompanied by descriptive instructions so the LLM emits the expected JSON.
+      - Store facts in an SQLite table to enable constrained, structured writes and reads.
+      - Implement read() to filter via LIKE clauses, limit results, and truncate the response to ≤1000 characters, with thorough logging and comments explaining design choices.
+      
+      *** Begin Patch
+      *** Update File: program.py
+      @@
+      -from dataclasses import dataclass, field
+      +from dataclasses import dataclass, field
+      +from typing import Optional
+       
+      -INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in the knowledge base. Include all key information."
+      -INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
+      -INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+      +INSTRUCTION_OBSERVATION = (
+      +    "Extract a single factual statement from the input and describe it with subject, predicate, value, "
+      +    "and an optional source for provenance. Provide the result as JSON matching the Observation schema."
+      +)
+      +INSTRUCTION_QUERY = (
+      +    "Interpret the question and produce the most relevant retrieval hints using the Query schema, "
+      +    "focusing on subject, predicate, and optional detail keywords that would help narrow the search."
+      +)
+      +INSTRUCTION_RESPONSE = (
+      +    "Answer succinctly using the retrieved facts. Mention the most relevant fact and cite its source when possible; "
+      +    "if no fact matches, reply with 'I don't know'. Keep the answer concise and under 1000 characters."
+      +)
+       
+       
+       @dataclass
+       class Observation:
+      -    """Raw text observation to store in the knowledge base."""
+      -    raw: str = field(metadata={"description": "The raw text to store"})
+      +    """Structured fact stored in the knowledge base for reliable retrieval."""
+      +    subject: str = field(
+      +        metadata={"description": "The primary entity, person, or thing described by this fact."}
+      +    )
+      +    predicate: str = field(
+      +        metadata={"description": "The relationship or attribute connecting the subject to the value."}
+      +    )
+      +    value: str = field(metadata={"description": "The object, detail, or answer that completes the fact."})
+      +    source: Optional[str] = field(
+      +        default=None,
+      +        metadata={"description": "Optional provenance such as document title or timestamp."},
+      +    )
+       
+       
+       @dataclass
+       class Query:
+      -    """Raw text query to retrieve from the knowledge base."""
+      -    raw: str = field(metadata={"description": "The query text to search for"})
+      +    """Structured hints used to filter stored observations when answering questions."""
+      +    subject: Optional[str] = field(
+      +        default=None, metadata={"description": "The main entity or topic to look up."}
+      +    )
+      +    predicate: Optional[str] = field(
+      +        default=None,
+      +        metadata={"description": "A specific attribute, relationship, or question focus to filter by."},
+      +    )
+      +    detail: Optional[str] = field(
+      +        default=None,
+      +        metadata={"description": "Additional keywords that might appear in the observation value."},
+      +    )
+       
+       
+       class KnowledgeBase:
+           """Simple append-all / return-all knowledge base."""
+       
+           def __init__(self, toolkit):
+      -        self.toolkit = toolkit
+      -        self.store: list[str] = []
+      +        self.toolkit = toolkit
+      +        self.db = toolkit.db
+      +        # Create a lightweight facts table so we can filter by subject/predicate/value quickly.
+      +        self.db.execute(
+      +            """
+      +            CREATE TABLE IF NOT EXISTS facts (
+      +                subject TEXT NOT NULL,
+      +                predicate TEXT NOT NULL,
+      +                value TEXT NOT NULL,
+      +                source TEXT
+      +            )
+      +            """
+      +        )
+      +        # Logging here helps trace whether initialization succeeded during diagnosis.
+      +        self.toolkit.logger.debug("KnowledgeBase initialized with facts table.")
+       
+           def write(self, observation: Observation) -> None:
+      -        self.store.append(observation.raw)
+      -        self.toolkit.logger.debug(f"Stored: {observation.raw}")
+      +        # Persist each structured fact immediately to keep the database in sync with writes.
+      +        with self.db:
+      +            self.db.execute(
+      +                "INSERT INTO facts (subject, predicate, value, source) VALUES (?, ?, ?, ?)",
+      +                (observation.subject, observation.predicate, observation.value, observation.source),
+      +            )
+      +        self.toolkit.logger.debug(
+      +            "Stored fact",
+      +            extra={
+      +                "subject": observation.subject,
+      +                "predicate": observation.predicate,
+      +                "value": observation.value,
+      +                "source": observation.source,
+      +            },
+      +        )
+       
+           def read(self, query: Query) -> str:
+      -        self.toolkit.logger.debug(f"Query: {query.raw}, store size: {len(self.store)}")
+      -        if not self.store:
+      -            return "No information stored."
+      -        result = "\n".join(self.store)
+      -        return result[:1000]
+      +        # Build WHERE clauses that respect the structured Query fields so we return targeted facts.
+      +        filters = []
+      +        params = []
+      +        if query.subject:
+      +            filters.append("subject LIKE ?")
+      +            params.append(f"%{query.subject}%")
+      +        if query.predicate:
+      +            filters.append("predicate LIKE ?")
+      +            params.append(f"%{query.predicate}%")
+      +        if query.detail:
+      +            filters.append("value LIKE ?")
+      +            params.append(f"%{query.detail}%")
+      +        sql = "SELECT subject, predicate, value, source FROM facts"
+      +        if filters:
+      +            sql += " WHERE " + " AND ".join(filters)
+      +        sql += " ORDER BY rowid DESC LIMIT 8"
+      +        rows = self.db.execute(sql, params).fetchall()
+      +        if not rows:
+      +            self.toolkit.logger.debug("Query returned no matching facts", extra={"query": query})
+      +            return "No matching facts found."
+      +
+      +        lines = []
+      +        for subject, predicate, value, source in rows:
+      +            line = f"{subject} {predicate} {value}"
+      +            if source:
+      +                line += f" (source: {source})"
+      +            lines.append(line)
+      +        result = "\n".join(lines)
+      +        if len(result) > 1000:
+      +            result = result[:997] + "..."
+      +        self.toolkit.logger.debug(
+      +            "Query result prepared",
+      +            extra={"query": query, "result_length": len(result)},
+      +        )
+      +        return result
+      *** End Patch
+    ''',
+    'patched_code': '''
+      from dataclasses import dataclass, field
+      from typing import Optional
+      
+      INSTRUCTION_OBSERVATION = (
+          "Extract a single factual statement from the input and describe it with subject, predicate, value, "
+          "and an optional source for provenance. Provide the result as JSON matching the Observation schema."
+      )
+      INSTRUCTION_QUERY = (
+          "Interpret the question and produce the most relevant retrieval hints using the Query schema, "
+          "focusing on subject, predicate, and optional detail keywords that would help narrow the search."
+      )
+      INSTRUCTION_RESPONSE = (
+          "Answer succinctly using the retrieved facts. Mention the most relevant fact and cite its source when possible; "
+          "if no fact matches, reply with 'I don't know'. Keep the answer concise and under 1000 characters."
+      )
+      
+      
+      @dataclass
+      class Observation:
+          """Structured fact stored in the knowledge base for reliable retrieval."""
+          subject: str = field(
+              metadata={"description": "The primary entity, person, or thing described by this fact."}
+          )
+          predicate: str = field(
+              metadata={"description": "The relationship or attribute connecting the subject to the value."}
+          )
+          value: str = field(metadata={"description": "The object, detail, or answer that completes the fact."})
+          source: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional provenance such as document title or timestamp."},
+          )
+      
+      
+      @dataclass
+      class Query:
+          """Structured hints used to filter stored observations when answering questions."""
+          subject: Optional[str] = field(
+              default=None, metadata={"description": "The main entity or topic to look up."}
+          )
+          predicate: Optional[str] = field(
+              default=None,
+              metadata={"description": "A specific attribute, relationship, or question focus to filter by."},
+          )
+          detail: Optional[str] = field(
+              default=None,
+              metadata={"description": "Additional keywords that might appear in the observation value."},
+          )
+      
+      
+      class KnowledgeBase:
+          """Simple append-all / return-all knowledge base."""
+      
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.db = toolkit.db
+              # Create a lightweight facts table so we can filter by subject/predicate/value quickly.
+              self.db.execute(
+                  """
+                  CREATE TABLE IF NOT EXISTS facts (
+                      subject TEXT NOT NULL,
+                      predicate TEXT NOT NULL,
+                      value TEXT NOT NULL,
+                      source TEXT
+                  )
+                  """
+              )
+              # Logging here helps trace whether initialization succeeded during diagnosis.
+              self.toolkit.logger.debug("KnowledgeBase initialized with facts table.")
+      
+          def write(self, observation: Observation) -> None:
+              # Persist each structured fact immediately to keep the database in sync with writes.
+              with self.db:
+                  self.db.execute(
+                      "INSERT INTO facts (subject, predicate, value, source) VALUES (?, ?, ?, ?)",
+                      (observation.subject, observation.predicate, observation.value, observation.source),
+                  )
+              self.toolkit.logger.debug(
+                  "Stored fact",
+                  extra={
+                      "subject": observation.subject,
+                      "predicate": observation.predicate,
+                      "value": observation.value,
+                      "source": observation.source,
+                  },
+              )
+      
+          def read(self, query: Query) -> str:
+              # Build WHERE clauses that respect the structured Query fields so we return targeted facts.
+              filters = []
+              params = []
+              if query.subject:
+                  filters.append("subject LIKE ?")
+                  params.append(f"%{query.subject}%")
+              if query.predicate:
+                  filters.append("predicate LIKE ?")
+                  params.append(f"%{query.predicate}%")
+              if query.detail:
+                  filters.append("value LIKE ?")
+                  params.append(f"%{query.detail}%")
+              sql = "SELECT subject, predicate, value, source FROM facts"
+              if filters:
+                  sql += " WHERE " + " AND ".join(filters)
+              sql += " ORDER BY rowid DESC LIMIT 8"
+              rows = self.db.execute(sql, params).fetchall()
+              if not rows:
+                  self.toolkit.logger.debug("Query returned no matching facts", extra={"query": query})
+                  return "No matching facts found."
+      
+              lines = []
+              for subject, predicate, value, source in rows:
+                  line = f"{subject} {predicate} {value}"
+                  if source:
+                      line += f" (source: {source})"
+                  lines.append(line)
+              result = "\n".join(lines)
+              if len(result) > 1000:
+                  result = result[:997] + "..."
+              self.toolkit.logger.debug(
+                  "Query result prepared",
+                  extra={"query": query, "result_length": len(result)},
+              )
+              return result
+  
+    ''',
+    'prompt': '''
+      You are an expert Python programmer specializing in knowledge base system design.
+      
+      Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+      
+      <interface_spec>
+      You are designing a Knowledge Base Program that implements three classes:
+      
+      1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+         - Must be a @dataclass with typed fields
+         - An external LLM will populate instances by generating JSON matching your field definitions
+         - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+         - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+         - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+      
+      2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+         - Must be a @dataclass with typed fields
+         - An external LLM will populate instances by generating JSON matching your field definitions
+         - Same JSON-compatible type restriction and field description support as Observation
+      
+      3. **KnowledgeBase** (class): The core knowledge base system.
+         - `__init__(self, toolkit)`: Receives a Toolkit with:
+           - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+           - `toolkit.chroma`: chromadb ephemeral client
+           - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+           - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+         - `write(self, observation: Observation) -> None`: Store information
+         - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+      
+      Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+      
+      ## Runtime Constraints
+      
+      These limits are enforced during evaluation. Violating them results in score = 0.
+      
+      - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+      - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
+      - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+      
+      ## Instruction Constants (required)
+      
+      Three module-level string constants provide the natural-language instructions used in task agent prompts:
+      
+      - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+      - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+      - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+      
+      These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
+      
+      </interface_spec>
+      
+      <rules>
+      1. Output your diagnosis first, then your changes as a patch using the format below.
+      2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+      3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+      4. `read()` must return at most 1000 characters — do not return all stored text.
+      5. Keep it simple. Make minimal, targeted fixes.
+      6. Update INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE to steer the task LLM's output format.
+      7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+      </rules>
+      
+      <patch_format>
+      Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+      
+      Format:
+      ```
+      *** Begin Patch
+      *** Update File: program.py
+      @@ <optional context hint>
+       context line (1-2 lines before change)
+      -removed line
+      +added line
+       context line (1-2 lines after change)
+      *** End Patch
+      ```
+      
+      Rules:
+      - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+      - Include 1-2 context lines before and after each change for anchoring.
+      - Multiple hunks are allowed within one `*** Update File` block.
+      
+      Example — replacing a return value:
+      ```
+      *** Begin Patch
+      *** Update File: program.py
+      @@ return statement
+       def read(self, query: Query) -> str:
+      -    return "\n".join(self.store)
+      +    return "\n".join(self.store[-5:])
+      *** End Patch
+      ```
+      </patch_format>
+      
+      <current_program iteration="1">
+      ```python
+      from dataclasses import dataclass, field
+      
+      INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in the knowledge base. Include all key information."
+      INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
+      INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+      
+      
+      @dataclass
+      class Observation:
+          """Raw text observation to store in the knowledge base."""
+          raw: str = field(metadata={"description": "The raw text to store"})
+      
+      
+      @dataclass
+      class Query:
+          """Raw text query to retrieve from the knowledge base."""
+          raw: str = field(metadata={"description": "The query text to search for"})
+      
+      
+      class KnowledgeBase:
+          """Simple append-all / return-all knowledge base."""
+      
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.store: list[str] = []
+      
+          def write(self, observation: Observation) -> None:
+              self.store.append(observation.raw)
+              self.toolkit.logger.debug(f"Stored: {observation.raw}")
+      
+          def read(self, query: Query) -> str:
+              self.toolkit.logger.debug(f"Query: {query.raw}, store size: {len(self.store)}")
+              if not self.store:
+                  return "No information stored."
+              result = "\n".join(self.store)
+              return result[:1000]
+      
+      ```
+      </current_program>
+      
+      <evaluation_score>0.200</evaluation_score>
+      
+      
+      The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
+      
+      <failed_cases>
+      <case id="1">
+      <question>What is Alice's favorite color?</question>
+      <expected>blue</expected>
+      <model_generation>I don't know</model_generation>
+      <score>0.0</score>
+      <conversation>
+        [user]: What is Alice's favorite color?
+        [assistant]: I don't know
+      </conversation>
+      </case>
+      
+      </failed_cases>
+      
+      <task>
+      1. Diagnose why these cases fail.
+      2. Propose specific improvements to the Knowledge Base Program.
+      3. Output your changes as a patch.
+      </task>
+    ''',
+  })
+# ---
 # name: test_query_generation
   dict({
     'output': '''
