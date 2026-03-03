@@ -2,6 +2,7 @@
 
 from programmaticmemory.evolution.types import (
     DataItem,
+    Dataset,
     EvalResult,
     EvolutionRecord,
     EvolutionState,
@@ -125,3 +126,49 @@ class TestEvolutionState:
         )
         assert len(state.history) == 1
         assert state.history[0].accepted is True
+
+
+class TestDataItemMetadata:
+    def test_metadata_defaults_to_empty_dict(self):
+        item = DataItem(raw_text="text", question="q", expected_answer="a")
+        assert item.metadata == {}
+
+    def test_metadata_accepts_dict(self):
+        item = DataItem(raw_text="", question="q", expected_answer="a", metadata={"game_file": "/path/to/game.tw-pddl"})
+        assert item.metadata["game_file"] == "/path/to/game.tw-pddl"
+
+    def test_metadata_does_not_share_between_instances(self):
+        a = DataItem(raw_text="", question="q1", expected_answer="a1")
+        b = DataItem(raw_text="", question="q2", expected_answer="a2")
+        a.metadata["key"] = "value"
+        assert "key" not in b.metadata
+
+
+class TestValScorer:
+    def test_val_scorer_protocol_accepts_conforming_class(self):
+        class MyScorer:
+            def score_batch(
+                self,
+                items: list[DataItem],
+                retrieved: list[str],
+                task_model: str,
+                instruction_response: str,
+            ) -> list[tuple[str, float]]:
+                return [("answer", 1.0)] * len(items)
+
+        scorer = MyScorer()
+        items = [DataItem(raw_text="", question="q", expected_answer="a")]
+        result = scorer.score_batch(items, ["retrieved"], "model", "instruction")
+        assert result == [("answer", 1.0)]
+
+    def test_dataset_val_scorer_defaults_to_none(self):
+        ds = Dataset(train=[], val=[], test=[])
+        assert ds.val_scorer is None
+
+    def test_dataset_accepts_val_scorer(self):
+        class MyScorer:
+            def score_batch(self, items, retrieved, task_model, instruction_response):
+                return []
+
+        ds = Dataset(train=[], val=[], test=[], val_scorer=MyScorer())
+        assert ds.val_scorer is not None

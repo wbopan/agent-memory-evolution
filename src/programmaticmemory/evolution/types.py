@@ -13,6 +13,22 @@ class Scorer(Protocol):
     def __call__(self, output: str, expected: str) -> float: ...
 
 
+class ValScorer(Protocol):
+    """Pluggable val scoring strategy.
+
+    Replaces the default LLM answer generation + string-compare scoring.
+    Receives items with their KB-retrieved strings and returns (output, score) pairs.
+    """
+
+    def score_batch(
+        self,
+        items: list[DataItem],
+        retrieved: list[str],
+        task_model: str,
+        instruction_response: str,
+    ) -> list[tuple[str, float]]: ...
+
+
 @dataclass(frozen=True)
 class KBProgram:
     """A candidate knowledge base program — the unit of evolution.
@@ -42,6 +58,7 @@ class DataItem:
     raw_text: str
     question: str
     expected_answer: str
+    metadata: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -52,6 +69,7 @@ class Dataset:
     val: list[DataItem]
     test: list[DataItem]
     scorer: Scorer | None = None
+    val_scorer: ValScorer | None = None
     available_categories: list[str] | None = None
 
 
