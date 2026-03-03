@@ -102,6 +102,38 @@ class KnowledgeBase:
 '''
 
 
+PATCH_FORMAT_SPEC = """\
+Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+
+Format:
+```
+*** Begin Patch
+*** Update File: program.py
+@@ <optional context hint>
+ context line (1-2 lines before change)
+-removed line
++added line
+ context line (1-2 lines after change)
+*** End Patch
+```
+
+Rules:
+- Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+- Include 1-2 context lines before and after each change for anchoring.
+- Multiple hunks are allowed within one `*** Update File` block.
+
+Example — replacing a return value:
+```
+*** Begin Patch
+*** Update File: program.py
+@@ return statement
+ def read(self, query: Query) -> str:
+-    return "\\n".join(self.store)
++    return "\\n".join(self.store[-5:])
+*** End Patch
+```
+"""
+
 _MSG_MAX_CHARS = 10_000
 _MSG_HEAD = _MSG_MAX_CHARS // 2
 _MSG_TAIL = _MSG_MAX_CHARS - _MSG_HEAD
@@ -245,7 +277,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 </interface_spec>
 
 <rules>
-1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
+1. Output your diagnosis first, then your changes as a patch using the format below.
 2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
 3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
@@ -253,6 +285,9 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 6. Update INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE to steer the task LLM's output format.
 7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
 </rules>
+
+<patch_format>
+{PATCH_FORMAT_SPEC}</patch_format>
 
 <current_program iteration="{iteration}">
 ```python
@@ -271,7 +306,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 <task>
 1. Diagnose why these cases fail.
 2. Propose specific improvements to the Knowledge Base Program.
-3. Output the complete improved code in a ```python``` block.
+3. Output your changes as a patch.
 </task>"""
 
 
@@ -357,16 +392,17 @@ def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> 
     """Build user prompt for fixing a compile/runtime error."""
     return f"""\
 You are an expert Python programmer. A Knowledge Base Program failed to compile or run.
-Fix the error and output the complete corrected code in a ```python``` block.
+Fix the error and output your fix as a patch.
 
 {KB_INTERFACE_SPEC}
 
 Rules:
-1. Output ONLY the corrected code in a ```python``` block. No explanation needed.
+1. Output ONLY the fix as a patch. No explanation needed.
 2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
 4. Make minimal changes — fix only what's broken.
 
+{PATCH_FORMAT_SPEC}
 ## Broken Code
 
 ```python
@@ -377,4 +413,4 @@ Rules:
 
 **{error_type}**: {error_details}
 
-Fix the error and output the complete corrected code in a ```python``` block."""
+Fix the error and output your fix as a patch."""
