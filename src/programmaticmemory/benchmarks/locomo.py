@@ -38,6 +38,7 @@ def load_locomo(
     *,
     num_conversations: int | None = None,
     categories: tuple[int, ...] = (1, 2, 3, 4),
+    category: str | None = None,
     seed: int = 42,
     data_dir: str | Path | None = None,
 ) -> Dataset:
@@ -46,6 +47,7 @@ def load_locomo(
     Args:
         num_conversations: Limit number of conversations (None = all).
         categories: QA category filter (1-4 only; 5 excluded by default).
+        category: Select a single conversation by index (post-shuffle). None = all.
         seed: Random seed for shuffling.
         data_dir: Override data directory.
 
@@ -59,6 +61,25 @@ def load_locomo(
     rng.shuffle(samples)
     if num_conversations is not None:
         samples = samples[:num_conversations]
+
+    # Available categories: conversation indices
+    all_categories = [str(i) for i in range(len(samples))]
+
+    # Category filtering: select a single conversation by index
+    if category is not None:
+        try:
+            idx = int(category)
+        except ValueError:
+            raise ValueError(
+                f"locomo category must be a conversation index (integer), got {category!r}. "
+                f"Available: {', '.join(all_categories)}"
+            ) from None
+        if idx < 0 or idx >= len(samples):
+            raise ValueError(
+                f"category {category!r} out of range: only {len(samples)} conversations available. "
+                f"Available: {', '.join(all_categories)}"
+            )
+        samples = [samples[idx]]
 
     train: list[DataItem] = []
     val: list[DataItem] = []
@@ -86,4 +107,4 @@ def load_locomo(
                 continue
             val.append(DataItem(raw_text="", question=qa["question"], expected_answer=qa["answer"]))
 
-    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer())
+    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer(), available_categories=all_categories)

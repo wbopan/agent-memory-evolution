@@ -105,6 +105,7 @@ def load_nyt_connections(
     train_ratio: float = 0.5,
     seed: int = 42,
     data_dir: str | Path | None = None,
+    category: str | None = None,
 ) -> Dataset:
     """Load NYT Connections benchmark.
 
@@ -112,10 +113,13 @@ def load_nyt_connections(
         train_ratio: Fraction of puzzles for training (rest goes to val).
         seed: Random seed for shuffling.
         data_dir: Override data directory for testing.
+        category: Not supported; raises ValueError if not None.
 
     Returns:
         Dataset with ConnectionsScorer. QA-only pattern (raw_text="").
     """
+    if category is not None:
+        raise ValueError("nyt_connections does not support category filtering")
     dest_dir = ensure_data(data_dir)
     data_path = dest_dir / "ConnectionsFinalDataset.json"
     puzzles = json.loads(data_path.read_text())

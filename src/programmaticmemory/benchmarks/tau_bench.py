@@ -66,6 +66,7 @@ def load_tau_bench(
     train_ratio: float = 0.7,
     seed: int = 42,
     data_dir: str | Path | None = None,
+    category: str | None = None,
 ) -> Dataset:
     """Load tau-bench benchmark.
 
@@ -74,10 +75,13 @@ def load_tau_bench(
         train_ratio: Fraction of tasks for training.
         seed: Random seed for shuffling.
         data_dir: Override data directory.
+        category: Not supported; raises ValueError if not None (use domain= kwarg instead).
 
     Returns:
         Dataset with ExactMatchScorer.
     """
+    if category is not None:
+        raise ValueError("tau_bench does not support category filtering (use domain= kwarg instead)")
     dest_dir = ensure_data(domain, data_dir)
     tasks_path = dest_dir / domain / "tasks.py"
     tasks = _parse_tasks_file(tasks_path)

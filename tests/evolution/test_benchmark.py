@@ -60,6 +60,10 @@ class TestKVMemoryBenchmark:
         ds = load_kv_memory(num_items=5)
         assert ds.train == ds.val
 
+    def test_category_rejects_non_none(self):
+        with pytest.raises(ValueError, match="category"):
+            load_kv_memory(num_items=3, category="something")
+
     def test_simple_answers_are_concise(self):
         ds = load_kv_memory(num_items=20, difficulty="simple")
         for item in ds.train:
@@ -91,7 +95,22 @@ _LOCOMO_FIXTURE = [
             {"question": "What greeting did Alice use?", "answer": "Hey Bob!", "category": 3, "evidence": ["1_1"]},
             {"question": "Obscure meta question", "answer": "N/A", "category": 5, "evidence": []},
         ],
-    }
+    },
+    {
+        "sample_id": "locomo_test_2",
+        "conversation": {
+            "speaker_a": "Charlie",
+            "speaker_b": "Diana",
+            "session_1": [
+                {"speaker": "Charlie", "dia_id": "3_1", "text": "Diana, did you see the game?"},
+                {"speaker": "Diana", "dia_id": "3_2", "text": "Yes, Lakers won!"},
+            ],
+            "session_1_date_time": "2023-02-10 20:00",
+        },
+        "qa": [
+            {"question": "Who won the game?", "answer": "Lakers", "category": 1, "evidence": ["3_2"]},
+        ],
+    },
 ]
 
 
@@ -108,19 +127,24 @@ class TestLoComoBenchmark:
 
         ds = load_locomo(data_dir=locomo_data_dir)
         assert isinstance(ds, Dataset)
-        assert len(ds.train) == 2
+        assert len(ds.train) == 3  # 2 from conv1 + 1 from conv2
         assert all(isinstance(i, DataItem) for i in ds.train)
         assert all(i.raw_text for i in ds.train)
-        assert "[2023-01-15 14:30]" in ds.train[0].raw_text
-        assert "Alice: Hey Bob!" in ds.train[0].raw_text
+        # Check that all expected sessions are present (order depends on seed shuffle)
+        all_text = " ".join(i.raw_text for i in ds.train)
+        assert "[2023-01-15 14:30]" in all_text
+        assert "Alice: Hey Bob!" in all_text
+        assert "[2023-02-10 20:00]" in all_text
+        assert "Charlie: Diana, did you see the game?" in all_text
 
     def test_val_has_qa_pairs(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
         ds = load_locomo(data_dir=locomo_data_dir)
-        assert len(ds.val) == 2
-        assert ds.val[0].question == "Where did Bob go hiking?"
-        assert ds.val[0].expected_answer == "Mt. Rainier"
+        assert len(ds.val) == 3  # 2 from conv1 (cat 1,3) + 1 from conv2 (cat 1)
+        questions = {v.question for v in ds.val}
+        assert "Where did Bob go hiking?" in questions
+        assert "Who won the game?" in questions
 
     def test_category_5_excluded(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
@@ -133,8 +157,10 @@ class TestLoComoBenchmark:
         from programmaticmemory.benchmarks.locomo import load_locomo
 
         ds = load_locomo(data_dir=locomo_data_dir, categories=(1,))
-        assert len(ds.val) == 1
-        assert ds.val[0].question == "Where did Bob go hiking?"
+        assert len(ds.val) == 2  # 1 from conv1 (cat 1) + 1 from conv2 (cat 1)
+        questions = {v.question for v in ds.val}
+        assert "Where did Bob go hiking?" in questions
+        assert "Who won the game?" in questions
 
     def test_deterministic_with_seed(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
@@ -149,6 +175,53 @@ class TestLoComoBenchmark:
 
         ds = load_locomo(data_dir=locomo_data_dir)
         assert ds.test == []
+
+    def test_category_filters_to_single_conversation(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        ds_all = load_locomo(data_dir=locomo_data_dir, category=None)
+        ds_cat0 = load_locomo(data_dir=locomo_data_dir, category="0")
+        # category="0" should give subset of full dataset
+        assert len(ds_cat0.train) < len(ds_all.train) or len(ds_cat0.val) < len(ds_all.val)
+        assert len(ds_cat0.train) > 0
+        assert len(ds_cat0.val) > 0
+
+    def test_category_out_of_range_raises(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        with pytest.raises(ValueError, match="category"):
+            load_locomo(data_dir=locomo_data_dir, category="99")
+
+    def test_category_non_integer_raises(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        with pytest.raises(ValueError, match="conversation index"):
+            load_locomo(data_dir=locomo_data_dir, category="abc")
+
+    def test_category_none_returns_all(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        ds = load_locomo(data_dir=locomo_data_dir, category=None)
+        assert len(ds.train) == 3  # 2 sessions from conv1 + 1 from conv2
+        assert len(ds.val) == 3  # 2 QAs from conv1 (cat 1,3) + 1 from conv2 (cat 1)
+
+
+# ── Mini LoCoMo ──────────────────────────────────────────────────────────────
+
+
+class TestMiniLoComoBenchmark:
+    @pytest.fixture()
+    def locomo_data_dir(self, tmp_path):
+        dest = tmp_path / "locomo"
+        dest.mkdir()
+        (dest / "locomo10.json").write_text(json.dumps(_LOCOMO_FIXTURE))
+        return tmp_path
+
+    def test_category_rejects_non_none(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.mini_locomo import load_mini_locomo
+
+        with pytest.raises(ValueError, match="category"):
+            load_mini_locomo(data_dir=locomo_data_dir, category="something")
 
 
 # ── tau-bench ─────────────────────────────────────────────────────────────────
@@ -219,6 +292,12 @@ class TestTauBenchBenchmark:
         train_q = {i.question for i in ds.train}
         val_q = {i.question for i in ds.val}
         assert train_q.isdisjoint(val_q)
+
+    def test_category_rejects_non_none(self, tau_data_dir):
+        from programmaticmemory.benchmarks.tau_bench import load_tau_bench
+
+        with pytest.raises(ValueError, match="category"):
+            load_tau_bench(data_dir=tau_data_dir, category="something")
 
     def test_deterministic_with_seed(self, tau_data_dir):
         from programmaticmemory.benchmarks.tau_bench import load_tau_bench
@@ -309,9 +388,9 @@ class TestALFWorldBenchmark:
         from programmaticmemory.benchmarks.alfworld import _parse_trials
 
         base = alfworld_data_dir / "alfworld" / "json_2.1.1" / "valid_unseen"
-        items = _parse_trials(base)
-        assert len(items) == 4
-        questions = [i.question for i in items]
+        typed_items = _parse_trials(base)
+        assert len(typed_items) == 4
+        questions = [item.question for _, item in typed_items]
         assert "Clean the cup." not in questions
 
     def test_loads_solvable_tasks(self, alfworld_data_dir):
@@ -336,6 +415,26 @@ class TestALFWorldBenchmark:
         d1 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         d2 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         assert [i.question for i in d1.train] == [i.question for i in d2.train]
+
+    def test_category_filters_by_task_type(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="heat")
+        all_items = ds.train + ds.val
+        assert len(all_items) == 1
+        assert all_items[0].expected_answer == "microwave"
+
+    def test_category_none_returns_all(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir, category=None)
+        assert len(ds.train) + len(ds.val) == 4
+
+    def test_category_no_match_raises(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        with pytest.raises(ValueError, match="category"):
+            load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="nonexistent")
 
 
 # ── NYT Connections ──────────────────────────────────────────────────────────
@@ -511,8 +610,47 @@ class TestNYTConnectionsBenchmark:
         val_q = {i.question for i in ds.val}
         assert train_q.isdisjoint(val_q)
 
+    def test_category_rejects_non_none(self, nyt_data_dir):
+        from programmaticmemory.benchmarks.nyt_connections import load_nyt_connections
+
+        with pytest.raises(ValueError, match="category"):
+            load_nyt_connections(data_dir=nyt_data_dir, category="something")
+
     def test_scorer_is_connections_scorer(self, nyt_data_dir):
         from programmaticmemory.benchmarks.nyt_connections import ConnectionsScorer, load_nyt_connections
 
         ds = load_nyt_connections(data_dir=nyt_data_dir)
         assert isinstance(ds.scorer, ConnectionsScorer)
+
+
+# ── load_dataset category parameter ──────────────────────────────────────────
+
+
+class TestLoadDatasetCategory:
+    def test_category_passed_to_loader(self):
+        """Category param is forwarded to the benchmark loader."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.datasets import _CUSTOM_REGISTRY, load_dataset
+
+        mock_loader = MagicMock(return_value=Dataset(train=[], val=[], test=[]))
+        _CUSTOM_REGISTRY["_test_cat"] = mock_loader
+        try:
+            load_dataset("_test_cat", category="heat")
+            mock_loader.assert_called_once_with(category="heat")
+        finally:
+            del _CUSTOM_REGISTRY["_test_cat"]
+
+    def test_category_none_not_passed(self):
+        """When category is None, it is still forwarded (loaders handle the default)."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.datasets import _CUSTOM_REGISTRY, load_dataset
+
+        mock_loader = MagicMock(return_value=Dataset(train=[], val=[], test=[]))
+        _CUSTOM_REGISTRY["_test_cat2"] = mock_loader
+        try:
+            load_dataset("_test_cat2")
+            mock_loader.assert_called_once_with(category=None)
+        finally:
+            del _CUSTOM_REGISTRY["_test_cat2"]
