@@ -125,6 +125,7 @@ def main() -> None:
         scorer=scorer,
         task_model=args.task_model,
         toolkit_config=toolkit_config,
+        val_scorer=dataset.val_scorer,
     )
     prompt_config = ReflectionPromptConfig(
         max_failed_cases=args.reflection_max_failed_cases,
