@@ -91,7 +91,22 @@ _LOCOMO_FIXTURE = [
             {"question": "What greeting did Alice use?", "answer": "Hey Bob!", "category": 3, "evidence": ["1_1"]},
             {"question": "Obscure meta question", "answer": "N/A", "category": 5, "evidence": []},
         ],
-    }
+    },
+    {
+        "sample_id": "locomo_test_2",
+        "conversation": {
+            "speaker_a": "Charlie",
+            "speaker_b": "Diana",
+            "session_1": [
+                {"speaker": "Charlie", "dia_id": "3_1", "text": "Diana, did you see the game?"},
+                {"speaker": "Diana", "dia_id": "3_2", "text": "Yes, Lakers won!"},
+            ],
+            "session_1_date_time": "2023-02-10 20:00",
+        },
+        "qa": [
+            {"question": "Who won the game?", "answer": "Lakers", "category": 1, "evidence": ["3_2"]},
+        ],
+    },
 ]
 
 
@@ -108,19 +123,24 @@ class TestLoComoBenchmark:
 
         ds = load_locomo(data_dir=locomo_data_dir)
         assert isinstance(ds, Dataset)
-        assert len(ds.train) == 2
+        assert len(ds.train) == 3  # 2 from conv1 + 1 from conv2
         assert all(isinstance(i, DataItem) for i in ds.train)
         assert all(i.raw_text for i in ds.train)
-        assert "[2023-01-15 14:30]" in ds.train[0].raw_text
-        assert "Alice: Hey Bob!" in ds.train[0].raw_text
+        # Check that all expected sessions are present (order depends on seed shuffle)
+        all_text = " ".join(i.raw_text for i in ds.train)
+        assert "[2023-01-15 14:30]" in all_text
+        assert "Alice: Hey Bob!" in all_text
+        assert "[2023-02-10 20:00]" in all_text
+        assert "Charlie: Diana, did you see the game?" in all_text
 
     def test_val_has_qa_pairs(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 
         ds = load_locomo(data_dir=locomo_data_dir)
-        assert len(ds.val) == 2
-        assert ds.val[0].question == "Where did Bob go hiking?"
-        assert ds.val[0].expected_answer == "Mt. Rainier"
+        assert len(ds.val) == 3  # 2 from conv1 (cat 1,3) + 1 from conv2 (cat 1)
+        questions = {v.question for v in ds.val}
+        assert "Where did Bob go hiking?" in questions
+        assert "Who won the game?" in questions
 
     def test_category_5_excluded(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
@@ -133,8 +153,10 @@ class TestLoComoBenchmark:
         from programmaticmemory.benchmarks.locomo import load_locomo
 
         ds = load_locomo(data_dir=locomo_data_dir, categories=(1,))
-        assert len(ds.val) == 1
-        assert ds.val[0].question == "Where did Bob go hiking?"
+        assert len(ds.val) == 2  # 1 from conv1 (cat 1) + 1 from conv2 (cat 1)
+        questions = {v.question for v in ds.val}
+        assert "Where did Bob go hiking?" in questions
+        assert "Who won the game?" in questions
 
     def test_deterministic_with_seed(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
@@ -149,6 +171,29 @@ class TestLoComoBenchmark:
 
         ds = load_locomo(data_dir=locomo_data_dir)
         assert ds.test == []
+
+    def test_category_filters_to_single_conversation(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        ds_all = load_locomo(data_dir=locomo_data_dir, category=None)
+        ds_cat0 = load_locomo(data_dir=locomo_data_dir, category="0")
+        # category="0" should give subset of full dataset
+        assert len(ds_cat0.train) < len(ds_all.train) or len(ds_cat0.val) < len(ds_all.val)
+        assert len(ds_cat0.train) > 0
+        assert len(ds_cat0.val) > 0
+
+    def test_category_out_of_range_raises(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        with pytest.raises(ValueError, match="category"):
+            load_locomo(data_dir=locomo_data_dir, category="99")
+
+    def test_category_none_returns_all(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        ds = load_locomo(data_dir=locomo_data_dir, category=None)
+        assert len(ds.train) == 3  # 2 sessions from conv1 + 1 from conv2
+        assert len(ds.val) == 3  # 2 QAs from conv1 (cat 1,3) + 1 from conv2 (cat 1)
 
 
 # ── tau-bench ─────────────────────────────────────────────────────────────────
