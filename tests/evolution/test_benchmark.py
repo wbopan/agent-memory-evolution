@@ -503,11 +503,27 @@ class TestALFWorldBenchmark:
         with pytest.raises(ValueError, match="category"):
             load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="nonexistent")
 
-    def test_val_scorer_is_alfworld_scorer(self, alfworld_data_dir):
+    def test_val_scorer_with_alfworld_installed(self, alfworld_data_dir):
+        """When alfworld is importable, val_scorer should be ALFWorldValScorer."""
+        import sys
+        import unittest.mock
+
         from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer, load_alfworld
 
-        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        mock_alfworld = MagicMock()
+        with unittest.mock.patch.dict(sys.modules, {"alfworld": mock_alfworld}):
+            ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
         assert isinstance(ds.val_scorer, ALFWorldValScorer)
+
+    def test_val_scorer_none_without_alfworld(self, alfworld_data_dir):
+        """Without alfworld installed, val_scorer should be None."""
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        # alfworld is not installed in test env, so val_scorer should be None
+        assert ds.val_scorer is None
+        # But scorer should still be set for fallback
+        assert ds.scorer is not None
 
     def test_available_categories(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld

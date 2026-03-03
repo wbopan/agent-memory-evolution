@@ -14,6 +14,7 @@ import litellm
 
 from programmaticmemory.benchmarks._download import download_and_extract_zip, get_data_dir
 from programmaticmemory.datasets import register_dataset
+from programmaticmemory.evolution.evaluator import ExactMatchScorer
 from programmaticmemory.evolution.types import DataItem, Dataset
 
 _GH_RELEASE = "https://github.com/alfworld/alfworld/releases/download/0.2.2"
@@ -307,10 +308,20 @@ def load_alfworld(
     train = train_items[:num_train]
     val = val_items[:num_val] if num_val is not None else val_items
 
+    # Only use env scorer if alfworld is available
+    val_scorer = None
+    try:
+        import alfworld  # noqa: F401
+
+        val_scorer = ALFWorldValScorer(max_steps=50)
+    except ImportError:
+        pass  # Fall back to default LLM answer path if alfworld not installed
+
     return Dataset(
         train=train,
         val=val,
         test=[],
-        val_scorer=ALFWorldValScorer(),
+        scorer=ExactMatchScorer(),
+        val_scorer=val_scorer,
         available_categories=all_categories,
     )
