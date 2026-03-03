@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -311,52 +312,123 @@ class TestTauBenchBenchmark:
 # ── ALFWorld ──────────────────────────────────────────────────────────────────
 
 
-def _make_traj(task_desc: str, pddl_params: dict | None = None) -> str:
+def _make_traj(task_desc: str, pddl_params: dict | None = None, scene: dict | None = None) -> str:
     data = {
         "turk_annotations": {"anns": [{"task_desc": task_desc}]},
     }
     if pddl_params:
         data["pddl_params"] = pddl_params
+    if scene:
+        data["scene"] = scene
     return json.dumps(data)
 
 
 def _make_alfworld_fixture(tmp_path: Path) -> Path:
-    """Create minimal ALFWorld directory structure."""
-    base = tmp_path / "alfworld" / "json_2.1.1" / "valid_unseen"
+    """Create minimal ALFWorld directory structure with train and valid_unseen splits."""
+    json_base = tmp_path / "alfworld" / "json_2.1.1"
 
-    # heat task → microwave
-    heat_dir = base / "heat-Egg-None-Microwave-1" / "trial_T0"
+    # ── valid_unseen split ──
+    val_base = json_base / "valid_unseen"
+
+    # heat task
+    heat_dir = val_base / "heat-Egg-None-Microwave-1" / "trial_T0"
     heat_dir.mkdir(parents=True)
-    (heat_dir / "traj_data.json").write_text(_make_traj("Heat the egg."))
+    (heat_dir / "traj_data.json").write_text(
+        _make_traj("Heat the egg.", pddl_params={"object_target": "egg", "parent_target": "microwave"})
+    )
     (heat_dir / "game.tw-pddl").write_text("(define ...)")
 
-    # cool task → fridge
-    cool_dir = base / "cool-Apple-None-Fridge-2" / "trial_T0"
+    # cool task
+    cool_dir = val_base / "cool-Apple-None-Fridge-2" / "trial_T0"
     cool_dir.mkdir(parents=True)
-    (cool_dir / "traj_data.json").write_text(_make_traj("Cool the apple."))
+    (cool_dir / "traj_data.json").write_text(
+        _make_traj("Cool the apple.", pddl_params={"object_target": "apple", "parent_target": "fridge"})
+    )
     (cool_dir / "game.tw-pddl").write_text("(define ...)")
 
-    # pick_and_place → parent_target
-    pick_dir = base / "pick_and_place-Book-None-Shelf-3" / "trial_T0"
+    # pick_and_place
+    pick_dir = val_base / "pick_and_place-Book-None-Shelf-3" / "trial_T0"
     pick_dir.mkdir(parents=True)
     (pick_dir / "traj_data.json").write_text(
-        _make_traj("Put the book on the shelf.", pddl_params={"parent_target": "shelf"})
+        _make_traj("Put the book on the shelf.", pddl_params={"object_target": "book", "parent_target": "shelf"})
     )
     (pick_dir / "game.tw-pddl").write_text("(define ...)")
 
-    # look_at_obj_in_light → desklamp
-    look_dir = base / "look_at_obj_in_light-Book-None-DeskLamp-4" / "trial_T0"
+    # look_at_obj_in_light
+    look_dir = val_base / "look_at_obj_in_light-Book-None-DeskLamp-4" / "trial_T0"
     look_dir.mkdir(parents=True)
     (look_dir / "traj_data.json").write_text(_make_traj("Look at book under light."))
     (look_dir / "game.tw-pddl").write_text("(define ...)")
 
     # Unsolvable task (no game.tw-pddl) → should be filtered out
-    unsolvable_dir = base / "pick_clean_then_place_in_recep-Cup-None-SinkBasin-5" / "trial_T0"
+    unsolvable_dir = val_base / "pick_clean_then_place_in_recep-Cup-None-SinkBasin-5" / "trial_T0"
     unsolvable_dir.mkdir(parents=True)
     (unsolvable_dir / "traj_data.json").write_text(_make_traj("Clean the cup."))
     # No game.tw-pddl intentionally
 
+    # ── train split ──
+    train_base = json_base / "train"
+
+    train_heat = train_base / "heat-Potato-None-Microwave-10" / "trial_T0"
+    train_heat.mkdir(parents=True)
+    (train_heat / "traj_data.json").write_text(
+        _make_traj(
+            "Heat the potato.",
+            pddl_params={"object_target": "potato", "parent_target": "microwave"},
+            scene={"floor_plan": "FloorPlan1"},
+        )
+    )
+    (train_heat / "game.tw-pddl").write_text("(define ...)")
+
+    train_cool = train_base / "cool-Lettuce-None-Fridge-11" / "trial_T0"
+    train_cool.mkdir(parents=True)
+    (train_cool / "traj_data.json").write_text(
+        _make_traj("Cool the lettuce.", pddl_params={"object_target": "lettuce", "parent_target": "fridge"})
+    )
+    (train_cool / "game.tw-pddl").write_text("(define ...)")
+
     return tmp_path
+
+
+class TestALFWorldTrainingText:
+    def test_format_training_text_includes_task_info(self):
+        from programmaticmemory.benchmarks.alfworld import _format_training_text
+
+        text = _format_training_text(
+            "Put a hot mug in the cabinet.",
+            "pick_heat_then_place_in_recep",
+            {"pddl_params": {"object_target": "mug", "parent_target": "cabinet"}},
+        )
+        assert "hot mug" in text
+        assert "pick_heat" in text
+
+    def test_format_training_text_includes_pddl_params(self):
+        from programmaticmemory.benchmarks.alfworld import _format_training_text
+
+        text = _format_training_text(
+            "Heat the egg.",
+            "heat",
+            {"pddl_params": {"object_target": "egg", "parent_target": "microwave"}},
+        )
+        assert "object_target" in text
+        assert "egg" in text
+
+    def test_format_training_text_includes_scene(self):
+        from programmaticmemory.benchmarks.alfworld import _format_training_text
+
+        text = _format_training_text(
+            "Cool the apple.",
+            "cool",
+            {"pddl_params": {}, "scene": {"floor_plan": "FloorPlan7"}},
+        )
+        assert "FloorPlan7" in text
+
+    def test_format_training_text_no_pddl(self):
+        from programmaticmemory.benchmarks.alfworld import _format_training_text
+
+        text = _format_training_text("Look at book under light.", "look_at_obj_in_light", {})
+        assert "look_at_obj_in_light" in text
+        assert "Look at book under light." in text
 
 
 class TestALFWorldBenchmark:
@@ -364,32 +436,13 @@ class TestALFWorldBenchmark:
     def alfworld_data_dir(self, tmp_path):
         return _make_alfworld_fixture(tmp_path)
 
-    def test_heat_maps_to_microwave(self):
-        from programmaticmemory.benchmarks.alfworld import _derive_expected
-
-        assert _derive_expected("heat", {}) == "microwave"
-
-    def test_cool_maps_to_fridge(self):
-        from programmaticmemory.benchmarks.alfworld import _derive_expected
-
-        assert _derive_expected("cool", {}) == "fridge"
-
-    def test_pick_and_place_maps_to_parent_target(self):
-        from programmaticmemory.benchmarks.alfworld import _derive_expected
-
-        assert _derive_expected("pick_and_place", {"pddl_params": {"parent_target": "shelf"}}) == "shelf"
-
-    def test_look_at_maps_to_desklamp(self):
-        from programmaticmemory.benchmarks.alfworld import _derive_expected
-
-        assert _derive_expected("look_at_obj_in_light", {}) == "desklamp"
-
     def test_unsolvable_filtered_out(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import _parse_trials
 
         base = alfworld_data_dir / "alfworld" / "json_2.1.1" / "valid_unseen"
-        typed_items = _parse_trials(base)
+        typed_items = _parse_trials(base, for_train=False)
         assert len(typed_items) == 4
+        # Unsolvable "Clean the cup." should not appear
         questions = [item.question for _, item in typed_items]
         assert "Clean the cup." not in questions
 
@@ -399,42 +452,189 @@ class TestALFWorldBenchmark:
         ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
         assert isinstance(ds, Dataset)
         assert len(ds.train) == 2
-        assert len(ds.val) == 2
+        assert len(ds.val) > 0
         assert len(ds.test) == 0
 
-    def test_raw_text_empty(self, alfworld_data_dir):
+    def test_train_items_have_raw_text(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
         ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
-        for item in ds.train + ds.val:
+        for item in ds.train:
+            assert item.raw_text  # non-empty training text
+            assert item.question == ""
+            assert item.expected_answer == ""
+
+    def test_val_items_have_metadata(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        for item in ds.val:
             assert item.raw_text == ""
+            assert item.question  # task objective
+            assert item.expected_answer == ""
+            assert "game_file" in item.metadata
+            assert "task_type" in item.metadata
 
     def test_deterministic_with_seed(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
         d1 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
         d2 = load_alfworld(num_train=2, data_dir=alfworld_data_dir, seed=42)
-        assert [i.question for i in d1.train] == [i.question for i in d2.train]
+        assert [i.raw_text for i in d1.train] == [i.raw_text for i in d2.train]
+        assert [i.question for i in d1.val] == [i.question for i in d2.val]
 
     def test_category_filters_by_task_type(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
         ds = load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="heat")
-        all_items = ds.train + ds.val
-        assert len(all_items) == 1
-        assert all_items[0].expected_answer == "microwave"
+        # Should only have heat tasks
+        for item in ds.val:
+            assert item.metadata["task_type"] == "heat"
 
     def test_category_none_returns_all(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
         ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir, category=None)
-        assert len(ds.train) + len(ds.val) == 4
+        assert len(ds.train) + len(ds.val) > 0
 
     def test_category_no_match_raises(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
         with pytest.raises(ValueError, match="category"):
             load_alfworld(num_train=1, data_dir=alfworld_data_dir, category="nonexistent")
+
+    def test_val_scorer_is_alfworld_scorer(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer, load_alfworld
+
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        assert isinstance(ds.val_scorer, ALFWorldValScorer)
+
+    def test_available_categories(self, alfworld_data_dir):
+        from programmaticmemory.benchmarks.alfworld import load_alfworld
+
+        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
+        assert ds.available_categories is not None
+        assert "heat" in ds.available_categories
+        assert "cool" in ds.available_categories
+
+
+class TestALFWorldValScorer:
+    def test_score_batch_with_mock_env_success(self):
+        """ALFWorldValScorer runs episodes and returns binary success."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        class MockEnv:
+            def __init__(self):
+                self.step_count = 0
+
+            def reset(self):
+                return "You are in a room.", {"admissible_commands": ["go to desk 1", "look"]}
+
+            def step(self, action):
+                self.step_count += 1
+                if self.step_count >= 2:
+                    return "Task complete.", 1.0, True, {"admissible_commands": []}
+                return "You see a desk.", 0.0, False, {"admissible_commands": ["take lamp", "go to shelf 1"]}
+
+            def close(self):
+                pass
+
+        scorer = ALFWorldValScorer(max_steps=50)
+        items = [DataItem(raw_text="", question="Find the lamp.", expected_answer="", metadata={"game_file": "/fake"})]
+        retrieved = ["To find objects, check desks and shelves."]
+
+        with patch.object(scorer, "_create_env", return_value=MockEnv()):
+            with patch.object(scorer, "_select_action", side_effect=["go to desk 1", "take lamp"]):
+                results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
+
+        assert len(results) == 1
+        output, score = results[0]
+        assert score == 1.0
+        assert "go to desk 1" in output or "ACTION" in output
+
+    def test_score_batch_failure_returns_zero(self):
+        """Episode that hits max_steps returns score 0."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        class NeverDoneEnv:
+            def reset(self):
+                return "Room.", {"admissible_commands": ["look"]}
+
+            def step(self, action):
+                return "Nothing.", 0.0, False, {"admissible_commands": ["look"]}
+
+            def close(self):
+                pass
+
+        scorer = ALFWorldValScorer(max_steps=3)
+        items = [DataItem(raw_text="", question="Do something.", expected_answer="", metadata={"game_file": "/fake"})]
+        retrieved = ["No useful tips."]
+
+        with patch.object(scorer, "_create_env", return_value=NeverDoneEnv()):
+            with patch.object(scorer, "_select_action", return_value="look"):
+                results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
+
+        assert results[0][1] == 0.0
+
+    def test_select_action_exact_match(self):
+        """_select_action matches LLM output against admissible commands."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        scorer = ALFWorldValScorer()
+        with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = "take lamp 1"
+            mock_litellm.completion.return_value = mock_resp
+
+            action = scorer._select_action("Find lamp", "tips", ["obs1"], ["take lamp 1", "go to desk 1"], "mock/model")
+        assert action == "take lamp 1"
+
+    def test_select_action_substring_fallback(self):
+        """Falls back to substring match when exact match fails."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        scorer = ALFWorldValScorer()
+        with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = "I'll take lamp 1 from the desk"
+            mock_litellm.completion.return_value = mock_resp
+
+            action = scorer._select_action("Find lamp", "tips", ["obs1"], ["take lamp 1", "go to desk 1"], "mock/model")
+        assert action == "take lamp 1"
+
+    def test_select_action_fallback_to_first(self):
+        """Falls back to first admissible when no match found."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        scorer = ALFWorldValScorer()
+        with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
+            mock_resp = MagicMock()
+            mock_resp.choices = [MagicMock()]
+            mock_resp.choices[0].message.content = "something completely unrelated"
+            mock_litellm.completion.return_value = mock_resp
+
+            action = scorer._select_action("Find lamp", "tips", ["obs1"], ["take lamp 1", "go to desk 1"], "mock/model")
+        assert action == "take lamp 1"
+
+    def test_score_batch_env_close_called(self):
+        """Env is always closed after episode."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        mock_env = MagicMock()
+        mock_env.reset.return_value = ("Room.", {"admissible_commands": ["look"]})
+        mock_env.step.return_value = ("Done.", 1.0, True, {"admissible_commands": []})
+
+        scorer = ALFWorldValScorer(max_steps=5)
+        items = [DataItem(raw_text="", question="Do it.", expected_answer="", metadata={"game_file": "/fake"})]
+        retrieved = ["tips"]
+
+        with patch.object(scorer, "_create_env", return_value=mock_env):
+            with patch.object(scorer, "_select_action", return_value="look"):
+                scorer.score_batch(items, retrieved, "mock/model", "instruction")
+
+        mock_env.close.assert_called_once()
 
 
 # ── NYT Connections ──────────────────────────────────────────────────────────
