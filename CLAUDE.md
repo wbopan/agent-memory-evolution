@@ -128,11 +128,14 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 
 - Python 3.12+, `from __future__ import annotations` in all modules
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q. S (bandit) rules are NOT enabled — do not add `# noqa: S...` directives (causes RUF100 errors)
-- Default model for all LLM roles: `openrouter/deepseek/deepseek-v3.2`
+- Default model for evolution runs: `openrouter/deepseek/deepseek-v3.2`. LLM integration tests use `openrouter/openai/gpt-5.1-codex-mini` (task) and `openrouter/openai/gpt-5.3-codex` (reflection).
 - Import whitelist for Knowledge Base Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
 - A Knowledge Base Program is a **complete Python module**: three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE) + three class definitions (Observation, Query, KnowledgeBase). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
 - Prompt template changes in `prompts.py` cascade to snapshots in `test_prompts.ambr` AND `test_reflector.ambr` — always run `--snapshot-update` for both after editing prompts
+- LLM disk cache keys include all API parameters (model, messages, temperature, max_tokens, response_format). Changing any of these invalidates cached responses, requiring re-running LLM tests with an API key.
+- LLM integration tests use two model tiers: `MODEL` (gpt-5.1-codex-mini, cheap) for task agent calls, `REFLECT_MODEL` (gpt-5.3-codex, stronger) for reflection/code-fix tests that require code reasoning.
+- `_batch_llm_call` supports `json_mode=True` for observation/query generation (adds `response_format={"type": "json_object"}`). Answer generation calls leave it off.
 - Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.
 - Inline test programs that reach execution (step 4+) in `compile_kb_program` must include the three `INSTRUCTION_*` constants or they'll get `CompileError`. Programs that fail earlier (syntax/class/import checks) don't need them.
 - All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
