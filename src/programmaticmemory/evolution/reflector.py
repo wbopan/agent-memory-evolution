@@ -20,7 +20,8 @@ from programmaticmemory.logging.logger import get_logger
 
 def _extract_code_block(text: str) -> str | None:
     """Extract the last Python code block from LLM output."""
-    matches = re.findall(r"```python\s*\n(.*?)```", text, re.DOTALL)
+    # Require closing ``` at the start of a line to avoid matching ``` inside code (e.g. regex patterns)
+    matches = re.findall(r"```python\s*\n(.*?)\n```", text, re.DOTALL)
     if matches:
         return matches[-1].strip()
     return None
@@ -66,6 +67,7 @@ class Reflector:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
+            max_tokens=16384,
             caching=True,
         )
         output = response.choices[0].message.content
@@ -129,6 +131,7 @@ class Reflector:
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
+            max_tokens=16384,
             caching=True,
         )
         output = response.choices[0].message.content

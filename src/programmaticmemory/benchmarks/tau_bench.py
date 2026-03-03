@@ -75,13 +75,16 @@ def load_tau_bench(
         train_ratio: Fraction of tasks for training.
         seed: Random seed for shuffling.
         data_dir: Override data directory.
-        category: Not supported; raises ValueError if not None (use domain= kwarg instead).
+        category: Filter by domain ("retail" or "airline"). Overrides domain= if set.
 
     Returns:
         Dataset with ExactMatchScorer.
     """
+    all_domains = sorted(_FILES.keys())
     if category is not None:
-        raise ValueError("tau_bench does not support category filtering (use domain= kwarg instead)")
+        if category not in _FILES:
+            raise ValueError(f"Unknown tau_bench category {category!r}. Available: {', '.join(all_domains)}")
+        domain = category
     dest_dir = ensure_data(domain, data_dir)
     tasks_path = dest_dir / domain / "tasks.py"
     tasks = _parse_tasks_file(tasks_path)
@@ -101,4 +104,4 @@ def load_tau_bench(
     train = items[:split]
     val = items[split:]
 
-    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer())
+    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer(), available_categories=all_domains)
