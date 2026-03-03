@@ -42,7 +42,7 @@ def _parse_extra_kwargs(extra: list[str]) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Run Memory Program evolution",
+        description="Run Knowledge Base Program evolution",
         epilog="Benchmark-specific args: pass as key=value after flags (e.g. num_items=10 difficulty=simple)",
     )
     parser.add_argument("--dataset", default="kv_memory", help="Dataset name (default: kv_memory)")

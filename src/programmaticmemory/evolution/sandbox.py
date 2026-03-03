@@ -1,4 +1,4 @@
-"""Sandbox — compile, validate, and execute generated Memory Programs safely."""
+"""Sandbox — compile, validate, and execute generated Knowledge Base Programs safely."""
 
 from __future__ import annotations
 
@@ -42,7 +42,7 @@ class CompiledProgram:
 
     obs_cls: type
     query_cls: type
-    memory_cls: type
+    kb_cls: type
     instruction_observation: str
     instruction_query: str
     instruction_response: str
@@ -91,10 +91,10 @@ class _ClassFinder(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def compile_memory_program(
+def compile_kb_program(
     source_code: str,
 ) -> CompiledProgram | CompileError:
-    """Compile memory program source code and extract Observation, Query, Memory classes.
+    """Compile knowledge base program source code and extract Observation, Query, KnowledgeBase classes.
 
     Returns CompiledProgram on success, CompileError on failure.
     """
@@ -107,7 +107,7 @@ def compile_memory_program(
     # 2. Check required classes exist
     finder = _ClassFinder()
     finder.visit(tree)
-    required = {"Observation", "Query", "Memory"}
+    required = {"Observation", "Query", "KnowledgeBase"}
     missing = required - finder.class_names
     if missing:
         return CompileError(
@@ -179,7 +179,7 @@ def compile_memory_program(
     return CompiledProgram(
         obs_cls=namespace["Observation"],
         query_cls=namespace["Query"],
-        memory_cls=namespace["Memory"],
+        kb_cls=namespace["KnowledgeBase"],
         instruction_observation=namespace["INSTRUCTION_OBSERVATION"],
         instruction_query=namespace["INSTRUCTION_QUERY"],
         instruction_response=namespace["INSTRUCTION_RESPONSE"],
@@ -252,14 +252,14 @@ def smoke_test(
     """Compile and run a basic write/read cycle to verify the program works."""
 
     def _run() -> SmokeTestResult:
-        result = compile_memory_program(source_code)
+        result = compile_kb_program(source_code)
         if isinstance(result, CompileError):
             return SmokeTestResult(success=False, error=f"Compile: {result.message} — {result.details}")
 
-        obs_cls, query_cls, memory_cls = result.obs_cls, result.query_cls, result.memory_cls
+        obs_cls, query_cls, kb_cls = result.obs_cls, result.query_cls, result.kb_cls
         toolkit = Toolkit(toolkit_config or ToolkitConfig(llm_model="smoke-test/noop"))
         try:
-            memory = memory_cls(toolkit)
+            kb = kb_cls(toolkit)
 
             # Try a basic write
             if dataclasses.is_dataclass(obs_cls):
@@ -274,7 +274,7 @@ def smoke_test(
                 obs = obs_cls(**kwargs)
             else:
                 obs = obs_cls("smoke test value")
-            memory.write(obs)
+            kb.write(obs)
 
             # Try a basic read
             if dataclasses.is_dataclass(query_cls):
@@ -289,7 +289,7 @@ def smoke_test(
                 query = query_cls(**kwargs)
             else:
                 query = query_cls("smoke test query")
-            memory.read(query)
+            kb.read(query)
 
             return SmokeTestResult(success=True)
         except Exception as e:

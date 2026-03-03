@@ -22,9 +22,9 @@ from programmaticmemory.evolution.evaluator import (
     _guarded_write,
     _parse_json_from_llm,
 )
-from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
+from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.toolkit import ToolkitConfig
-from programmaticmemory.evolution.types import DataItem, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, KBProgram
 
 _TEST_TOOLKIT_CONFIG = ToolkitConfig(llm_model="test/model")
 
@@ -145,25 +145,25 @@ def _make_batch_mock(response_batches: list[list[str]]):
 class TestMemoryLifecycle:
     def test_initial_program_instantiates(self):
         """Initial memory program template can be instantiated."""
-        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_memory_program
+        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_kb_program
         from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
-        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        result = compile_kb_program(INITIAL_KB_PROGRAM)
         assert isinstance(result, CompiledProgram)
         tk = Toolkit(ToolkitConfig(llm_model="test/model"))
-        memory = result.memory_cls(tk)
+        memory = result.kb_cls(tk)
         assert memory is not None
         tk.close()
 
     def test_write_then_read_returns_content(self):
         """Write followed by read should return the written content."""
-        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_memory_program
+        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_kb_program
         from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
-        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        result = compile_kb_program(INITIAL_KB_PROGRAM)
         assert isinstance(result, CompiledProgram)
         tk = Toolkit(ToolkitConfig(llm_model="test/model"))
-        memory = result.memory_cls(tk)
+        memory = result.kb_cls(tk)
         memory.write(result.obs_cls(raw="The sky is blue."))
         output = memory.read(result.query_cls(raw="sky"))
         assert "The sky is blue." in output
@@ -171,21 +171,21 @@ class TestMemoryLifecycle:
 
     def test_reinstantiation_gives_empty_memory(self):
         """Re-instantiating Memory should produce an empty store (no state leak)."""
-        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_memory_program
+        from programmaticmemory.evolution.sandbox import CompiledProgram, compile_kb_program
         from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 
-        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        result = compile_kb_program(INITIAL_KB_PROGRAM)
         assert isinstance(result, CompiledProgram)
         tk = Toolkit(ToolkitConfig(llm_model="test/model"))
 
         # First instance: write data
-        mem1 = result.memory_cls(tk)
+        mem1 = result.kb_cls(tk)
         mem1.write(result.obs_cls(raw="secret data"))
         output1 = mem1.read(result.query_cls(raw="anything"))
         assert "secret data" in output1
 
         # Second instance: should be empty
-        mem2 = result.memory_cls(tk)
+        mem2 = result.kb_cls(tk)
         output2 = mem2.read(result.query_cls(raw="anything"))
         assert "secret data" not in output2
         tk.close()
@@ -207,7 +207,7 @@ class TestMemoryEvaluatorOffline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
             DataItem(raw_text="France capital is Paris.", question="q", expected_answer="e"),
             DataItem(raw_text="Germany capital is Berlin.", question="q", expected_answer="e"),
@@ -239,7 +239,7 @@ class TestMemoryEvaluatorOffline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is the capital of France?", expected_answer="Paris")]
 
@@ -252,7 +252,7 @@ class TestMemoryEvaluatorOffline:
         assert batch_mock.captured_calls == snapshot
 
     def test_compile_error_returns_zero(self):
-        program = MemoryProgram(source_code="invalid python {{{}}")
+        program = KBProgram(source_code="invalid python {{{}}")
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(
             program,
@@ -274,7 +274,7 @@ class TestMemoryEvaluatorOffline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [
             DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
@@ -310,7 +310,7 @@ class TestMemoryEvaluatorOnline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="obs stored")]
 
@@ -348,7 +348,7 @@ class TestMemoryEvaluatorOnline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
@@ -373,7 +373,7 @@ class TestMemoryEvaluatorOnline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
@@ -397,7 +397,7 @@ class TestMemoryEvaluatorOnline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="stored via online")]
 
@@ -421,7 +421,7 @@ class TestMemoryEvaluatorOnline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="correct answer")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
@@ -453,7 +453,7 @@ class TestValidationPipeline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="answer")]
 
@@ -478,7 +478,7 @@ class TestValidationPipeline:
         )
         mock_litellm.batch_completion = batch_mock
 
-        # Use a memory program that tracks write calls
+        # Use a KB program that tracks write calls
         tracking_program = """\
 from dataclasses import dataclass
 
@@ -494,7 +494,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.toolkit = toolkit
         self.store = []
@@ -508,7 +508,7 @@ class Memory:
     def read(self, query):
         return " ".join(self.store) if self.store else "empty"
 """
-        program = MemoryProgram(source_code=tracking_program)
+        program = KBProgram(source_code=tracking_program)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
         val = [DataItem(raw_text="", question="VQ?", expected_answer="va")]
 
@@ -531,7 +531,7 @@ class Memory:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="Q?", expected_answer="correct")]
 
@@ -558,7 +558,7 @@ class Memory:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="What is X?", expected_answer="the answer")]
 
@@ -590,7 +590,7 @@ class TestEvaluatorEdgeCases:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="answer")]
 
@@ -613,7 +613,7 @@ class TestEvaluatorEdgeCases:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
         val = [DataItem(raw_text="x", question="q?", expected_answer="a")]
 
@@ -626,7 +626,7 @@ class TestEvaluatorEdgeCases:
 
     def test_empty_val_data(self, snapshot: SnapshotAssertion):
         """Empty val data should return score 0 without crashing."""
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
             batch_mock = _make_batch_mock(
@@ -655,7 +655,7 @@ class TestEvaluatorEdgeCases:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="f1", question="q", expected_answer="e")]
         val = [
             DataItem(raw_text="x", question="Q1?", expected_answer="correct1"),
@@ -684,7 +684,7 @@ class TestEvaluatorEdgeCases:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
             DataItem(raw_text="f1", question="q", expected_answer="e"),
             DataItem(raw_text="f2", question="q", expected_answer="e"),
@@ -722,7 +722,7 @@ class TestEvaluatorEdgeCases:
 
         mock_litellm.batch_completion = mock_batch_completion
 
-        program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
             DataItem(raw_text="bad item", question="q", expected_answer="e"),
             DataItem(raw_text="France capital Paris.", question="q", expected_answer="e"),
@@ -809,7 +809,7 @@ OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
     class Query:
         question: str
 
-    class Memory:
+    class KnowledgeBase:
         def __init__(self, toolkit):
             pass
 
@@ -824,7 +824,7 @@ OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
 class TestRuntimeViolationEarlyAbort:
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_oversized_read_aborts_eval(self, mock_litellm):
-        """Eval aborts on first memory.read() returning >1000 chars."""
+        """Eval aborts on first kb.read() returning >1000 chars."""
         batch_mock = _make_batch_mock(
             [
                 ['{"content": "hello"}'],  # train obs batch
@@ -834,7 +834,7 @@ class TestRuntimeViolationEarlyAbort:
         )
         mock_litellm.batch_completion = batch_mock
 
-        program = MemoryProgram(source_code=OVERSIZED_READ_PROGRAM)
+        program = KBProgram(source_code=OVERSIZED_READ_PROGRAM)
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         train = [DataItem(raw_text="hello", question="q", expected_answer="a")]
         val = [DataItem(raw_text="x", question="what?", expected_answer="x")]

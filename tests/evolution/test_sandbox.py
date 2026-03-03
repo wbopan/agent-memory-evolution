@@ -3,7 +3,7 @@
 from programmaticmemory.evolution.sandbox import (
     CompiledProgram,
     CompileError,
-    compile_memory_program,
+    compile_kb_program,
     extract_dataclass_schema,
     smoke_test,
 )
@@ -23,7 +23,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.toolkit = toolkit
         self.store = []
@@ -49,7 +49,7 @@ from dataclasses import dataclass
 class Observation:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit): pass
     def write(self, obs): pass
     def read(self, query): return ""
@@ -67,7 +67,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit): pass
     def write(self, obs): pass
     def read(self, query): return ""
@@ -88,7 +88,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         raise ValueError("init error")
 
@@ -111,7 +111,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
@@ -123,27 +123,27 @@ class Memory:
 """
 
 
-class TestCompileMemoryProgram:
+class TestCompileKBProgram:
     def test_valid_program(self):
-        result = compile_memory_program(VALID_PROGRAM)
+        result = compile_kb_program(VALID_PROGRAM)
         assert isinstance(result, CompiledProgram)
         assert result.obs_cls.__name__ == "Observation"
         assert result.query_cls.__name__ == "Query"
-        assert result.memory_cls.__name__ == "Memory"
+        assert result.kb_cls.__name__ == "KnowledgeBase"
 
     def test_syntax_error(self):
-        result = compile_memory_program(SYNTAX_ERROR_PROGRAM)
+        result = compile_kb_program(SYNTAX_ERROR_PROGRAM)
         assert isinstance(result, CompileError)
         assert "Syntax error" in result.message
 
     def test_missing_class(self):
-        result = compile_memory_program(MISSING_CLASS_PROGRAM)
+        result = compile_kb_program(MISSING_CLASS_PROGRAM)
         assert isinstance(result, CompileError)
         assert "Missing required class" in result.message
         assert "Query" in result.message
 
     def test_disallowed_import(self):
-        result = compile_memory_program(DISALLOWED_IMPORT_PROGRAM)
+        result = compile_kb_program(DISALLOWED_IMPORT_PROGRAM)
         assert isinstance(result, CompileError)
         assert "Import whitelist" in result.message
         assert "os" in result.details
@@ -169,7 +169,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.data = defaultdict(list)
     def write(self, obs):
@@ -178,7 +178,7 @@ class Memory:
     def read(self, query):
         return json.dumps(dict(self.data))
 """
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         assert not isinstance(result, CompileError)
 
     def test_chromadb_import_allowed(self):
@@ -198,7 +198,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.col = toolkit.chroma.get_or_create_collection("mem")
     def write(self, obs):
@@ -207,7 +207,7 @@ class Memory:
         results = self.col.query(query_texts=[query.raw], n_results=3)
         return str(results["documents"])
 """
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         assert not isinstance(result, CompileError)
 
     def test_runtime_execution_error(self):
@@ -227,12 +227,12 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit): pass
     def write(self, obs): pass
     def read(self, query): return ""
 """
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         assert isinstance(result, CompileError)
         assert "Execution error" in result.message
 
@@ -248,19 +248,19 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit): pass
     def write(self, obs): pass
     def read(self, query): return ""
 """
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         assert isinstance(result, CompileError)
         assert "Missing required constant" in result.message
 
 
 class TestExtractDataclassSchema:
     def test_simple_dataclass(self):
-        result = compile_memory_program(VALID_PROGRAM)
+        result = compile_kb_program(VALID_PROGRAM)
         assert isinstance(result, CompiledProgram)
         schema = extract_dataclass_schema(result.obs_cls)
         assert "Observation" in schema
@@ -287,12 +287,12 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit): pass
     def write(self, obs): pass
     def read(self, query): return ""
 """
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         assert isinstance(result, CompiledProgram)
         schema = extract_dataclass_schema(result.obs_cls)
         assert '"text"' in schema
@@ -317,21 +317,21 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit): pass
     def write(self, obs): pass
     def read(self, query): return ""
 """
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         assert isinstance(result, CompiledProgram)
         schema = extract_dataclass_schema(result.obs_cls)
         assert "The main content to store" in schema
         assert "Category tag" in schema
 
     def test_non_dataclass(self):
-        result = compile_memory_program(VALID_PROGRAM)
+        result = compile_kb_program(VALID_PROGRAM)
         assert isinstance(result, CompiledProgram)
-        schema = extract_dataclass_schema(result.memory_cls)
+        schema = extract_dataclass_schema(result.kb_cls)
         assert "not a dataclass" in schema
 
 
@@ -368,7 +368,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         start = datetime.now()
         while (datetime.now() - start).total_seconds() < 0.5:

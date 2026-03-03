@@ -6,27 +6,27 @@ from programmaticmemory.evolution.types import (
     EvolutionRecord,
     EvolutionState,
     FailedCase,
-    MemoryProgram,
+    KBProgram,
 )
 
 
-class TestMemoryProgram:
+class TestKBProgram:
     def test_content_hash_deterministic(self):
-        p1 = MemoryProgram(source_code="class A: pass")
-        p2 = MemoryProgram(source_code="class A: pass")
+        p1 = KBProgram(source_code="class A: pass")
+        p2 = KBProgram(source_code="class A: pass")
         assert p1.hash == p2.hash
 
     def test_content_hash_differs_for_different_code(self):
-        p1 = MemoryProgram(source_code="class A: pass")
-        p2 = MemoryProgram(source_code="class B: pass")
+        p1 = KBProgram(source_code="class A: pass")
+        p2 = KBProgram(source_code="class B: pass")
         assert p1.hash != p2.hash
 
     def test_hash_is_16_chars(self):
-        p = MemoryProgram(source_code="x = 1")
+        p = KBProgram(source_code="x = 1")
         assert len(p.hash) == 16
 
     def test_frozen(self):
-        p = MemoryProgram(source_code="x = 1")
+        p = KBProgram(source_code="x = 1")
         try:
             p.source_code = "y = 2"
             assert False, "Should be frozen"
@@ -34,13 +34,13 @@ class TestMemoryProgram:
             pass
 
     def test_defaults(self):
-        p = MemoryProgram(source_code="x")
+        p = KBProgram(source_code="x")
         assert p.generation == 0
         assert p.parent_hash is None
 
     def test_with_parent(self):
-        parent = MemoryProgram(source_code="v1")
-        child = MemoryProgram(source_code="v2", generation=1, parent_hash=parent.hash)
+        parent = KBProgram(source_code="v1")
+        child = KBProgram(source_code="v2", generation=1, parent_hash=parent.hash)
         assert child.generation == 1
         assert child.parent_hash == parent.hash
 
@@ -102,7 +102,7 @@ class TestEvalResult:
 
 class TestEvolutionState:
     def test_construction(self):
-        p = MemoryProgram(source_code="x")
+        p = KBProgram(source_code="x")
         state = EvolutionState(
             best_program=p,
             best_score=0.8,
@@ -113,7 +113,7 @@ class TestEvolutionState:
         assert state.total_iterations == 0
 
     def test_with_history(self):
-        p = MemoryProgram(source_code="x")
+        p = KBProgram(source_code="x")
         record = EvolutionRecord(iteration=1, program=p, score=0.9, accepted=True)
         state = EvolutionState(
             best_program=p,

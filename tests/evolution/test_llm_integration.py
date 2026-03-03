@@ -14,7 +14,7 @@ from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.evaluator import MEMORY_READ_MAX_CHARS, MemoryEvaluator, _parse_json_from_llm
 from programmaticmemory.evolution.prompts import (
-    INITIAL_MEMORY_PROGRAM,
+    INITIAL_KB_PROGRAM,
     build_observation_generation_prompt,
     build_observation_with_feedback_prompt,
     build_query_generation_prompt,
@@ -25,11 +25,11 @@ from programmaticmemory.evolution.reflector import Reflector, _extract_code_bloc
 from programmaticmemory.evolution.sandbox import (
     CompiledProgram,
     CompileError,
-    compile_memory_program,
+    compile_kb_program,
     extract_dataclass_schema,
 )
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
-from programmaticmemory.evolution.types import DataItem, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, KBProgram
 
 MODEL = "openrouter/deepseek/deepseek-v3.2"
 
@@ -41,8 +41,8 @@ def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str
 
 
 def _get_obs_query_schema() -> tuple[str, str]:
-    """Compile INITIAL_MEMORY_PROGRAM and return (obs_schema, query_schema)."""
-    result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+    """Compile INITIAL_KB_PROGRAM and return (obs_schema, query_schema)."""
+    result = compile_kb_program(INITIAL_KB_PROGRAM)
     assert isinstance(result, CompiledProgram)
     return extract_dataclass_schema(result.obs_cls), extract_dataclass_schema(result.query_cls)
 
@@ -192,7 +192,7 @@ def test_reflection(snapshot: SnapshotAssertion):
     ]
 
     user_prompt = build_reflection_user_prompt(
-        code=INITIAL_MEMORY_PROGRAM,
+        code=INITIAL_KB_PROGRAM,
         score=0.3,
         failed_cases=failed_cases,
         iteration=1,
@@ -210,11 +210,11 @@ def test_reflection(snapshot: SnapshotAssertion):
     assert code is not None, "Failed to extract code block from reflection output"
 
     # Code must compile and define all three classes
-    compile_result = compile_memory_program(code)
+    compile_result = compile_kb_program(code)
     assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
     assert compile_result.obs_cls.__name__ == "Observation"
     assert compile_result.query_cls.__name__ == "Query"
-    assert compile_result.memory_cls.__name__ == "Memory"
+    assert compile_result.kb_cls.__name__ == "KnowledgeBase"
 
     assert {
         "prompt": user_prompt,
@@ -235,7 +235,7 @@ def test_end_to_end_offline(snapshot: SnapshotAssertion):
     Prompts are generated internally by MemoryEvaluator; this test snapshots
     the evaluation results only.
     """
-    program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+    program = KBProgram(source_code=INITIAL_KB_PROGRAM)
     train_data = [
         DataItem(
             raw_text="The capital of France is Paris.",
@@ -278,7 +278,7 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
     Val has 1 sample that requires combining knowledge from both train items
     (favorite fruit + favorite color → green apple).
     """
-    program = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+    program = KBProgram(source_code=INITIAL_KB_PROGRAM)
     train_data = [
         DataItem(
             raw_text="",
@@ -322,7 +322,7 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
 # 3i. Reflection Recovery (broken program → reflect → working program)
 # ---------------------------------------------------------------------------
 
-BROKEN_MEMORY_PROGRAM = '''\
+BROKEN_KB_PROGRAM = '''\
 from dataclasses import dataclass
 
 INSTRUCTION_OBSERVATION = ""
@@ -342,8 +342,8 @@ class Query:
     raw: str
 
 
-class Memory:
-    """Memory with broken read — always reports empty."""
+class KnowledgeBase:
+    """KnowledgeBase with broken read — always reports empty."""
 
     def __init__(self, toolkit):
         self.toolkit = toolkit
@@ -368,7 +368,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     evaluates it (score 0), reflects on the failure, and verifies the reflected
     program scores higher.
     """
-    program = MemoryProgram(source_code=BROKEN_MEMORY_PROGRAM)
+    program = KBProgram(source_code=BROKEN_KB_PROGRAM)
     train_data = [
         DataItem(
             raw_text="",
@@ -424,7 +424,7 @@ class Query:
     raw: str
 
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
@@ -454,7 +454,7 @@ class Query:
     raw: str
 
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.toolkit = toolkit
         self.store = []
@@ -474,7 +474,7 @@ def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
     from programmaticmemory.evolution.sandbox import smoke_test
 
     # Step 1: Verify the program is broken
-    compile_result = compile_memory_program(PROGRAM_WITH_DISALLOWED_IMPORT)
+    compile_result = compile_kb_program(PROGRAM_WITH_DISALLOWED_IMPORT)
     assert isinstance(compile_result, CompileError), f"Expected CompileError, got {type(compile_result)}"
     assert "numpy" in compile_result.details.lower() or "import" in compile_result.message.lower()
 
@@ -488,11 +488,11 @@ def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
     assert fixed_code is not None, "LLM failed to produce a fix"
 
     # Step 3: Verify the fix compiles
-    fixed_result = compile_memory_program(fixed_code)
+    fixed_result = compile_kb_program(fixed_code)
     assert isinstance(fixed_result, CompiledProgram), f"Fixed code still fails to compile: {fixed_result}"
     assert fixed_result.obs_cls.__name__ == "Observation"
     assert fixed_result.query_cls.__name__ == "Query"
-    assert fixed_result.memory_cls.__name__ == "Memory"
+    assert fixed_result.kb_cls.__name__ == "KnowledgeBase"
 
     # Step 4: Verify the fix passes smoke test
     st = smoke_test(fixed_code)
@@ -511,7 +511,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
     from programmaticmemory.evolution.sandbox import smoke_test
 
     # Step 1: Program compiles but fails smoke test
-    compile_result = compile_memory_program(PROGRAM_WITH_RUNTIME_BUG)
+    compile_result = compile_kb_program(PROGRAM_WITH_RUNTIME_BUG)
     assert isinstance(compile_result, CompiledProgram), f"Expected compile success, got {compile_result}"
 
     st = smoke_test(PROGRAM_WITH_RUNTIME_BUG)
@@ -528,7 +528,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
     assert fixed_code is not None, "LLM failed to produce a fix"
 
     # Step 3: Verify the fix compiles and passes smoke test
-    fixed_compile = compile_memory_program(fixed_code)
+    fixed_compile = compile_kb_program(fixed_code)
     assert isinstance(fixed_compile, CompiledProgram), f"Fixed code fails to compile: {fixed_compile}"
 
     fixed_st = smoke_test(fixed_code)
@@ -544,7 +544,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
 # 3k. Runtime Violation Fix (oversized read → detect → LLM fix → within limits)
 # ---------------------------------------------------------------------------
 
-OVERSIZED_READ_MEMORY_PROGRAM = """\
+OVERSIZED_READ_KB_PROGRAM = """\
 from dataclasses import dataclass
 
 INSTRUCTION_OBSERVATION = ""
@@ -562,7 +562,7 @@ class Query:
     raw: str
 
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.toolkit = toolkit
         self.store: list[str] = []
@@ -580,7 +580,7 @@ class Memory:
 def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
     """Oversized read output → detected by eval → LLM fixes → output within limits."""
     # Step 1: Evaluate with real LLM — should detect runtime violation
-    program = MemoryProgram(source_code=OVERSIZED_READ_MEMORY_PROGRAM)
+    program = KBProgram(source_code=OVERSIZED_READ_KB_PROGRAM)
     train_data = [
         DataItem(
             raw_text="Project Zephyr's access code is DELTA-7742.",
@@ -600,19 +600,19 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
 
     # Step 2: LLM fixes the runtime violation
     reflector = Reflector(model=MODEL, temperature=0.0)
-    fixed_code = reflector.fix_runtime_violation(OVERSIZED_READ_MEMORY_PROGRAM, result.runtime_violation)
+    fixed_code = reflector.fix_runtime_violation(OVERSIZED_READ_KB_PROGRAM, result.runtime_violation)
     assert fixed_code is not None, "Reflector failed to produce a fix"
 
     # Step 3: Verify the fixed read() output respects the char limit
     # Compile to get classes (smoke_test already passed inside fix_runtime_violation)
-    fixed_compile = compile_memory_program(fixed_code)
+    fixed_compile = compile_kb_program(fixed_code)
     assert isinstance(fixed_compile, CompiledProgram), f"Fixed code fails to compile: {fixed_compile}"
     toolkit = Toolkit(ToolkitConfig(llm_model=MODEL, llm_call_budget=5))
     try:
         # Clear collections left by smoke_test (EphemeralClient shares in-process state)
         for col in toolkit.chroma.list_collections():
             toolkit.chroma.delete_collection(col.name)
-        memory = fixed_compile.memory_cls(toolkit)
+        memory = fixed_compile.kb_cls(toolkit)
 
         # Build obs/query dynamically from dataclass fields (LLM may rename fields)
         obs_kwargs = {

@@ -5,12 +5,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: x
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -29,12 +29,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: f1
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -47,12 +47,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: f2
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -67,12 +67,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q1?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -85,12 +85,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q2?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -105,12 +105,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q1?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -130,7 +130,7 @@
             f2
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -138,12 +138,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q2?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -163,7 +163,7 @@
             f2
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -177,12 +177,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: fact
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -197,12 +197,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -217,12 +217,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -241,7 +241,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -255,12 +255,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: fact
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -275,12 +275,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -299,12 +299,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: f1
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -319,12 +319,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q1?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -337,12 +337,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q2?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -357,12 +357,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q1?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -381,7 +381,7 @@
             f1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -389,12 +389,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q2?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -413,7 +413,7 @@
             f1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -427,12 +427,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: France capital is Paris.
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -445,12 +445,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: Germany capital is Berlin.
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -465,12 +465,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Capital of France?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -483,12 +483,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Capital of Germany?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -503,12 +503,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Capital of France?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -528,7 +528,7 @@
             Germany capital is Berlin.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -536,12 +536,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Capital of Germany?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -561,7 +561,7 @@
             Germany capital is Berlin.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -575,12 +575,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: fact
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -595,12 +595,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q1?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -613,12 +613,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q2?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -633,12 +633,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q1?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -657,7 +657,7 @@
             obs1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -665,12 +665,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q2?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -689,7 +689,7 @@
             obs1
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -703,12 +703,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: The capital of France is Paris.
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -723,12 +723,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: What is the capital of France?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -743,12 +743,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: What is the capital of France?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -767,7 +767,7 @@
             The capital of France is Paris.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -781,12 +781,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -801,12 +801,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -825,7 +825,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -835,12 +835,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -859,7 +859,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -872,10 +872,10 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             The observation must be a JSON object matching this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -890,12 +890,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -910,12 +910,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -934,7 +934,7 @@
             obs
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -948,12 +948,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -968,12 +968,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -992,7 +992,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1002,12 +1002,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1026,7 +1026,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1039,10 +1039,10 @@
             Evaluation result: Score: 0.0 (incorrect)
             Ground truth: correct answer
             
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             The observation must be a JSON object matching this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1057,12 +1057,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1077,12 +1077,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1101,7 +1101,7 @@
             obs
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1115,12 +1115,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1135,12 +1135,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1159,7 +1159,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1169,12 +1169,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1193,7 +1193,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1206,10 +1206,10 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             The observation must be a JSON object matching this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1224,12 +1224,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1244,12 +1244,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1268,7 +1268,7 @@
             parsed observation value
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1282,12 +1282,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1302,12 +1302,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1326,7 +1326,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1336,12 +1336,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1360,7 +1360,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1373,10 +1373,10 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             The observation must be a JSON object matching this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1391,12 +1391,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1411,12 +1411,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1435,7 +1435,7 @@
             obs stored
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1449,12 +1449,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1469,12 +1469,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1493,7 +1493,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1503,12 +1503,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1527,7 +1527,7 @@
             No information stored.
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1540,10 +1540,10 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             The observation must be a JSON object matching this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1558,12 +1558,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1578,12 +1578,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: VQ?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1602,7 +1602,7 @@
             stored via online
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1616,12 +1616,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: fact
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1636,12 +1636,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1656,12 +1656,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1680,7 +1680,7 @@
             fact
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1861,12 +1861,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: fact
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1881,12 +1881,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: What is X?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1901,12 +1901,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: What is X?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1925,7 +1925,7 @@
             fact
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),
@@ -1939,12 +1939,12 @@
       list([
         dict({
           'content': '''
-            Given the following text, create an Observation object to store this information in memory. Include all key information.
+            Given the following text, create an Observation object to store this information in the knowledge base. Include all key information.
             
             Text: fact
             
             The Observation must conform to this schema:
-            // Observation: Raw text observation to store in memory.
+            // Observation: Raw text observation to store in the knowledge base.
             {
               "raw": "..."  // str, The raw text to store
             }
@@ -1959,12 +1959,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -1979,12 +1979,12 @@
       list([
         dict({
           'content': '''
-            Given the following question, generate a query to retrieve relevant memory.
+            Given the following question, generate a query to retrieve relevant knowledge.
             
             Question: Q?
             
             The query must be a JSON object matching this schema:
-            // Query: Raw text query to retrieve from memory.
+            // Query: Raw text query to retrieve from the knowledge base.
             {
               "raw": "..."  // str, The query text to search for
             }
@@ -2003,7 +2003,7 @@
             fact
             </retrieved_memory>
             
-            Based on the above memory and the original question, provide a short answer without explanation.
+            Based on the above knowledge and the original question, provide a short answer without explanation.
           ''',
           'role': 'user',
         }),

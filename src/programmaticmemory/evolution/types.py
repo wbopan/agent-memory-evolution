@@ -14,10 +14,10 @@ class Scorer(Protocol):
 
 
 @dataclass(frozen=True)
-class MemoryProgram:
-    """A candidate memory program — the unit of evolution.
+class KBProgram:
+    """A candidate knowledge base program — the unit of evolution.
 
-    Contains the full source code defining Observation, Query, and Memory classes.
+    Contains the full source code defining Observation, Query, and KnowledgeBase classes.
     Tracked by content hash for deduplication.
     """
 
@@ -75,12 +75,13 @@ class TrainExample:
 
 @dataclass
 class EvalResult:
-    """Aggregated evaluation result for a memory program."""
+    """Aggregated evaluation result for a knowledge base program."""
 
     score: float
     per_case_scores: list[float] = field(default_factory=list)
     per_case_outputs: list[str] = field(default_factory=list)
     failed_cases: list[FailedCase] = field(default_factory=list)
+    success_cases: list[FailedCase] = field(default_factory=list)
     logs: list[str] = field(default_factory=list)
     train_examples: list[TrainExample] = field(default_factory=list)
     runtime_violation: str | None = None
@@ -91,7 +92,7 @@ class EvolutionRecord:
     """Record of a single evolution iteration."""
 
     iteration: int
-    program: MemoryProgram
+    program: KBProgram
     score: float
     accepted: bool
 
@@ -100,9 +101,9 @@ class EvolutionRecord:
 class EvolutionState:
     """Full state of an evolution run."""
 
-    best_program: MemoryProgram
+    best_program: KBProgram
     best_score: float
-    current_program: MemoryProgram
+    current_program: KBProgram
     current_score: float
     history: list[EvolutionRecord] = field(default_factory=list)
     total_iterations: int = 0

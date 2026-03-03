@@ -17,22 +17,22 @@ class ReflectionPromptConfig:
     max_memory_log_chars: int = 0  # 0 = exclude memory logs entirely
 
 
-MEMORY_INTERFACE_SPEC = """\
-You are designing a Memory Program that implements three classes:
+KB_INTERFACE_SPEC = """\
+You are designing a Knowledge Base Program that implements three classes:
 
-1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
    - Must be a @dataclass with typed fields
    - An external LLM will populate instances by generating JSON matching your field definitions
    - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
    - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
    - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
 
-2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
    - Must be a @dataclass with typed fields
    - An external LLM will populate instances by generating JSON matching your field definitions
    - Same JSON-compatible type restriction and field description support as Observation
 
-3. **Memory** (class): The core memory system.
+3. **KnowledgeBase** (class): The core knowledge base system.
    - `__init__(self, toolkit)`: Receives a Toolkit with:
      - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
      - `toolkit.chroma`: chromadb ephemeral client
@@ -47,7 +47,7 @@ Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, date
 
 These limits are enforced during evaluation. Violating them results in score = 0.
 
-- **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+- **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
 - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
 - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
 
@@ -62,28 +62,28 @@ Three module-level string constants provide the natural-language instructions us
 These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
 """
 
-INITIAL_MEMORY_PROGRAM = '''\
+INITIAL_KB_PROGRAM = '''\
 from dataclasses import dataclass, field
 
-INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in memory. Include all key information."
-INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant memory."
-INSTRUCTION_RESPONSE = "Based on the above memory and the original question, provide a short answer without explanation."
+INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in the knowledge base. Include all key information."
+INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
+INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
 
 
 @dataclass
 class Observation:
-    """Raw text observation to store in memory."""
+    """Raw text observation to store in the knowledge base."""
     raw: str = field(metadata={"description": "The raw text to store"})
 
 
 @dataclass
 class Query:
-    """Raw text query to retrieve from memory."""
+    """Raw text query to retrieve from the knowledge base."""
     raw: str = field(metadata={"description": "The query text to search for"})
 
 
-class Memory:
-    """Simple append-all / return-all memory."""
+class KnowledgeBase:
+    """Simple append-all / return-all knowledge base."""
 
     def __init__(self, toolkit):
         self.toolkit = toolkit
@@ -201,7 +201,7 @@ Read these to understand the format of the source documents.
 
     if deduplicated_logs_section:
         deduplicated_logs_section = f"""
-The following debug logs were produced by the current Memory Program during the write examples above. \
+The following debug logs were produced by the current Knowledge Base Program during the write examples above. \
 These are the outputs of `toolkit.logger.debug()` calls within `write()` and `read()`.
 
 {deduplicated_logs_section}"""
@@ -235,19 +235,19 @@ The following cases show poor performance on the validation set after memory has
 Each case contains the full retrieval-and-answer conversation trajectory."""
 
     return f"""\
-You are an expert Python programmer specializing in memory system design.
+You are an expert Python programmer specializing in knowledge base system design.
 
-Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), \
+Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), \
 its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <interface_spec>
-{MEMORY_INTERFACE_SPEC}
+{KB_INTERFACE_SPEC}
 </interface_spec>
 
 <rules>
 1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
 5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
 6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -269,7 +269,7 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <task>
 1. Diagnose why these cases fail.
-2. Propose specific improvements to the Memory Program.
+2. Propose specific improvements to the Knowledge Base Program.
 3. Output the complete improved code in a ```python``` block.
 </task>"""
 
@@ -355,14 +355,14 @@ Respond with the JSON only."""
 def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> str:
     """Build user prompt for fixing a compile/runtime error."""
     return f"""\
-You are an expert Python programmer. A Memory Program failed to compile or run.
+You are an expert Python programmer. A Knowledge Base Program failed to compile or run.
 Fix the error and output the complete corrected code in a ```python``` block.
 
-{MEMORY_INTERFACE_SPEC}
+{KB_INTERFACE_SPEC}
 
 Rules:
 1. Output ONLY the corrected code in a ```python``` block. No explanation needed.
-2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
 4. Make minimal changes — fix only what's broken.
 

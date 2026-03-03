@@ -1,18 +1,18 @@
-"""Evolution loop — the main GEPA cycle for Memory Program optimization."""
+"""Evolution loop — the main GEPA cycle for Knowledge Base Program optimization."""
 
 from __future__ import annotations
 
 import weave
 
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
-from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
+from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.types import (
     Dataset,
     EvolutionRecord,
     EvolutionState,
     FailedCase,
-    MemoryProgram,
+    KBProgram,
 )
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.logger import get_logger
@@ -34,14 +34,14 @@ def _serialize_failed_cases(failed_cases: list[FailedCase]) -> list[dict]:
 
 
 class EvolutionLoop:
-    """Serial greedy evolution loop for Memory Programs."""
+    """Serial greedy evolution loop for Knowledge Base Programs."""
 
     def __init__(
         self,
         evaluator: MemoryEvaluator,
         reflector: Reflector,
         dataset: Dataset,
-        initial_program: MemoryProgram | None = None,
+        initial_program: KBProgram | None = None,
         max_iterations: int = 20,
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
@@ -51,7 +51,7 @@ class EvolutionLoop:
         self.evaluator = evaluator
         self.reflector = reflector
         self.dataset = dataset
-        self.initial_program = initial_program or MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
+        self.initial_program = initial_program or KBProgram(source_code=INITIAL_KB_PROGRAM)
         self.max_iterations = max_iterations
         self.stop_condition = stop_condition
         self.tracker = tracker
@@ -136,7 +136,7 @@ class EvolutionLoop:
                 if fixed_code is None:
                     self.logger.log("Runtime fix failed, giving up", header="EVOLUTION")
                     break
-                child = MemoryProgram(
+                child = KBProgram(
                     source_code=fixed_code,
                     generation=current.generation + 1,
                     parent_hash=current.hash,

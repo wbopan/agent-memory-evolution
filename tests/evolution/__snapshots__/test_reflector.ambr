@@ -4,26 +4,26 @@
     list([
       dict({
         'content': '''
-          You are an expert Python programmer specializing in memory system design.
+          You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
-          You are designing a Memory Program that implements three classes:
+          You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
              - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
              - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
           
-          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - Same JSON-compatible type restriction and field description support as Observation
           
-          3. **Memory** (class): The core memory system.
+          3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
                - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
                - `toolkit.chroma`: chromadb ephemeral client
@@ -38,7 +38,7 @@
           
           These limits are enforced during evaluation. Violating them results in score = 0.
           
-          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
           - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
           - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
           
@@ -56,8 +56,8 @@
           
           <rules>
           1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-          2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
           6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -93,7 +93,7 @@
           
           <task>
           1. Diagnose why these cases fail.
-          2. Propose specific improvements to the Memory Program.
+          2. Propose specific improvements to the Knowledge Base Program.
           3. Output the complete improved code in a ```python``` block.
           </task>
         ''',
@@ -106,26 +106,26 @@
   list([
     dict({
       'content': '''
-        You are an expert Python programmer specializing in memory system design.
+        You are an expert Python programmer specializing in knowledge base system design.
         
-        Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+        Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
         
         <interface_spec>
-        You are designing a Memory Program that implements three classes:
+        You are designing a Knowledge Base Program that implements three classes:
         
-        1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+        1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
            - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
            - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
            - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
         
-        2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+        2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
            - Same JSON-compatible type restriction and field description support as Observation
         
-        3. **Memory** (class): The core memory system.
+        3. **KnowledgeBase** (class): The core knowledge base system.
            - `__init__(self, toolkit)`: Receives a Toolkit with:
              - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
              - `toolkit.chroma`: chromadb ephemeral client
@@ -140,7 +140,7 @@
         
         These limits are enforced during evaluation. Violating them results in score = 0.
         
-        - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+        - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
         - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
         - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
         
@@ -158,8 +158,8 @@
         
         <rules>
         1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-        2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-        3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+        3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
         4. `read()` must return at most 1000 characters — do not return all stored text.
         5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
         6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -182,7 +182,7 @@
         
         <task>
         1. Diagnose why these cases fail.
-        2. Propose specific improvements to the Memory Program.
+        2. Propose specific improvements to the Knowledge Base Program.
         3. Output the complete improved code in a ```python``` block.
         </task>
       ''',
@@ -195,26 +195,26 @@
     list([
       dict({
         'content': '''
-          You are an expert Python programmer specializing in memory system design.
+          You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
-          You are designing a Memory Program that implements three classes:
+          You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
              - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
              - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
           
-          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - Same JSON-compatible type restriction and field description support as Observation
           
-          3. **Memory** (class): The core memory system.
+          3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
                - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
                - `toolkit.chroma`: chromadb ephemeral client
@@ -229,7 +229,7 @@
           
           These limits are enforced during evaluation. Violating them results in score = 0.
           
-          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
           - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
           - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
           
@@ -247,8 +247,8 @@
           
           <rules>
           1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-          2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
           6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -277,7 +277,7 @@
           
           <task>
           1. Diagnose why these cases fail.
-          2. Propose specific improvements to the Memory Program.
+          2. Propose specific improvements to the Knowledge Base Program.
           3. Output the complete improved code in a ```python``` block.
           </task>
         ''',
@@ -291,26 +291,26 @@
     list([
       dict({
         'content': '''
-          You are an expert Python programmer specializing in memory system design.
+          You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
-          You are designing a Memory Program that implements three classes:
+          You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
              - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
              - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
           
-          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - Same JSON-compatible type restriction and field description support as Observation
           
-          3. **Memory** (class): The core memory system.
+          3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
                - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
                - `toolkit.chroma`: chromadb ephemeral client
@@ -325,7 +325,7 @@
           
           These limits are enforced during evaluation. Violating them results in score = 0.
           
-          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
           - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
           - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
           
@@ -343,8 +343,8 @@
           
           <rules>
           1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-          2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
           6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -388,7 +388,7 @@
           
           <task>
           1. Diagnose why these cases fail.
-          2. Propose specific improvements to the Memory Program.
+          2. Propose specific improvements to the Knowledge Base Program.
           3. Output the complete improved code in a ```python``` block.
           </task>
         ''',
@@ -402,26 +402,26 @@
     list([
       dict({
         'content': '''
-          You are an expert Python programmer specializing in memory system design.
+          You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
-          You are designing a Memory Program that implements three classes:
+          You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
              - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
              - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
           
-          2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - Same JSON-compatible type restriction and field description support as Observation
           
-          3. **Memory** (class): The core memory system.
+          3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
                - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
                - `toolkit.chroma`: chromadb ephemeral client
@@ -436,7 +436,7 @@
           
           These limits are enforced during evaluation. Violating them results in score = 0.
           
-          - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+          - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
           - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
           - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
           
@@ -454,8 +454,8 @@
           
           <rules>
           1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-          2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-          3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
           6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -478,7 +478,7 @@
           
           <task>
           1. Diagnose why these cases fail.
-          2. Propose specific improvements to the Memory Program.
+          2. Propose specific improvements to the Knowledge Base Program.
           3. Output the complete improved code in a ```python``` block.
           </task>
         ''',
@@ -491,26 +491,26 @@
   list([
     dict({
       'content': '''
-        You are an expert Python programmer specializing in memory system design.
+        You are an expert Python programmer specializing in knowledge base system design.
         
-        Your task: Given a Memory Program (Python code defining Observation, Query, and Memory classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+        Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
         
         <interface_spec>
-        You are designing a Memory Program that implements three classes:
+        You are designing a Knowledge Base Program that implements three classes:
         
-        1. **Observation** (dataclass): Defines what information is captured when writing to memory.
+        1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
            - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
            - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
            - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
         
-        2. **Query** (dataclass): Defines what parameters are used when reading from memory.
+        2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
            - Same JSON-compatible type restriction and field description support as Observation
         
-        3. **Memory** (class): The core memory system.
+        3. **KnowledgeBase** (class): The core knowledge base system.
            - `__init__(self, toolkit)`: Receives a Toolkit with:
              - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
              - `toolkit.chroma`: chromadb ephemeral client
@@ -525,7 +525,7 @@
         
         These limits are enforced during evaluation. Violating them results in score = 0.
         
-        - **`read()` output limit**: `memory.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+        - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
         - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
         - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
         
@@ -543,8 +543,8 @@
         
         <rules>
         1. Output your diagnosis first, then the complete fixed code in a ```python``` block.
-        2. The code must define exactly three classes (Observation, Query, Memory) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
-        3. Memory.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+        3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
         4. `read()` must return at most 1000 characters — do not return all stored text.
         5. Keep it simple. Make minimal, targeted fixes — do not rewrite working parts.
         6. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
@@ -573,7 +573,7 @@
         
         <task>
         1. Diagnose why these cases fail.
-        2. Propose specific improvements to the Memory Program.
+        2. Propose specific improvements to the Knowledge Base Program.
         3. Output the complete improved code in a ```python``` block.
         </task>
       ''',

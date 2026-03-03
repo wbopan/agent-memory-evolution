@@ -3,8 +3,8 @@
 from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.prompts import (
-    INITIAL_MEMORY_PROGRAM,
-    MEMORY_INTERFACE_SPEC,
+    INITIAL_KB_PROGRAM,
+    KB_INTERFACE_SPEC,
     ReflectionPromptConfig,
     build_compile_fix_prompt,
     build_observation_generation_prompt,
@@ -16,47 +16,47 @@ from programmaticmemory.evolution.prompts import (
 from programmaticmemory.evolution.types import TrainExample
 
 
-class TestInitialMemoryProgram:
+class TestInitialKBProgram:
     def test_contains_required_classes(self):
-        assert "class Observation" in INITIAL_MEMORY_PROGRAM
-        assert "class Query" in INITIAL_MEMORY_PROGRAM
-        assert "class Memory" in INITIAL_MEMORY_PROGRAM
-        assert "INSTRUCTION_OBSERVATION" in INITIAL_MEMORY_PROGRAM
-        assert "INSTRUCTION_QUERY" in INITIAL_MEMORY_PROGRAM
-        assert "INSTRUCTION_RESPONSE" in INITIAL_MEMORY_PROGRAM
+        assert "class Observation" in INITIAL_KB_PROGRAM
+        assert "class Query" in INITIAL_KB_PROGRAM
+        assert "class KnowledgeBase" in INITIAL_KB_PROGRAM
+        assert "INSTRUCTION_OBSERVATION" in INITIAL_KB_PROGRAM
+        assert "INSTRUCTION_QUERY" in INITIAL_KB_PROGRAM
+        assert "INSTRUCTION_RESPONSE" in INITIAL_KB_PROGRAM
 
     def test_compiles(self):
-        from programmaticmemory.evolution.sandbox import CompileError, compile_memory_program
+        from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program
 
-        result = compile_memory_program(INITIAL_MEMORY_PROGRAM)
+        result = compile_kb_program(INITIAL_KB_PROGRAM)
         assert not isinstance(result, CompileError)
 
     def test_smoke_test_passes(self):
         from programmaticmemory.evolution.sandbox import smoke_test
 
-        result = smoke_test(INITIAL_MEMORY_PROGRAM)
+        result = smoke_test(INITIAL_KB_PROGRAM)
         assert result.success is True
 
 
-class TestMemoryInterfaceSpec:
+class TestKBInterfaceSpec:
     def test_contains_key_components(self):
-        assert "Observation" in MEMORY_INTERFACE_SPEC
-        assert "Query" in MEMORY_INTERFACE_SPEC
-        assert "Memory" in MEMORY_INTERFACE_SPEC
-        assert "Toolkit" in MEMORY_INTERFACE_SPEC
-        assert "write" in MEMORY_INTERFACE_SPEC
-        assert "read" in MEMORY_INTERFACE_SPEC
+        assert "Observation" in KB_INTERFACE_SPEC
+        assert "Query" in KB_INTERFACE_SPEC
+        assert "KnowledgeBase" in KB_INTERFACE_SPEC
+        assert "Toolkit" in KB_INTERFACE_SPEC
+        assert "write" in KB_INTERFACE_SPEC
+        assert "read" in KB_INTERFACE_SPEC
 
 
 class TestBuildReflectionUserPrompt:
     def test_includes_code_and_score(self, snapshot: SnapshotAssertion):
         prompt = build_reflection_user_prompt(
-            code="class Memory: pass",
+            code="class KnowledgeBase: pass",
             score=0.42,
             failed_cases=[],
             iteration=3,
         )
-        assert "class Memory: pass" in prompt
+        assert "class KnowledgeBase: pass" in prompt
         assert "0.420" in prompt
         assert 'iteration="3"' in prompt
         assert prompt == snapshot
@@ -151,7 +151,7 @@ class TestBuildReflectionUserPrompt:
             }
         ]
         prompt = build_reflection_user_prompt(
-            code="class Memory: pass",
+            code="class KnowledgeBase: pass",
             score=0.5,
             failed_cases=failed,
             iteration=1,
@@ -191,7 +191,7 @@ class TestBuildReflectionUserPrompt:
             )
         ]
         prompt = build_reflection_user_prompt(
-            code="class Memory: pass",
+            code="class KnowledgeBase: pass",
             score=0.1,
             failed_cases=[],
             iteration=1,
@@ -334,11 +334,11 @@ class TestBuildObservationWithFeedbackPrompt:
 class TestBuildCompileFixPrompt:
     def test_includes_code_and_error(self, snapshot: SnapshotAssertion):
         prompt = build_compile_fix_prompt(
-            code="class Memory: pass",
+            code="class KnowledgeBase: pass",
             error_type="Syntax error",
             error_details="unexpected indent at line 5",
         )
-        assert "class Memory: pass" in prompt
+        assert "class KnowledgeBase: pass" in prompt
         assert "Syntax error" in prompt
         assert "unexpected indent at line 5" in prompt
         assert prompt == snapshot

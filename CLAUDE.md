@@ -48,12 +48,13 @@ uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations
 
 LLMs can retrieve information but can't figure out *how to organize* it. This project evolves the **organizing strategy itself** — as executable Python code.
 
-A **Memory Program** is a Python module defining three classes:
+A **Knowledge Base Program** (code type: `KBProgram`) is a Python module defining three classes and three instruction constants:
 - `Observation` — what to capture from incoming information (dataclass fields)
 - `Query` — how to parameterize a retrieval request (dataclass fields)
-- `Memory` — `write(obs)` / `read(query)` logic using a `Toolkit` (SQLite, ChromaDB, LLM)
+- `KnowledgeBase` — `write(obs)` / `read(query)` logic using a `Toolkit` (SQLite, ChromaDB, LLM)
+- `INSTRUCTION_OBSERVATION` / `INSTRUCTION_QUERY` / `INSTRUCTION_RESPONSE` — module-level string constants that replace the directive sentence in task agent prompts for observation generation, query generation, and answer generation respectively
 
-The task agent (fixed prompt, fixed model) uses whatever Memory Program it's given. Evolution changes *only* the Memory Program code — so performance differences are purely attributable to the memory strategy.
+The task agent (fixed prompt, fixed model) uses whatever Knowledge Base Program it's given. Evolution changes *only* the Knowledge Base Program code (including instructions) — so performance differences are purely attributable to the knowledge base strategy.
 
 ```
 Seed: append everything, return everything
@@ -64,19 +65,19 @@ Seed: append everything, return everything
 ### Evolution Loop (`evolution/loop.py`)
 
 ```
-Evaluate(program, data) → EvalResult → Reflect(code, failures) → new MemoryProgram → repeat
+Evaluate(program, data) → EvalResult → Reflect(code, failures) → new KBProgram → repeat
 ```
 
 Serial: one candidate, one child per iteration. By default, always continues with the latest child (even if score degrades); `drop_degraded_program=True` reverts to best on degradation. Reflector handles compile/smoke-test validation internally; loop.py does not call `smoke_test`.
 
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
-- **types.py** — Core types: `Scorer` protocol, `Dataset` (bundles train/val/test/scorer), `MemoryProgram`, `DataItem`, `EvalResult` (includes `runtime_violation` field), `FailedCase`, `TrainExample`, `EvolutionState`
+- **types.py** — Core types: `Scorer` protocol, `Dataset` (bundles train/val/test/scorer), `KBProgram`, `DataItem`, `EvalResult` (includes `runtime_violation`, `failed_cases`, `success_cases` fields), `FailedCase` (reused for both failed and success cases), `TrainExample`, `EvolutionState`
 - **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch observation ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven obs). Val is always 2 rounds (query → read → answer). Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation.
-- **reflector.py** — Calls LLM with current code + failed cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_memory_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `MemoryProgram` is guaranteed valid.
-- **sandbox.py** — `compile_memory_program()`: AST parse → check 3 required classes → validate import whitelist → exec. Returns `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
+- **reflector.py** — Calls LLM with current code + failed cases + success cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_kb_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `KBProgram` is guaranteed valid.
+- **sandbox.py** — `compile_kb_program()`: AST parse → check 3 required classes (Observation, Query, KnowledgeBase) → validate import whitelist → exec → check 3 required constants. Returns `CompiledProgram` (obs_cls, query_cls, kb_cls, instruction_observation, instruction_query, instruction_response) on success, `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
 - **toolkit.py** — Resource bundle (`db`: SQLite, `chroma`: ChromaDB, `llm_completion`: budget-limited LLM, `logger`). Instantiate via `Toolkit(config)`, created fresh per evaluation.
-- **prompts.py** — All prompt templates. `INITIAL_MEMORY_PROGRAM` is the baseline (append-all/return-all). No system prompts — all LLM instructions are merged into user prompts via `build_reflection_user_prompt` and `build_compile_fix_prompt`. Reflection prompt uses XML tags (`<interface_spec>`, `<current_program>`, `<write_examples>`, `<failed_cases>`, etc.) for structure. `ReflectionPromptConfig` controls limits (max cases, max examples, memory log budget).
+- **prompts.py** — All prompt templates. `INITIAL_KB_PROGRAM` is the baseline (append-all/return-all). No system prompts — all LLM instructions are merged into user prompts via `build_reflection_user_prompt` and `build_compile_fix_prompt`. Reflection prompt uses XML tags (`<interface_spec>`, `<current_program>`, `<write_examples>`, `<success_cases>`, `<failed_cases>`, etc.) for structure. `ReflectionPromptConfig` controls limits (max failed/success cases, max examples, memory log budget).
 - **benchmarks/kv_memory.py** — Simple factual recall (`ExactMatchScorer`). Train has `raw_text`.
 - **benchmarks/locomo.py** — LoCoMo multi-session conversation QA (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (`TokenF1Scorer`). Train has `raw_text`.
@@ -95,8 +96,8 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 
 ### Two Separate LLM Roles
 
-1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates Observation/Query JSON and answers questions via `litellm.batch_completion`. Separate from the memory program.
-2. **Toolkit LLM** (`toolkit.py:Toolkit.llm_completion`) — Available to Memory Programs via `toolkit.llm_completion()`, budget-limited (default 50 calls), with tenacity retry.
+1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates Observation/Query JSON and answers questions via `litellm.batch_completion`. Separate from the knowledge base program.
+2. **Toolkit LLM** (`toolkit.py:Toolkit.llm_completion`) — Available to Knowledge Base Programs via `toolkit.llm_completion()`, budget-limited (default 50 calls), with tenacity retry.
 
 ## Test Infrastructure
 
@@ -127,10 +128,11 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - Python 3.12+, `from __future__ import annotations` in all modules
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q. S (bandit) rules are NOT enabled — do not add `# noqa: S...` directives (causes RUF100 errors)
 - Default model for all LLM roles: `openrouter/deepseek/deepseek-v3.2`
-- Import whitelist for Memory Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
-- A Memory Program is a **complete Python module**: import statements + three class definitions (Observation, Query, Memory). LLM outputs the full module source.
+- Import whitelist for Knowledge Base Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+- A Knowledge Base Program is a **complete Python module**: three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE) + three class definitions (Observation, Query, KnowledgeBase). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
 - Prompt template changes in `prompts.py` cascade to snapshots in `test_prompts.ambr` AND `test_reflector.ambr` — always run `--snapshot-update` for both after editing prompts
 - Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.
+- Inline test programs that reach execution (step 4+) in `compile_kb_program` must include the three `INSTRUCTION_*` constants or they'll get `CompileError`. Programs that fail earlier (syntax/class/import checks) don't need them.
 - All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
-- Memory Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).
+- Knowledge Base Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).

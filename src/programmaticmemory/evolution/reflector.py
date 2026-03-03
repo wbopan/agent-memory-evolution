@@ -1,4 +1,4 @@
-"""Reflector — LLM-driven reflection and code mutation for Memory Programs."""
+"""Reflector — LLM-driven reflection and code mutation for Knowledge Base Programs."""
 
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ from programmaticmemory.evolution.prompts import (
     build_compile_fix_prompt,
     build_reflection_user_prompt,
 )
-from programmaticmemory.evolution.sandbox import CompileError, compile_memory_program, smoke_test
+from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program, smoke_test
 from programmaticmemory.evolution.toolkit import ToolkitConfig
-from programmaticmemory.evolution.types import EvalResult, MemoryProgram
+from programmaticmemory.evolution.types import EvalResult, KBProgram
 from programmaticmemory.logging.logger import get_logger
 
 
@@ -27,11 +27,11 @@ def _extract_code_block(text: str) -> str | None:
 
 
 class Reflector:
-    """Reflects on evaluation results and mutates Memory Programs."""
+    """Reflects on evaluation results and mutates Knowledge Base Programs."""
 
     def __init__(
         self,
-        model: str = "openrouter/deepseek/deepseek-v3.2",
+        model: str,
         temperature: float = 0.7,
         max_fix_attempts: int = 3,
         toolkit_config: ToolkitConfig | None = None,
@@ -46,7 +46,7 @@ class Reflector:
 
     def _validate_code(self, code: str) -> tuple[str, str] | None:
         """Compile and smoke-test code. Return (error_type, error_details) or None if valid."""
-        result = compile_memory_program(code)
+        result = compile_kb_program(code)
         if isinstance(result, CompileError):
             return (result.message, result.details)
 
@@ -74,14 +74,14 @@ class Reflector:
     @weave.op()
     def reflect_and_mutate(
         self,
-        current: MemoryProgram,
+        current: KBProgram,
         eval_result: EvalResult,
         iteration: int,
-    ) -> MemoryProgram | None:
-        """Reflect on failures and produce a mutated Memory Program.
+    ) -> KBProgram | None:
+        """Reflect on failures and produce a mutated Knowledge Base Program.
 
         Returns None if code extraction fails or compile-fix loop is exhausted.
-        Returned MemoryProgram is guaranteed to pass compile + smoke_test.
+        Returned KBProgram is guaranteed to pass compile + smoke_test.
         """
         # Build failed case dicts for the prompt
         failed_dicts = []
@@ -97,6 +97,20 @@ class Reflector:
                 }
             )
 
+        # Build success case dicts for the prompt
+        success_dicts = []
+        for sc in eval_result.success_cases:
+            success_dicts.append(
+                {
+                    "question": sc.question,
+                    "output": sc.output,
+                    "expected": sc.expected,
+                    "score": sc.score,
+                    "conversation_history": sc.conversation_history,
+                    "memory_logs": sc.memory_logs,
+                }
+            )
+
         user_prompt = build_reflection_user_prompt(
             code=current.source_code,
             score=eval_result.score,
@@ -104,6 +118,7 @@ class Reflector:
             iteration=iteration,
             train_examples=eval_result.train_examples or None,
             config=self.prompt_config,
+            success_cases=success_dicts,
         )
 
         self.logger.log(f"Reflecting on iteration {iteration}, score={eval_result.score:.3f}", header="REFLECT")
@@ -127,7 +142,7 @@ class Reflector:
         # Validate and fix loop
         validation_error = self._validate_code(new_code)
         if validation_error is None:
-            return MemoryProgram(
+            return KBProgram(
                 source_code=new_code,
                 generation=current.generation + 1,
                 parent_hash=current.hash,
@@ -145,7 +160,7 @@ class Reflector:
             validation_error = self._validate_code(new_code)
             if validation_error is None:
                 self.logger.log(f"Fix succeeded on attempt {attempt}", header="REFLECT")
-                return MemoryProgram(
+                return KBProgram(
                     source_code=new_code,
                     generation=current.generation + 1,
                     parent_hash=current.hash,

@@ -6,9 +6,9 @@ from unittest.mock import MagicMock
 
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
-from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
+from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
-from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, MemoryProgram
+from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, KBProgram
 
 
 def _make_dataset():
@@ -46,7 +46,7 @@ class TestEvolutionLoop:
         """Child program replaces current when it scores higher."""
         dataset = _make_dataset()
 
-        child_program = MemoryProgram(source_code="improved", generation=1)
+        child_program = KBProgram(source_code="improved", generation=1)
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         # First call: initial eval (0.3), second call: child eval (0.8)
@@ -75,8 +75,8 @@ class TestEvolutionLoop:
         """Child program is kept as current even when it scores lower (default behavior)."""
         dataset = _make_dataset()
 
-        initial = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        child = MemoryProgram(source_code="worse", generation=1)
+        initial = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        child = KBProgram(source_code="worse", generation=1)
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
@@ -106,8 +106,8 @@ class TestEvolutionLoop:
         """Child program is dropped when drop_degraded_program=True and it scores lower."""
         dataset = _make_dataset()
 
-        initial = MemoryProgram(source_code=INITIAL_MEMORY_PROGRAM)
-        child = MemoryProgram(source_code="worse", generation=1)
+        initial = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        child = KBProgram(source_code="worse", generation=1)
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
@@ -192,7 +192,7 @@ class TestEvolutionLoop:
         ]
 
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = MemoryProgram(source_code="child", generation=1)
+        reflector.reflect_and_mutate.return_value = KBProgram(source_code="child", generation=1)
         reflector.max_fix_attempts = 3
 
         tracker = MagicMock()
@@ -216,8 +216,8 @@ class TestEvolutionLoopRuntimeFix:
 
     def test_runtime_violation_triggers_fix_and_reeval(self):
         """Runtime violation -> fix_runtime_violation called -> re-eval succeeds."""
-        initial = MemoryProgram(source_code="initial")
-        child = MemoryProgram(source_code="child", generation=1)
+        initial = KBProgram(source_code="initial")
+        child = KBProgram(source_code="child", generation=1)
         dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
@@ -252,8 +252,8 @@ class TestEvolutionLoopRuntimeFix:
 
     def test_runtime_violation_fix_returns_none(self):
         """Runtime violation -> fix returns None -> iteration uses score=0."""
-        initial = MemoryProgram(source_code="initial")
-        child = MemoryProgram(source_code="child", generation=1)
+        initial = KBProgram(source_code="initial")
+        child = KBProgram(source_code="child", generation=1)
         dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)
@@ -282,8 +282,8 @@ class TestEvolutionLoopRuntimeFix:
 
     def test_runtime_violation_fix_loop_retries(self):
         """First fix still violates -> loop retries -> second fix succeeds."""
-        initial = MemoryProgram(source_code="initial")
-        child = MemoryProgram(source_code="child", generation=1)
+        initial = KBProgram(source_code="initial")
+        child = KBProgram(source_code="child", generation=1)
         dataset = _make_dataset()
 
         evaluator = MagicMock(spec=MemoryEvaluator)

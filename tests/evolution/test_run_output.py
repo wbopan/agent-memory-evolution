@@ -106,13 +106,13 @@ class TestRunOutputManager:
         """write_program should save source code to programs/iter_N.py."""
         manager = RunOutputManager(tmp_path, config={})
         try:
-            manager.write_program(iteration=1, source_code="class Memory: pass", accepted=True, score=0.75)
+            manager.write_program(iteration=1, source_code="class KnowledgeBase: pass", accepted=True, score=0.75)
 
             prog_path = manager.run_dir / "programs" / "iter_1.py"
             assert prog_path.exists()
             content = prog_path.read_text(encoding="utf-8")
             assert content.startswith("# iter=1  score=0.7500  accepted\n")
-            assert "class Memory: pass" in content
+            assert "class KnowledgeBase: pass" in content
         finally:
             manager.close()
 
@@ -134,12 +134,12 @@ class TestRunOutputManager:
             metrics = {
                 "best_score": 0.9,
                 "score_history": [{"iteration": 0, "score": 0.5, "accepted": True}],
-                "best_program_source": "class Memory: pass",
+                "best_program_source": "class KnowledgeBase: pass",
             }
             manager.write_summary(metrics)
             loaded = json.loads((manager.run_dir / "summary.json").read_text())
             assert loaded["score_history"][0]["iteration"] == 0
-            assert "class Memory" in loaded["best_program_source"]
+            assert "class KnowledgeBase" in loaded["best_program_source"]
         finally:
             manager.close()
 

@@ -9,7 +9,7 @@ from syrupy.assertion import SnapshotAssertion
 from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector, _extract_code_block
 from programmaticmemory.evolution.sandbox import CompileError, SmokeTestResult
-from programmaticmemory.evolution.types import EvalResult, FailedCase, MemoryProgram
+from programmaticmemory.evolution.types import EvalResult, FailedCase, KBProgram
 
 
 class TestExtractCodeBlock:
@@ -26,10 +26,10 @@ def helper(): pass
 
 And the full code:
 ```python
-class Memory: pass
+class KnowledgeBase: pass
 ```
 """
-        assert _extract_code_block(text) == "class Memory: pass"
+        assert _extract_code_block(text) == "class KnowledgeBase: pass"
 
     def test_no_code_block_returns_none(self):
         text = "No code here, just analysis."
@@ -51,7 +51,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
@@ -66,7 +66,7 @@ class Memory:
         assert code is not None
         assert "class Observation" in code
         assert "class Query" in code
-        assert "class Memory" in code
+        assert "class KnowledgeBase" in code
         assert "@dataclass" in code
 
     def test_non_python_block_ignored(self):
@@ -76,10 +76,10 @@ class Memory:
 
 class TestReflector:
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_successful_reflection(self, mock_litellm, mock_compile, mock_smoke, snapshot: SnapshotAssertion):
-        """Reflector should produce a new MemoryProgram with incremented generation."""
+        """Reflector should produce a new KBProgram with incremented generation."""
         mock_compile.return_value = MagicMock()
         mock_smoke.return_value = SmokeTestResult(success=True)
 
@@ -94,7 +94,7 @@ class Observation:
 class Query:
     raw: str
 
-class Memory:
+class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = {}
 
@@ -109,7 +109,7 @@ class Memory:
         mock_resp.choices[0].message.content = f"Diagnosis: using dict.\n\n```python\n{new_code}\n```"
         mock_litellm.completion.return_value = mock_resp
 
-        current = MemoryProgram(source_code="old code", generation=2)
+        current = KBProgram(source_code="old code", generation=2)
         eval_result = EvalResult(
             score=0.3,
             failed_cases=[
@@ -123,7 +123,7 @@ class Memory:
         assert child is not None
         assert child.generation == 3
         assert child.parent_hash == current.hash
-        assert "class Memory" in child.source_code
+        assert "class KnowledgeBase" in child.source_code
         assert "self.store" in child.source_code
         assert mock_litellm.completion.call_args.kwargs["messages"] == snapshot
 
@@ -135,7 +135,7 @@ class Memory:
         mock_resp.choices[0].message.content = "I analyzed the code but can't suggest improvements."
         mock_litellm.completion.return_value = mock_resp
 
-        current = MemoryProgram(source_code="x")
+        current = KBProgram(source_code="x")
         eval_result = EvalResult(score=0.5)
 
         reflector = Reflector(model="mock/model")
@@ -158,7 +158,7 @@ class Memory:
 
         mock_litellm.completion = capture_completion
 
-        current = MemoryProgram(source_code="code here")
+        current = KBProgram(source_code="code here")
         eval_result = EvalResult(
             score=0.2,
             failed_cases=[
@@ -191,7 +191,7 @@ class Memory:
         assert captured_messages == snapshot
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_reflection_uses_configured_model_and_temperature(
         self, mock_litellm, mock_compile, mock_smoke, snapshot: SnapshotAssertion
@@ -208,14 +208,14 @@ class Memory:
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[
                 0
-            ].message.content = "```python\nclass Observation: pass\nclass Query: pass\nclass Memory: pass\n```"
+            ].message.content = "```python\nclass Observation: pass\nclass Query: pass\nclass KnowledgeBase: pass\n```"
             return mock_resp
 
         mock_litellm.completion = capture_completion
 
         reflector = Reflector(model="custom/reflect-model", temperature=0.9)
         reflector.reflect_and_mutate(
-            MemoryProgram(source_code="x"),
+            KBProgram(source_code="x"),
             EvalResult(score=0.0),
             iteration=1,
         )
@@ -238,7 +238,7 @@ class Memory:
 
         mock_litellm.completion = capture_completion
 
-        current = MemoryProgram(source_code="code here")
+        current = KBProgram(source_code="code here")
         eval_result = EvalResult(
             score=0.1,
             failed_cases=[
@@ -275,7 +275,7 @@ class Memory:
 
         mock_litellm.completion = capture_completion
 
-        current = MemoryProgram(source_code="code here")
+        current = KBProgram(source_code="code here")
         eval_result = EvalResult(
             score=0.5,
             failed_cases=[
@@ -308,11 +308,11 @@ class Memory:
 
 class TestReflectorCompileFixLoop:
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_valid_code_returns_immediately(self, mock_litellm, mock_compile, mock_smoke):
         """When code compiles and passes smoke test, return without fix attempts."""
-        new_code = "from dataclasses import dataclass\n\n@dataclass\nclass Observation:\n    raw: str\n\n@dataclass\nclass Query:\n    raw: str\n\nclass Memory:\n    def __init__(self, toolkit): pass\n    def write(self, obs): pass\n    def read(self, query): return ''"
+        new_code = "from dataclasses import dataclass\n\n@dataclass\nclass Observation:\n    raw: str\n\n@dataclass\nclass Query:\n    raw: str\n\nclass KnowledgeBase:\n    def __init__(self, toolkit): pass\n    def write(self, obs): pass\n    def read(self, query): return ''"
         mock_resp = MagicMock()
         mock_resp.choices = [MagicMock()]
         mock_resp.choices[0].message.content = f"Analysis.\n\n```python\n{new_code}\n```"
@@ -323,7 +323,7 @@ class TestReflectorCompileFixLoop:
 
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
-            MemoryProgram(source_code="old", generation=0),
+            KBProgram(source_code="old", generation=0),
             EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
             iteration=1,
         )
@@ -332,11 +332,11 @@ class TestReflectorCompileFixLoop:
         assert mock_litellm.completion.call_count == 1  # Only the reflection call, no fix calls
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_compile_error_triggers_fix_and_succeeds(self, mock_litellm, mock_compile, mock_smoke):
         """CompileError triggers fix loop; fixed code is returned."""
-        good_code = "class Observation: pass\nclass Query: pass\nclass Memory: pass"
+        good_code = "class Observation: pass\nclass Query: pass\nclass KnowledgeBase: pass"
 
         reflection_resp = MagicMock()
         reflection_resp.choices = [MagicMock()]
@@ -357,7 +357,7 @@ class TestReflectorCompileFixLoop:
 
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
-            MemoryProgram(source_code="old", generation=0),
+            KBProgram(source_code="old", generation=0),
             EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
             iteration=1,
         )
@@ -366,11 +366,11 @@ class TestReflectorCompileFixLoop:
         assert mock_litellm.completion.call_count == 2  # reflection + 1 fix
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_smoke_test_failure_triggers_fix(self, mock_litellm, mock_compile, mock_smoke):
         """Smoke test failure triggers fix loop."""
-        good_code = "class Observation: pass\nclass Query: pass\nclass Memory: pass"
+        good_code = "class Observation: pass\nclass Query: pass\nclass KnowledgeBase: pass"
 
         reflection_resp = MagicMock()
         reflection_resp.choices = [MagicMock()]
@@ -392,7 +392,7 @@ class TestReflectorCompileFixLoop:
 
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
-            MemoryProgram(source_code="old", generation=0),
+            KBProgram(source_code="old", generation=0),
             EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
             iteration=1,
         )
@@ -401,7 +401,7 @@ class TestReflectorCompileFixLoop:
         assert mock_litellm.completion.call_count == 2
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_max_fix_attempts_exhausted_returns_none(self, mock_litellm, mock_compile, mock_smoke):
         """After max_fix_attempts, return None."""
@@ -414,7 +414,7 @@ class TestReflectorCompileFixLoop:
 
         reflector = Reflector(model="mock/model", max_fix_attempts=3)
         child = reflector.reflect_and_mutate(
-            MemoryProgram(source_code="old", generation=0),
+            KBProgram(source_code="old", generation=0),
             EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
             iteration=1,
         )
@@ -424,7 +424,7 @@ class TestReflectorCompileFixLoop:
         assert mock_litellm.completion.call_count == 4
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_fix_code_extraction_failure_counts_as_attempt(self, mock_litellm, mock_compile, mock_smoke):
         """If fix LLM returns no code block, it still counts as an attempt."""
@@ -441,7 +441,7 @@ class TestReflectorCompileFixLoop:
 
         reflector = Reflector(model="mock/model", max_fix_attempts=3)
         child = reflector.reflect_and_mutate(
-            MemoryProgram(source_code="old", generation=0),
+            KBProgram(source_code="old", generation=0),
             EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
             iteration=1,
         )
@@ -450,7 +450,7 @@ class TestReflectorCompileFixLoop:
         assert mock_litellm.completion.call_count == 4  # 1 reflection + 3 fix attempts
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_fix_succeeds_on_second_attempt(self, mock_litellm, mock_compile, mock_smoke):
         """First fix attempt fails, second succeeds — verifies code forwarding between attempts."""
@@ -477,7 +477,7 @@ class TestReflectorCompileFixLoop:
 
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
-            MemoryProgram(source_code="old", generation=0),
+            KBProgram(source_code="old", generation=0),
             EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
             iteration=1,
         )
@@ -491,11 +491,11 @@ class TestReflectorRuntimeFix:
     """Tests for Reflector.fix_runtime_violation."""
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_fix_succeeds(self, mock_litellm, mock_compile, mock_smoke):
         """LLM returns valid fix -> compile+smoke pass -> return fixed code."""
-        fixed_code = "class Observation:\n  pass\nclass Query:\n  pass\nclass Memory:\n  pass"
+        fixed_code = "class Observation:\n  pass\nclass Query:\n  pass\nclass KnowledgeBase:\n  pass"
         mock_litellm.completion.return_value = MagicMock(
             choices=[MagicMock(message=MagicMock(content=f"```python\n{fixed_code}\n```"))]
         )
@@ -523,7 +523,7 @@ class TestReflectorRuntimeFix:
         assert result is None
 
     @patch("programmaticmemory.evolution.reflector.smoke_test")
-    @patch("programmaticmemory.evolution.reflector.compile_memory_program")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_fix_with_compile_error_enters_compile_fix_loop(self, mock_litellm, mock_compile, mock_smoke):
         """First fix has compile error -> compile-fix loop fixes it."""

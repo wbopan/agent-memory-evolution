@@ -1,4 +1,4 @@
-"""Programmatic memory evolution system — GEPA cycle for Memory Program optimization."""
+"""Programmatic memory evolution system — GEPA cycle for Knowledge Base Program optimization."""
 
 from programmaticmemory.evolution.evaluator import (
     ExactMatchScorer,
@@ -6,11 +6,11 @@ from programmaticmemory.evolution.evaluator import (
     MemoryEvaluator,
 )
 from programmaticmemory.evolution.loop import EvolutionLoop
-from programmaticmemory.evolution.prompts import INITIAL_MEMORY_PROGRAM
+from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.sandbox import (
     CompileError,
-    compile_memory_program,
+    compile_kb_program,
     extract_dataclass_schema,
     smoke_test,
 )
@@ -25,6 +25,6 @@ from programmaticmemory.evolution.types import (
     EvolutionRecord,
     EvolutionState,
     FailedCase,
-    MemoryProgram,
+    KBProgram,
     Scorer,
 )

@@ -1,4 +1,4 @@
-"""Toolkit — resources provided to Memory Programs during execution."""
+"""Toolkit — resources provided to Knowledge Base Programs during execution."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 
 class MemoryLogger:
-    """Internal logger for memory programs to record debug info."""
+    """Internal logger for knowledge base programs to record debug info."""
 
     def __init__(self) -> None:
         self.logs: list[str] = []
@@ -30,20 +30,19 @@ class MemoryLogger:
 class ToolkitConfig:
     """Configuration for Toolkit creation."""
 
-    llm_model: str = "openrouter/deepseek/deepseek-v3.2"
+    llm_model: str
     llm_call_budget: int = 50
     llm_temperature: float = 0.0
 
 
 class Toolkit:
-    """Resource bundle passed to Memory Program instances.
+    """Resource bundle passed to Knowledge Base Program instances.
 
     Provides SQLite, ChromaDB, LLM access, and logging.
     Each evaluation run gets a fresh Toolkit via the factory.
     """
 
-    def __init__(self, config: ToolkitConfig | None = None) -> None:
-        config = config or ToolkitConfig()
+    def __init__(self, config: ToolkitConfig) -> None:
         self.db: sqlite3.Connection = sqlite3.connect(":memory:", check_same_thread=False)
         self.chroma: chromadb.ClientAPI = chromadb.EphemeralClient()
         self.llm_model: str = config.llm_model
@@ -57,7 +56,7 @@ class Toolkit:
         if self._llm_calls_used >= self._llm_call_budget:
             raise RuntimeError(
                 f"LLM call budget exhausted ({self._llm_call_budget} calls). "
-                "Memory program is making too many LLM calls."
+                "Knowledge base program is making too many LLM calls."
             )
         self._llm_calls_used += 1
         kwargs.setdefault("temperature", self._llm_temperature)

@@ -1,4 +1,4 @@
-"""Evaluator — offline and online evaluation pipelines for Memory Programs.
+"""Evaluator — offline and online evaluation pipelines for Knowledge Base Programs.
 
 Both pipelines use multi-turn conversations where messages accumulate across steps,
 matching the design document's specified interaction pattern.
@@ -23,7 +23,7 @@ from programmaticmemory.evolution.prompts import (
 )
 from programmaticmemory.evolution.sandbox import (
     CompileError,
-    compile_memory_program,
+    compile_kb_program,
     extract_dataclass_schema,
 )
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
@@ -31,7 +31,7 @@ from programmaticmemory.evolution.types import (
     DataItem,
     EvalResult,
     FailedCase,
-    MemoryProgram,
+    KBProgram,
     Scorer,
     TrainExample,
 )
@@ -45,29 +45,29 @@ class RuntimeViolationError(Exception):
     """Raised when memory.write/read violates runtime constraints (timeout or output size)."""
 
 
-def _guarded_write(memory: Any, obs: Any, timeout: float = MEMORY_OP_TIMEOUT) -> None:
-    """Wrap memory.write(obs) with timeout."""
+def _guarded_write(kb: Any, obs: Any, timeout: float = MEMORY_OP_TIMEOUT) -> None:
+    """Wrap kb.write(obs) with timeout."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(memory.write, obs)
+        future = pool.submit(kb.write, obs)
         try:
             future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
-            raise RuntimeViolationError(f"memory.write() timed out after {timeout}s")
+            raise RuntimeViolationError(f"kb.write() timed out after {timeout}s")
 
 
 def _guarded_read(
-    memory: Any, query: Any, timeout: float = MEMORY_OP_TIMEOUT, max_chars: int = MEMORY_READ_MAX_CHARS
+    kb: Any, query: Any, timeout: float = MEMORY_OP_TIMEOUT, max_chars: int = MEMORY_READ_MAX_CHARS
 ) -> Any:
-    """Wrap memory.read(query) with timeout + output length check."""
+    """Wrap kb.read(query) with timeout + output length check."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(memory.read, query)
+        future = pool.submit(kb.read, query)
         try:
             result = future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
-            raise RuntimeViolationError(f"memory.read() timed out after {timeout}s")
+            raise RuntimeViolationError(f"kb.read() timed out after {timeout}s")
     result_str = str(result) if result is not None else ""
     if len(result_str) > max_chars:
-        raise RuntimeViolationError(f"memory.read() returned {len(result_str)} chars (limit: {max_chars})")
+        raise RuntimeViolationError(f"kb.read() returned {len(result_str)} chars (limit: {max_chars})")
     return result
 
 
@@ -161,7 +161,7 @@ class _QuerySlot(NamedTuple):
 
 
 class MemoryEvaluator:
-    """Evaluates a MemoryProgram on a dataset using offline or online pipeline.
+    """Evaluates a KBProgram on a dataset using offline or online pipeline.
 
     Both pipelines use multi-turn conversations where messages accumulate
     across steps within each sample, as specified in the design document.
@@ -182,7 +182,7 @@ class MemoryEvaluator:
     @weave.op()
     def evaluate(
         self,
-        program: MemoryProgram,
+        program: KBProgram,
         train_data: list[DataItem],
         val_data: list[DataItem],
     ) -> EvalResult:
@@ -191,7 +191,7 @@ class MemoryEvaluator:
         Pipeline is inferred from train data: items with raw_text use batch
         observation ingestion; items without raw_text use interactive QA training.
         """
-        compile_result = compile_memory_program(program.source_code)
+        compile_result = compile_kb_program(program.source_code)
         if isinstance(compile_result, CompileError):
             self.logger.log(f"Compile failed: {compile_result.message}", header="EVAL")
             return EvalResult(
@@ -205,9 +205,9 @@ class MemoryEvaluator:
 
         toolkit = Toolkit(self.toolkit_config)
         try:
-            memory = compiled.memory_cls(toolkit)
+            kb = compiled.kb_cls(toolkit)
         except Exception as e:
-            return EvalResult(score=0.0, logs=[f"Memory instantiation failed: {e}"])
+            return EvalResult(score=0.0, logs=[f"KnowledgeBase instantiation failed: {e}"])
 
         try:
             if train_data and train_data[0].raw_text:
@@ -216,7 +216,7 @@ class MemoryEvaluator:
                     header="EVAL",
                 )
                 return self._evaluate_offline(
-                    memory,
+                    kb,
                     compiled.obs_cls,
                     compiled.query_cls,
                     obs_schema,
@@ -234,7 +234,7 @@ class MemoryEvaluator:
                     header="EVAL",
                 )
                 return self._evaluate_online(
-                    memory,
+                    kb,
                     compiled.obs_cls,
                     compiled.query_cls,
                     obs_schema,
@@ -256,7 +256,7 @@ class MemoryEvaluator:
 
     def _evaluate_offline(
         self,
-        memory: Any,
+        kb: Any,
         obs_cls: type,
         query_cls: type,
         obs_schema: str,
@@ -297,7 +297,7 @@ class MemoryEvaluator:
                 continue
             try:
                 obs = obs_cls(**_parse_json_from_llm(content))
-                _guarded_write(memory, obs)
+                _guarded_write(kb, obs)
                 write_count += 1
             except RuntimeViolationError:
                 raise
@@ -310,7 +310,7 @@ class MemoryEvaluator:
         # Val: multi-turn query → read → answer → score
         self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
         result = self._evaluate_val(
-            memory,
+            kb,
             query_cls,
             query_schema,
             val_data,
@@ -326,7 +326,7 @@ class MemoryEvaluator:
 
     def _evaluate_online(
         self,
-        memory: Any,
+        kb: Any,
         obs_cls: type,
         query_cls: type,
         obs_schema: str,
@@ -343,7 +343,7 @@ class MemoryEvaluator:
         logs: list[str] = []
         self.logger.log(f"Train: interactive QA for {len(train_data)} items (3 rounds)", header="EVAL")
         train_examples = self._online_train_batched(
-            memory,
+            kb,
             obs_cls,
             query_cls,
             obs_schema,
@@ -357,7 +357,7 @@ class MemoryEvaluator:
         self.logger.log("Train: interactive QA complete", header="EVAL")
         self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
         result = self._evaluate_val(
-            memory,
+            kb,
             query_cls,
             query_schema,
             val_data,
@@ -371,7 +371,7 @@ class MemoryEvaluator:
 
     def _online_train_batched(
         self,
-        memory: Any,
+        kb: Any,
         obs_cls: type,
         query_cls: type,
         obs_schema: str,
@@ -397,7 +397,7 @@ class MemoryEvaluator:
         # Parse queries + serial reads
         slots = self._parse_queries_and_read(
             query_cls,
-            memory,
+            kb,
             round1_messages,
             round1_responses,
             logs,
@@ -454,7 +454,7 @@ class MemoryEvaluator:
                 train_examples.append(TrainExample(messages=[*r3_msgs, {"role": "assistant", "content": obs_content}]))
             try:
                 obs = obs_cls(**_parse_json_from_llm(obs_content))
-                _guarded_write(memory, obs)
+                _guarded_write(kb, obs)
             except RuntimeViolationError:
                 raise
             except Exception as e:
@@ -467,7 +467,7 @@ class MemoryEvaluator:
     def _parse_queries_and_read(
         self,
         query_cls: type,
-        memory: Any,
+        kb: Any,
         round1_messages: list[list[dict]],
         responses: list[str | None],
         logs: list[str],
@@ -476,7 +476,7 @@ class MemoryEvaluator:
         instruction_query: str = "",
         instruction_response: str = "",
     ) -> list[_QuerySlot | None]:
-        """Parse batch query responses, read memory for each. Returns slots aligned with data."""
+        """Parse batch query responses, read knowledge base for each. Returns slots aligned with data."""
         slots: list[_QuerySlot | None] = []
         for msgs, content in zip(round1_messages, responses, strict=True):
             query_prompt = msgs[0]["content"]
@@ -491,7 +491,7 @@ class MemoryEvaluator:
                 slots.append(None)
                 continue
             try:
-                retrieved = _guarded_read(memory, query)
+                retrieved = _guarded_read(kb, query)
                 retrieved_str = str(retrieved) if retrieved is not None else ""
             except RuntimeViolationError:
                 raise
@@ -524,7 +524,7 @@ class MemoryEvaluator:
 
     def _evaluate_val(
         self,
-        memory: Any,
+        kb: Any,
         query_cls: type,
         query_schema: str,
         val_data: list[DataItem],
@@ -545,10 +545,10 @@ class MemoryEvaluator:
         ]
         round1_responses = self._batch_llm_call(round1_messages)
 
-        # Parse queries and do serial memory reads
+        # Parse queries and do serial knowledge base reads
         slots = self._parse_queries_and_read(
             query_cls,
-            memory,
+            kb,
             round1_messages,
             round1_responses,
             logs,
