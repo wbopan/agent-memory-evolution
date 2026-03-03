@@ -62,6 +62,9 @@ def load_locomo(
     if num_conversations is not None:
         samples = samples[:num_conversations]
 
+    # Available categories: conversation indices
+    all_categories = [str(i) for i in range(len(samples))]
+
     # Category filtering: select a single conversation by index
     if category is not None:
         idx = int(category)
@@ -95,4 +98,4 @@ def load_locomo(
                 continue
             val.append(DataItem(raw_text="", question=qa["question"], expected_answer=qa["answer"]))
 
-    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer())
+    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer(), available_categories=all_categories)

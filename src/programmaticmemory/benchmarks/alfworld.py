@@ -134,6 +134,9 @@ def load_alfworld(
 
     typed_items = _parse_trials(valid_dir)
 
+    # Available categories: unique task types
+    all_categories = sorted({t for t, _ in typed_items})
+
     if category is not None:
         filtered = [(t, item) for t, item in typed_items if t == category]
         if not filtered:
@@ -150,4 +153,4 @@ def load_alfworld(
     remaining = items[num_train:]
     val = remaining[:num_val] if num_val is not None else remaining
 
-    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer())
+    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer(), available_categories=all_categories)

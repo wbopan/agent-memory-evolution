@@ -107,6 +107,10 @@ def main() -> None:
         f"task_model={args.task_model}, reflect_model={args.reflect_model}",
         header="CONFIG",
     )
+    if args.category:
+        logger.log(f"Category: {args.category}", header="CONFIG")
+    elif dataset.available_categories:
+        logger.log(f"Available categories: {', '.join(dataset.available_categories)}", header="CONFIG")
     if output_manager:
         logger.log(f"Output directory: {output_manager.run_dir}", header="CONFIG")
 

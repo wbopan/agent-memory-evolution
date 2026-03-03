@@ -52,6 +52,7 @@ class Dataset:
     val: list[DataItem]
     test: list[DataItem]
     scorer: Scorer | None = None
+    available_categories: list[str] | None = None
 
 
 @dataclass
