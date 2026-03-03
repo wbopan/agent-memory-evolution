@@ -34,6 +34,7 @@ from programmaticmemory.evolution.types import (
     KBProgram,
     Scorer,
     TrainExample,
+    ValScorer,
 )
 from programmaticmemory.logging.logger import get_logger
 
@@ -173,10 +174,12 @@ class MemoryEvaluator:
         *,
         task_model: str,
         toolkit_config: ToolkitConfig,
+        val_scorer: ValScorer | None = None,
     ) -> None:
         self.scorer = scorer or ExactMatchScorer()
         self.task_model = task_model
         self.toolkit_config = toolkit_config
+        self.val_scorer = val_scorer
         self.logger = get_logger()
 
     @weave.op()
@@ -534,19 +537,63 @@ class MemoryEvaluator:
         instruction_query: str = "",
         instruction_response: str = "",
     ) -> EvalResult:
-        """Two-round batched val: all query prompts → serial reads → all answer prompts."""
+        """Two-phase val: (1) shared KB retrieval, (2) pluggable scoring."""
         if not val_data:
             return self._build_eval_result([], [], [], [], logs)
 
-        # Round 1: batch all query generation
+        # Phase 1: shared KB retrieval
+        slots = self._retrieve_for_val(
+            kb,
+            query_cls,
+            query_schema,
+            val_data,
+            logs,
+            instruction_query=instruction_query,
+            instruction_response=instruction_response,
+        )
+
+        # Phase 2: pluggable scoring
+        if self.val_scorer:
+            result = self._val_scorer_path(
+                slots,
+                val_data,
+                logs,
+                toolkit,
+                instruction_response=instruction_response,
+            )
+        else:
+            result = self._default_answer_and_score(
+                slots,
+                val_data,
+                logs,
+                toolkit,
+                instruction_response=instruction_response,
+            )
+
+        self.logger.log(
+            f"Val: complete — score={result.score:.3f}, {len(result.failed_cases)}/{len(val_data)} failed",
+            header="EVAL",
+        )
+        return result
+
+    def _retrieve_for_val(
+        self,
+        kb: Any,
+        query_cls: type,
+        query_schema: str,
+        val_data: list[DataItem],
+        logs: list[str],
+        *,
+        instruction_query: str = "",
+        instruction_response: str = "",
+    ) -> list[_QuerySlot | None]:
+        """Phase 1 of val: batch query generation + serial KB reads."""
         round1_messages = [
             [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in val_data
         ]
         round1_responses = self._batch_llm_call(round1_messages, json_mode=True)
-
-        # Parse queries and do serial knowledge base reads
-        slots = self._parse_queries_and_read(
+        return self._parse_queries_and_read(
             query_cls,
             kb,
             round1_messages,
@@ -557,7 +604,16 @@ class MemoryEvaluator:
             instruction_response=instruction_response,
         )
 
-        # Round 2: batch answer generation only for successful slots
+    def _default_answer_and_score(
+        self,
+        slots: list[_QuerySlot | None],
+        val_data: list[DataItem],
+        logs: list[str],
+        toolkit: Toolkit,
+        *,
+        instruction_response: str = "",
+    ) -> EvalResult:
+        """Phase 2 default: batch LLM answer generation + scorer."""
         valid = [(i, s) for i, s in enumerate(slots) if s is not None]
         round2_messages = [
             [
@@ -569,7 +625,6 @@ class MemoryEvaluator:
         ]
         round2_responses = self._batch_llm_call(round2_messages)
 
-        # Assemble results
         scores: list[float] = []
         outputs: list[str] = []
         failed_cases: list[FailedCase] = []
@@ -633,12 +688,45 @@ class MemoryEvaluator:
             else:
                 success_cases.append(case)
 
-        result = self._build_eval_result(scores, outputs, failed_cases, success_cases, logs)
-        self.logger.log(
-            f"Val: complete — score={result.score:.3f}, {len(failed_cases)}/{len(val_data)} failed",
-            header="EVAL",
-        )
-        return result
+        return self._build_eval_result(scores, outputs, failed_cases, success_cases, logs)
+
+    def _val_scorer_path(
+        self,
+        slots: list[_QuerySlot | None],
+        val_data: list[DataItem],
+        logs: list[str],
+        toolkit: Toolkit,
+        *,
+        instruction_response: str = "",
+    ) -> EvalResult:
+        """Phase 2 custom: delegate to val_scorer.score_batch."""
+        items = list(val_data)
+        retrieved = [s.retrieved_str if s is not None else "" for s in slots]
+
+        results = self.val_scorer.score_batch(items, retrieved, self.task_model, instruction_response)
+
+        scores: list[float] = []
+        outputs: list[str] = []
+        failed_cases: list[FailedCase] = []
+        success_cases: list[FailedCase] = []
+        log_snapshot = list(toolkit.logger.logs)
+
+        for i, (output, score) in enumerate(results):
+            scores.append(score)
+            outputs.append(output)
+            case = FailedCase(
+                question=val_data[i].question,
+                output=output,
+                expected=val_data[i].expected_answer,
+                score=score,
+                memory_logs=log_snapshot,
+            )
+            if score < 1.0:
+                failed_cases.append(case)
+            else:
+                success_cases.append(case)
+
+        return self._build_eval_result(scores, outputs, failed_cases, success_cases, logs)
 
     def _batch_llm_call(self, all_messages: list[list[dict]], *, json_mode: bool = False) -> list[str | None]:
         """Fan out independent LLM calls via litellm.batch_completion.

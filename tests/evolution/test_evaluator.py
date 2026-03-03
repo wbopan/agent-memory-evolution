@@ -844,3 +844,78 @@ class TestRuntimeViolationEarlyAbort:
         assert result.score == 0.0
         assert result.runtime_violation is not None
         assert "5000" in result.runtime_violation
+
+
+# ── Pluggable Val Scorer Tests ─────────────────────────────────────────────
+
+
+class TestValScorerIntegration:
+    """Tests for the pluggable val_scorer path."""
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_scorer_receives_retrieved_memory(self, mock_litellm):
+        """When val_scorer is set, it receives KB-retrieved strings instead of LLM answering."""
+        received_items = []
+        received_retrieved = []
+
+        class CapturingScorer:
+            def score_batch(self, items, retrieved, task_model, instruction_response):
+                received_items.extend(items)
+                received_retrieved.extend(retrieved)
+                return [("custom_answer", 0.75)] * len(items)
+
+        batch_mock = _make_batch_mock(
+            [
+                ['{"raw": "The sky is blue."}'],  # train: obs generation
+                ['{"raw": "sky query"}'],  # val round 1: query generation
+                # No round 2! val_scorer handles scoring, not LLM answer generation.
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        train = [
+            DataItem(raw_text="The sky is blue.", question="q", expected_answer="e"),
+        ]
+        val = [
+            DataItem(raw_text="", question="What color is the sky?", expected_answer="blue"),
+        ]
+
+        evaluator = MemoryEvaluator(
+            task_model="mock/model",
+            toolkit_config=_TEST_TOOLKIT_CONFIG,
+            val_scorer=CapturingScorer(),
+        )
+        result = evaluator.evaluate(program, train, val)
+
+        # val_scorer was called with the right data
+        assert len(received_items) == 1
+        assert received_items[0].question == "What color is the sky?"
+        assert "The sky is blue." in received_retrieved[0]  # KB has the stored text
+        # Score comes from val_scorer, not default scorer
+        assert result.score == 0.75
+        assert result.per_case_outputs == ["custom_answer"]
+        # Only 2 batch calls (train obs + val query), NOT 3 (no val answer generation)
+        assert len(batch_mock.captured_calls) == 2
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_scorer_none_uses_default_path(self, mock_litellm):
+        """When val_scorer is None, existing LLM answer + scorer path is used (3 batch calls)."""
+        batch_mock = _make_batch_mock(
+            [
+                ['{"raw": "Paris is capital of France."}'],
+                ['{"raw": "capital of France"}'],
+                ["Paris"],
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        train = [DataItem(raw_text="Paris is capital.", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="Capital of France?", expected_answer="Paris")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
+        result = evaluator.evaluate(program, train, val)
+
+        assert result.score == 1.0
+        assert len(batch_mock.captured_calls) == 3  # train + val query + val answer
