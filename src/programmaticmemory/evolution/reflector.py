@@ -7,6 +7,7 @@ import re
 import litellm
 import weave
 
+from programmaticmemory.evolution.patcher import apply_patch
 from programmaticmemory.evolution.prompts import (
     ReflectionPromptConfig,
     build_compile_fix_prompt,
@@ -18,12 +19,16 @@ from programmaticmemory.evolution.types import EvalResult, KBProgram
 from programmaticmemory.logging.logger import get_logger
 
 
-def _extract_code_block(text: str) -> str | None:
-    """Extract the last Python code block from LLM output."""
-    # Require closing ``` at the start of a line to avoid matching ``` inside code (e.g. regex patterns)
-    matches = re.findall(r"```python\s*\n(.*?)\n```", text, re.DOTALL)
+def _extract_patch(text: str) -> str | None:
+    """Extract the last patch block from LLM output.
+
+    Returns the patch body (everything between ``*** Begin Patch`` and
+    ``*** End Patch`` markers, excluding the markers themselves), or None
+    if no patch block is found.
+    """
+    matches = re.findall(r"\*\*\* Begin Patch\n(.*?)\*\*\* End Patch", text, re.DOTALL)
     if matches:
-        return matches[-1].strip()
+        return matches[-1]
     return None
 
 
@@ -71,7 +76,16 @@ class Reflector:
             caching=True,
         )
         output = response.choices[0].message.content
-        return _extract_code_block(output)
+
+        patch = _extract_patch(output)
+        if patch is None:
+            return None
+
+        try:
+            return apply_patch(code, patch)
+        except RuntimeError:
+            self.logger.log("Failed to apply patch from fix LLM", header="REFLECT")
+            return None
 
     @weave.op()
     def reflect_and_mutate(
@@ -136,10 +150,16 @@ class Reflector:
         )
         output = response.choices[0].message.content
 
-        # Extract code
-        new_code = _extract_code_block(output)
-        if new_code is None:
-            self.logger.log("Failed to extract code block from reflection output", header="REFLECT")
+        # Extract and apply patch
+        patch = _extract_patch(output)
+        if patch is None:
+            self.logger.log("Failed to extract patch from reflection output", header="REFLECT")
+            return None
+
+        try:
+            new_code = apply_patch(current.source_code, patch)
+        except RuntimeError as exc:
+            self.logger.log(f"Failed to apply patch: {exc}", header="REFLECT")
             return None
 
         # Validate and fix loop
@@ -156,7 +176,7 @@ class Reflector:
             self.logger.log(f"Fix attempt {attempt}/{self.max_fix_attempts}: {error_details}", header="REFLECT")
             fixed_code = self._try_fix(new_code, error_type, error_details)
             if fixed_code is None:
-                self.logger.log(f"Fix attempt {attempt}: no code block in LLM response", header="REFLECT")
+                self.logger.log(f"Fix attempt {attempt}: no patch in LLM response", header="REFLECT")
                 continue
 
             new_code = fixed_code
@@ -182,7 +202,7 @@ class Reflector:
 
         fixed = self._try_fix(code, "Runtime violation", violation)
         if fixed is None:
-            self.logger.log("Runtime fix: no code block in LLM response", header="REFLECT")
+            self.logger.log("Runtime fix: no patch in LLM response", header="REFLECT")
             return None
 
         validation_error = self._validate_code(fixed)
