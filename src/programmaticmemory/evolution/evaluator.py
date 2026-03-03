@@ -283,7 +283,7 @@ class MemoryEvaluator:
             ]
             for item in train_data
         ]
-        responses = self._batch_llm_call(all_messages)
+        responses = self._batch_llm_call(all_messages, json_mode=True)
 
         train_examples = []
         write_count = 0
@@ -392,7 +392,7 @@ class MemoryEvaluator:
             [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in train_data
         ]
-        round1_responses = self._batch_llm_call(round1_messages)
+        round1_responses = self._batch_llm_call(round1_messages, json_mode=True)
 
         # Parse queries + serial reads
         slots = self._parse_queries_and_read(
@@ -442,7 +442,7 @@ class MemoryEvaluator:
             ]
             for item, msgs_so_far, evaluation_result in round3_items
         ]
-        round3_responses = self._batch_llm_call(round3_messages)
+        round3_responses = self._batch_llm_call(round3_messages, json_mode=True)
 
         # Serial writes + capture train examples
         train_examples: list[TrainExample] = []
@@ -543,7 +543,7 @@ class MemoryEvaluator:
             [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in val_data
         ]
-        round1_responses = self._batch_llm_call(round1_messages)
+        round1_responses = self._batch_llm_call(round1_messages, json_mode=True)
 
         # Parse queries and do serial knowledge base reads
         slots = self._parse_queries_and_read(
@@ -640,7 +640,7 @@ class MemoryEvaluator:
         )
         return result
 
-    def _batch_llm_call(self, all_messages: list[list[dict]]) -> list[str | None]:
+    def _batch_llm_call(self, all_messages: list[list[dict]], *, json_mode: bool = False) -> list[str | None]:
         """Fan out independent LLM calls via litellm.batch_completion.
 
         Returns a list of content strings (same length as all_messages).
@@ -648,9 +648,10 @@ class MemoryEvaluator:
         """
         if not all_messages:
             return []
-        responses = litellm.batch_completion(
-            model=self.task_model, messages=all_messages, temperature=0.0, caching=True
-        )
+        kwargs: dict = dict(model=self.task_model, messages=all_messages, temperature=0.0, caching=True)
+        if json_mode:
+            kwargs["response_format"] = {"type": "json_object"}
+        responses = litellm.batch_completion(**kwargs)
         results: list[str | None] = []
         for resp in responses:
             if isinstance(resp, Exception):

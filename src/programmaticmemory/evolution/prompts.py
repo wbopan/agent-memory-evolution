@@ -365,7 +365,7 @@ Rules:
 1. Output ONLY the corrected code in a ```python``` block. No explanation needed.
 2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
-4. Make minimal changes — fix only what's broken.
+4. Make minimal changes — fix ONLY the broken line(s). Do NOT add new fields, imports, or restructure the code.
 
 ## Broken Code
 

@@ -31,7 +31,8 @@ from programmaticmemory.evolution.sandbox import (
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 from programmaticmemory.evolution.types import DataItem, KBProgram
 
-MODEL = "openrouter/deepseek/deepseek-v3.2"
+MODEL = "openrouter/openai/gpt-5.1-codex-mini"
+REFLECT_MODEL = "openrouter/openai/gpt-5.3-codex"
 
 
 def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str:
@@ -383,8 +384,8 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     # Round 1: broken program should score 0
     result1 = evaluator.evaluate(program, train_data, val_data)
 
-    # Reflect on failures
-    reflector = Reflector(model=MODEL, temperature=0.0)
+    # Reflect on failures (uses stronger model for code reasoning)
+    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
     child = reflector.reflect_and_mutate(program, result1, iteration=1)
     assert child is not None, "Reflection failed to produce code"
 
