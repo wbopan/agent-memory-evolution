@@ -72,8 +72,8 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
-- **types.py** — Core types: `Scorer` protocol, `Dataset` (bundles train/val/test/scorer), `KBProgram`, `DataItem`, `EvalResult` (includes `runtime_violation`, `failed_cases`, `success_cases` fields), `FailedCase` (reused for both failed and success cases), `TrainExample`, `EvolutionState`
-- **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch observation ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven obs). Val is always 2 rounds (query → read → answer). Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation.
+- **types.py** — Core types: `Scorer` protocol, `ValScorer` protocol (pluggable val scoring), `Dataset` (bundles train/val/test/scorer/val_scorer), `KBProgram`, `DataItem` (includes `metadata: dict` for benchmark-specific data), `EvalResult` (includes `runtime_violation`, `failed_cases`, `success_cases` fields), `FailedCase` (reused for both failed and success cases), `TrainExample`, `EvolutionState`
+- **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch observation ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven obs). Val has two phases: (1) shared KB retrieval (`_retrieve_for_val`), (2) pluggable scoring — either `_default_answer_and_score` (LLM answer + string scorer) or custom `ValScorer.score_batch` via `_val_scorer_path`. Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation.
 - **reflector.py** — Calls LLM with current code + failed cases + success cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_kb_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `KBProgram` is guaranteed valid.
 - **sandbox.py** — `compile_kb_program()`: AST parse → check 3 required classes (Observation, Query, KnowledgeBase) → validate import whitelist → exec → check 3 required constants. Returns `CompiledProgram` (obs_cls, query_cls, kb_cls, instruction_observation, instruction_query, instruction_response) on success, `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
 - **toolkit.py** — Resource bundle (`db`: SQLite, `chroma`: ChromaDB, `llm_completion`: budget-limited LLM, `logger`). Instantiate via `Toolkit(config)`, created fresh per evaluation.
@@ -82,7 +82,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - **benchmarks/locomo.py** — LoCoMo multi-session conversation QA (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/tau_bench.py** — tau-bench retail/airline task completion (`ExactMatchScorer`). Train is QA-only.
-- **benchmarks/alfworld.py** — ALFWorld embodied task key-element recall (`ExactMatchScorer`). Train is QA-only.
+- **benchmarks/alfworld.py** — ALFWorld embodied task completion. Train has `raw_text` (structured trajectory metadata). Val uses `ALFWorldValScorer` for real TextWorld env interaction (binary success); falls back to `ExactMatchScorer` if `alfworld` package not installed. Requires `pip install -e ".[alfworld]"` for env interaction.
 - **benchmarks/nyt_connections.py** — NYT Connections word-grouping puzzles (`ConnectionsScorer`, partial credit 0.25/group). Train is QA-only. Data from HuggingFace (652 puzzles).
 - **benchmarks/_download.py** — Shared download utilities (stdlib only: urllib, tarfile, zipfile).
 - **benchmarks/__init__.py** — Imports all benchmark modules to trigger `@register_dataset` decorators. Must be updated when adding new benchmarks.
@@ -102,7 +102,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 
 ## Test Infrastructure
 
-- **Pytest markers**: `@pytest.mark.llm` (real LLM calls), `@pytest.mark.uses_chroma` (real ChromaDB instead of mock)
+- **Pytest markers**: `@pytest.mark.llm` (real LLM calls), `@pytest.mark.uses_chroma` (real ChromaDB instead of mock), `@pytest.mark.alfworld` (requires alfworld package)
 - **Disk cache**: `tests/evolution/.llm_cache/` — litellm disk cache committed to git, so LLM tests replay without API keys. Configured in `tests/evolution/conftest.py` via session-scoped fixture that wraps `litellm.completion` with `caching=True`.
 - **Syrupy snapshots**: `tests/evolution/__snapshots__/*.ambr` — 4 snapshot files:
   - `test_prompts.ambr` — prompt template outputs from `build_*` functions
@@ -140,3 +140,5 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - Inline test programs that reach execution (step 4+) in `compile_kb_program` must include the three `INSTRUCTION_*` constants or they'll get `CompileError`. Programs that fail earlier (syntax/class/import checks) don't need them.
 - All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
 - Knowledge Base Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).
+- `DataItem.metadata` carries benchmark-specific data (e.g., `{"game_file": str, "task_type": str}` for ALFWorld val items). Defaults to empty dict.
+- `Dataset.val_scorer` (optional `ValScorer`) overrides the default LLM-answer + string-compare val scoring. When set, evaluator calls `val_scorer.score_batch()` after shared KB retrieval instead of the default answer generation path.
