@@ -469,6 +469,34 @@ wheels = [
 ]
 
 [[package]]
+name = "codex-apply-patch"
+version = "0.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/81/18/7cff6099bb4b478e5171575fd073a7b4a27ae4a1a62091b2eae48620038d/codex_apply_patch-0.4.0.tar.gz", hash = "sha256:00a36e22175b2130145ab3dd8c0e579d27bcf1c235f4084d24566353cd649386", size = 36294 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/91/3e/7510b555d1cc4b58c5cacc990a52fd38a2f78e1fab89f2b42b078facfaa5/codex_apply_patch-0.4.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:e2fcbb27311832ff064c09170943fd74eb31c8ddba8ccccd006ab069dc96c617", size = 314767 },
+    { url = "https://files.pythonhosted.org/packages/1b/cf/ebfa663b0a4be31355513af4afd08cc380b5fbec42003fbec896766ef4f7/codex_apply_patch-0.4.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:c4e7a9015bf9e4c7562ececce5b90bc6a473526d913237886f149b44b14fb61e", size = 299773 },
+    { url = "https://files.pythonhosted.org/packages/73/07/12d9dad0f4d40aedbc20e4b3b75c54ff74ba8805cf568a5fc6da6ab843dd/codex_apply_patch-0.4.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0e85d90f325f26666145bc6c1a810c194b8c44d8f6134216f861a5bc72c4a2c4", size = 319579 },
+    { url = "https://files.pythonhosted.org/packages/ab/11/d3cc68499fb4c4e343f14d19500e60cc45eb6915b9ab2d1a573cace52284/codex_apply_patch-0.4.0-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:99ab121cc43feb8002e30a8c1565b448ffedb8bea57b4faee2c140626b76f980", size = 329989 },
+    { url = "https://files.pythonhosted.org/packages/43/75/c0e4fe852e4657e94e80df9038eb1ad6159d10dc4de6f9228a03031b3f71/codex_apply_patch-0.4.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:e493f1c0ab8e4c92452ca1fa5f421a3732d7d63ea4e9bad4f463d417884c0232", size = 340533 },
+    { url = "https://files.pythonhosted.org/packages/80/21/0ce26992bba204677368cc4fde23e7e83302f1a753272c599c74a5a52d95/codex_apply_patch-0.4.0-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:0b06808d4d0e9e5d78b89e13ce6a4a1bdd64dfa88c2463779f4582c9e06252b1", size = 371838 },
+    { url = "https://files.pythonhosted.org/packages/d2/dd/b9709bf64426bd1c1f8341b6ef52b17e50be1036d00e7d30e05cddd278d9/codex_apply_patch-0.4.0-cp312-cp312-win32.whl", hash = "sha256:6c6a1ba9d53aaed8f42f58bd5f3819f61dee9319e3292a1bcc2fac6395950c17", size = 235868 },
+    { url = "https://files.pythonhosted.org/packages/7c/0f/712b0470bad061c785d0dc7e3ca634331ef62d45abf50554ed70988e8de6/codex_apply_patch-0.4.0-cp312-cp312-win_amd64.whl", hash = "sha256:cda07b7f196b72e91f4bc5196500f0c473c28fbe8422b5809dfa87a510bbe5b1", size = 247992 },
+    { url = "https://files.pythonhosted.org/packages/58/c9/22befdb23b6379176424e83c23d5bcbeb442073bd17375444d16148221a1/codex_apply_patch-0.4.0-cp313-cp313-macosx_10_12_x86_64.whl", hash = "sha256:eec9c0795f9ebc260f2d636b6dcd8e7265f3fbbcbb801cd0e902ee8ad0907c69", size = 314888 },
+    { url = "https://files.pythonhosted.org/packages/be/81/e0c5fbce28066ac44e1d7f8accb84588babc007436f9c67f42cfa0450e14/codex_apply_patch-0.4.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:2baa26e69b02749387065fb45a92bee0cbdf29901c755e58ceba4e43337245be", size = 300139 },
+    { url = "https://files.pythonhosted.org/packages/f3/7b/a23e6cc37ab648d20b2364e91d9efdc6149f1796255a3e3d56666481a5a5/codex_apply_patch-0.4.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:ec42bb09b6c6f38f17adff505bf5402449a71488709f540a635127f04377888f", size = 319527 },
+    { url = "https://files.pythonhosted.org/packages/22/e7/02255ac321acf18688c8cbd1c6a87699ccf02b294ed15793fbd0a1047e56/codex_apply_patch-0.4.0-cp313-cp313-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:06b1566cada1f8a5d30e88e9d3a04be841787e8174072c8d6d74b0a6459747c8", size = 330545 },
+    { url = "https://files.pythonhosted.org/packages/b6/9f/2590327b0f0eaf9e4f284c35ffc908a24db201e294427d5351c9f8dc68f4/codex_apply_patch-0.4.0-cp313-cp313-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:145b4daf92240ab71e6e4b077e4aece57f53d5190172e8c9249647c8574aee73", size = 340567 },
+    { url = "https://files.pythonhosted.org/packages/a7/9a/0f05eb8590b3bc6ac669edf8df3cd3f5b6d23531a5c80c51829dd9f496d2/codex_apply_patch-0.4.0-cp313-cp313-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:a9aae46cd4f3316fefaabe67eeb75fd5f0db1ccd2f188cc0e00e20a9cb718e54", size = 371349 },
+    { url = "https://files.pythonhosted.org/packages/0f/73/00e937da86dae3cdd3422d4009975e284f68af688c94e7250cc6b570d146/codex_apply_patch-0.4.0-cp313-cp313-win32.whl", hash = "sha256:a4eaf78a653ce01c0fa7e7abf135d53a3861865ee59a56a2e0fe26b291b7c32e", size = 236306 },
+    { url = "https://files.pythonhosted.org/packages/65/db/80b5f5da133fb6034a1e856e1c9d70f5e7a7af48e32cdc28bd15f72d881a/codex_apply_patch-0.4.0-cp313-cp313-win_amd64.whl", hash = "sha256:fb7a3067637487481f225d2b9baf6f6f312c622cd9a21beb739fd4be233c7afe", size = 248076 },
+    { url = "https://files.pythonhosted.org/packages/38/3e/c6eb2f088e1737ddafa8af9cd1225e64fc1d9da3c1988bfef0363ec7bf52/codex_apply_patch-0.4.0-cp313-cp313t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:0e66cf7cf46715296e95777bacd2da6447d5abf647be7c084619918399fe206a", size = 318767 },
+    { url = "https://files.pythonhosted.org/packages/90/52/71a85b1cea923e9df39e82b5b24db2acba4f90ae74fa8a0bce824bdfb48f/codex_apply_patch-0.4.0-cp313-cp313t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:03982b5d384c394b3e3b8a469e05f086c34c0bdfdfabda69e5b6f077004ecb70", size = 329733 },
+    { url = "https://files.pythonhosted.org/packages/16/d0/ad25fa5073e3cfbe7d471d73663e5e0521cf545eaf364d265cc8e79bbdf0/codex_apply_patch-0.4.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:913eaf704b82c24e56fa3715e696be7cfe7630124582fada697f7d1b9e94fd14", size = 340948 },
+    { url = "https://files.pythonhosted.org/packages/96/37/3abbb4c2de8f15c1911ddf0889094d1ec8cb44ad1d18d52acb9193f59f62/codex_apply_patch-0.4.0-cp314-cp314-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:097eeb003d19dbf2ac736dd544005fc8d13a96ad8b5e8830c09d9f31056989cc", size = 372480 },
+]
+
+[[package]]
 name = "colorama"
 version = "0.4.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2046,6 +2074,7 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "chromadb" },
+    { name = "codex-apply-patch" },
     { name = "litellm" },
     { name = "redis" },
     { name = "rich" },
@@ -2071,6 +2100,7 @@ full = [
 [package.metadata]
 requires-dist = [
     { name = "chromadb", specifier = ">=1.0.0" },
+    { name = "codex-apply-patch", specifier = ">=0.4.0" },
     { name = "datasets", marker = "extra == 'full'", specifier = ">=2.14.6" },
     { name = "litellm", specifier = ">=1.81.5" },
     { name = "litellm", extras = ["caching"], marker = "extra == 'full'", specifier = ">=1.81.5" },
