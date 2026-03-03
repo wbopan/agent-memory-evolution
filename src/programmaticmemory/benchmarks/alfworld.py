@@ -135,7 +135,7 @@ def _parse_trials(base_dir: Path, *, for_train: bool) -> list[tuple[str, DataIte
                 item = DataItem(
                     raw_text="",
                     question=task_desc,
-                    expected_answer="",
+                    expected_answer="Task completed successfully (reward=1.0)",
                     metadata={"game_file": str(pddl_path), "task_type": task_type},
                 )
 
@@ -233,6 +233,7 @@ class ALFWorldValScorer:
             messages=[{"role": "user", "content": prompt}],
             max_tokens=64,
             temperature=0.0,
+            caching=True,
         )
         raw = resp.choices[0].message.content.strip()
 

@@ -471,7 +471,7 @@ class TestALFWorldBenchmark:
         for item in ds.val:
             assert item.raw_text == ""
             assert item.question  # task objective
-            assert item.expected_answer == ""
+            assert item.expected_answer  # non-empty success description
             assert "game_file" in item.metadata
             assert "task_type" in item.metadata
 

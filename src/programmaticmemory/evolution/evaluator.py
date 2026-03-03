@@ -700,10 +700,9 @@ class MemoryEvaluator:
         instruction_response: str = "",
     ) -> EvalResult:
         """Phase 2 custom: delegate to val_scorer.score_batch."""
-        items = list(val_data)
         retrieved = [s.retrieved_str if s is not None else "" for s in slots]
 
-        results = self.val_scorer.score_batch(items, retrieved, self.task_model, instruction_response)
+        results = self.val_scorer.score_batch(val_data, retrieved, self.task_model, instruction_response)
 
         scores: list[float] = []
         outputs: list[str] = []
@@ -714,6 +713,9 @@ class MemoryEvaluator:
         for i, (output, score) in enumerate(results):
             scores.append(score)
             outputs.append(output)
+            # conversation_history intentionally omitted: ValScorer provides its own
+            # output format (e.g. episode transcript); the KB query/answer conversation
+            # is not applicable in the custom scoring path.
             case = FailedCase(
                 question=val_data[i].question,
                 output=output,
