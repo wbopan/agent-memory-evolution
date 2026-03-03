@@ -67,9 +67,18 @@ def load_locomo(
 
     # Category filtering: select a single conversation by index
     if category is not None:
-        idx = int(category)
+        try:
+            idx = int(category)
+        except ValueError:
+            raise ValueError(
+                f"locomo category must be a conversation index (integer), got {category!r}. "
+                f"Available: {', '.join(all_categories)}"
+            ) from None
         if idx < 0 or idx >= len(samples):
-            raise ValueError(f"category {category!r} out of range: only {len(samples)} conversations available")
+            raise ValueError(
+                f"category {category!r} out of range: only {len(samples)} conversations available. "
+                f"Available: {', '.join(all_categories)}"
+            )
         samples = [samples[idx]]
 
     train: list[DataItem] = []

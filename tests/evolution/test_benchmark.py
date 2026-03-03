@@ -192,6 +192,12 @@ class TestLoComoBenchmark:
         with pytest.raises(ValueError, match="category"):
             load_locomo(data_dir=locomo_data_dir, category="99")
 
+    def test_category_non_integer_raises(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        with pytest.raises(ValueError, match="conversation index"):
+            load_locomo(data_dir=locomo_data_dir, category="abc")
+
     def test_category_none_returns_all(self, locomo_data_dir):
         from programmaticmemory.benchmarks.locomo import load_locomo
 

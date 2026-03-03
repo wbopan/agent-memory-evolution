@@ -47,7 +47,11 @@ def main() -> None:
     )
     parser.add_argument("--dataset", default="kv_memory", help="Dataset name (default: kv_memory)")
     parser.add_argument("--iterations", type=int, default=3, help="Max evolution iterations")
-    parser.add_argument("--category", default=None, help="Filter dataset to a specific category/domain")
+    parser.add_argument(
+        "--category",
+        default=None,
+        help="Filter dataset to a specific category/domain (locomo: conversation index, alfworld: task type)",
+    )
     parser.add_argument("--train-size", type=int, default=None, help="Limit train set size")
     parser.add_argument("--val-size", type=int, default=None, help="Limit val set size")
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
