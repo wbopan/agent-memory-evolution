@@ -83,6 +83,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/tau_bench.py** — tau-bench retail/airline task completion (`ExactMatchScorer`). Train is QA-only.
 - **benchmarks/alfworld.py** — ALFWorld embodied task key-element recall (`ExactMatchScorer`). Train is QA-only.
+- **benchmarks/nyt_connections.py** — NYT Connections word-grouping puzzles (`ConnectionsScorer`, partial credit 0.25/group). Train is QA-only. Data from HuggingFace (652 puzzles).
 - **benchmarks/_download.py** — Shared download utilities (stdlib only: urllib, tarfile, zipfile).
 - **benchmarks/__init__.py** — Imports all benchmark modules to trigger `@register_dataset` decorators. Must be updated when adding new benchmarks.
 
