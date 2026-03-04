@@ -899,6 +899,46 @@ class TestValScorerIntegration:
         assert len(batch_mock.captured_calls) == 2
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_val_scorer_path_includes_conversation_history(self, mock_litellm):
+        """ValScorer path should include retrieval conversation in failed_cases."""
+
+        class FailingScorer:
+            def score_batch(self, items, retrieved, task_model, instruction_response):
+                return [("episode transcript: FAIL", 0.0)] * len(items)
+
+        batch_mock = _make_batch_mock(
+            [
+                ['{"raw": "The sky is blue."}'],  # train: obs generation
+                ['{"raw": "sky query"}'],  # val round 1: query generation
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        train = [
+            DataItem(raw_text="The sky is blue.", question="q", expected_answer="e"),
+        ]
+        val = [
+            DataItem(raw_text="", question="What color is the sky?", expected_answer="blue"),
+        ]
+
+        evaluator = MemoryEvaluator(
+            task_model="mock/model",
+            toolkit_config=_TEST_TOOLKIT_CONFIG,
+            val_scorer=FailingScorer(),
+        )
+        result = evaluator.evaluate(program, train, val)
+
+        assert len(result.failed_cases) == 1
+        fc = result.failed_cases[0]
+        # Should have 3 messages: user(query prompt) + asst(query json) + user(retrieved prompt)
+        # (no 4th assistant message — ValScorer provides output via episode transcript, not LLM answer)
+        assert len(fc.conversation_history) == 3
+        roles = [m["role"] for m in fc.conversation_history]
+        assert roles == ["user", "assistant", "user"]
+        assert fc.output == "episode transcript: FAIL"
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_val_scorer_none_uses_default_path(self, mock_litellm):
         """When val_scorer is None, existing LLM answer + scorer path is used (3 batch calls)."""
         batch_mock = _make_batch_mock(
