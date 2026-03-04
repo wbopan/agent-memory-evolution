@@ -713,14 +713,24 @@ class MemoryEvaluator:
         for i, (output, score) in enumerate(results):
             scores.append(score)
             outputs.append(output)
-            # conversation_history intentionally omitted: ValScorer provides its own
-            # output format (e.g. episode transcript); the KB query/answer conversation
-            # is not applicable in the custom scoring path.
+            # Include retrieval conversation so reflection LLM can diagnose
+            # whether failures stem from poor KB retrieval or poor execution.
+            slot = slots[i]
+            conv = (
+                [
+                    {"role": "user", "content": slot.query_prompt},
+                    {"role": "assistant", "content": slot.query_json},
+                    {"role": "user", "content": slot.retrieved_prompt},
+                ]
+                if slot is not None
+                else []
+            )
             case = FailedCase(
                 question=val_data[i].question,
                 output=output,
                 expected=val_data[i].expected_answer,
                 score=score,
+                conversation_history=conv,
                 memory_logs=log_snapshot,
             )
             if score < 1.0:
