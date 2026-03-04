@@ -1,6 +1,9 @@
 """ALFWorld benchmark — embodied task completion from ALFRED trajectories.
 
-Train items: structured training text from trajectory metadata (task type, description, PDDL params, scene).
+Train items: expert episode transcripts (ACTION/OBSERVATION pairs) collected by replaying
+episodes in TextWorld with AlfredExpert planner. Falls back to structured metadata if
+pre-computed trajectories are not available.
+
 Val items: task objectives with game_file metadata for env interaction via ALFWorldValScorer.
 """
 
@@ -70,8 +73,37 @@ def ensure_data(data_dir: str | Path | None = None) -> Path:
     return dest_dir
 
 
+def _load_trajectories(dest_dir: Path, split: str) -> dict[str, dict]:
+    """Load pre-computed expert trajectories for a split.
+
+    Trajectories are keyed by game file path (Docker-internal). We build a lookup
+    keyed by the relative path from json_2.1.1/ for cross-platform matching.
+
+    Returns {relative_game_path: trajectory_record} or empty dict if not available.
+    """
+    traj_file = dest_dir / "trajectories" / f"{split}.json"
+    if not traj_file.exists():
+        return {}
+    try:
+        raw = json.loads(traj_file.read_text())
+    except (json.JSONDecodeError, OSError):
+        return {}
+    # Re-key by relative path from json_2.1.1/
+    lookup: dict[str, dict] = {}
+    for key, val in raw.items():
+        # Docker keys look like /data/alfworld/json_2.1.1/train/...
+        marker = "json_2.1.1/"
+        idx = key.find(marker)
+        if idx >= 0:
+            rel = key[idx + len(marker) :]
+        else:
+            rel = key
+        lookup[rel] = val
+    return lookup
+
+
 def _format_training_text(task_desc: str, task_type: str, traj_data: dict) -> str:
-    """Format trajectory metadata as training text for the KB."""
+    """Fallback: format trajectory metadata as training text for the KB."""
     parts = [f"Task type: {task_type}", f"Task description: {task_desc}"]
 
     pddl = traj_data.get("pddl_params", {})
@@ -87,16 +119,24 @@ def _format_training_text(task_desc: str, task_type: str, traj_data: dict) -> st
     return "\n".join(parts)
 
 
-def _parse_trials(base_dir: Path, *, for_train: bool) -> list[tuple[str, DataItem]]:
+def _parse_trials(
+    base_dir: Path, *, for_train: bool, trajectories: dict[str, dict] | None = None
+) -> list[tuple[str, DataItem]]:
     """Parse all valid trial directories under base_dir.
 
     Returns (task_type, DataItem) pairs.
-    - for_train=True: items have raw_text (training text), empty question/expected_answer
+    - for_train=True: items have raw_text (expert transcript or fallback metadata)
     - for_train=False: items have question (task objective), metadata with game_file/task_type
+
+    When trajectories dict is provided, successful expert episode transcripts are used
+    as raw_text instead of the metadata-based fallback.
     """
     items: list[tuple[str, DataItem]] = []
     if not base_dir.exists():
         return items
+
+    # Determine split name from base_dir (e.g. "train", "valid_unseen")
+    split_name = base_dir.name
 
     for task_dir in sorted(base_dir.iterdir()):
         if not task_dir.is_dir():
@@ -129,7 +169,19 @@ def _parse_trials(base_dir: Path, *, for_train: bool) -> list[tuple[str, DataIte
             task_type = task_dir.name.split("-")[0] if "-" in task_dir.name else task_dir.name
 
             if for_train:
-                raw_text = _format_training_text(task_desc, task_type, traj_data)
+                # Try pre-computed expert trajectory first
+                raw_text = ""
+                if trajectories:
+                    rel_key = f"{split_name}/{task_dir.name}/{trial_dir.name}/game.tw-pddl"
+                    traj_record = trajectories.get(rel_key, {})
+                    traj_text = traj_record.get("trajectory", "")
+                    # Only use successful trajectories
+                    if traj_text and traj_record.get("total_reward", 0) >= 1.0:
+                        raw_text = traj_text
+
+                if not raw_text:
+                    raw_text = _format_training_text(task_desc, task_type, traj_data)
+
                 item = DataItem(raw_text=raw_text, question="", expected_answer="")
             else:
                 item = DataItem(
@@ -280,13 +332,17 @@ def load_alfworld(
     dest_dir = ensure_data(data_dir)
     json_dir = dest_dir / "json_2.1.1"
 
+    # Load pre-computed expert trajectories (if available)
+    train_trajectories = _load_trajectories(dest_dir, "train")
+    val_trajectories = _load_trajectories(dest_dir, "valid_unseen")
+
     # Parse train split for training items (with raw_text)
     train_dir = json_dir / "train"
-    train_typed = _parse_trials(train_dir, for_train=True)
+    train_typed = _parse_trials(train_dir, for_train=True, trajectories=train_trajectories)
 
     # Parse valid_unseen split for val items (with metadata)
     valid_dir = json_dir / "valid_unseen"
-    val_typed = _parse_trials(valid_dir, for_train=False)
+    val_typed = _parse_trials(valid_dir, for_train=False, trajectories=val_trajectories)
 
     # Available categories: union of task types from both splits
     all_categories = sorted({t for t, _ in train_typed} | {t for t, _ in val_typed})
