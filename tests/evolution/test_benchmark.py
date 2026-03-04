@@ -592,7 +592,7 @@ class TestALFWorldValScorer:
         with patch("textworld.gym.register_games", return_value="fake-env-id"), \
              patch("textworld.gym.make", return_value=NeverDoneEnv()), \
              patch("programmaticmemory.benchmarks.alfworld._select_action", return_value="look"):
-            transcript, score = _run_episode("/fake/game.tw-pddl", "Do something", "tips", "mock/model", 3)
+            _transcript, score = _run_episode("/fake/game.tw-pddl", "Do something", "tips", "mock/model", 3)
 
         assert score == 0.0
 
@@ -643,6 +643,54 @@ class TestALFWorldValScorer:
         assert _parse_action_response("GO TO DESK 1", ["go to desk 1", "look"]) == "go to desk 1"
         assert _parse_action_response("", ["go to desk 1", "look"]) == "go to desk 1"
         assert _parse_action_response("random text", ["go to desk 1", "look"]) == "go to desk 1"
+
+    def test_score_batch_dispatches_to_run_episode(self):
+        """score_batch dispatches episodes and collects results.
+
+        ProcessPoolExecutor child processes don't see in-process mocks, so we
+        mock both the executor (to run synchronously in-process) and _run_episode.
+        """
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        scorer = ALFWorldValScorer(max_steps=50, max_workers=2)
+        items = [
+            DataItem(raw_text="", question="Do X", expected_answer="", metadata={"game_file": "/fake1"}),
+            DataItem(raw_text="", question="Do Y", expected_answer="", metadata={"game_file": "/fake2"}),
+        ]
+        retrieved = ["tips1", "tips2"]
+
+        # Use ThreadPoolExecutor so the _run_episode mock is visible in the same process.
+        import concurrent.futures
+
+        with patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor), \
+             patch("programmaticmemory.benchmarks.alfworld._run_episode",
+                   return_value=("transcript", 1.0)) as mock_run:
+            results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
+
+        assert len(results) == 2
+        assert all(score == 1.0 for _, score in results)
+        assert mock_run.call_count == 2
+
+    def test_score_batch_handles_episode_failure(self):
+        """score_batch returns zero score for episodes that raise exceptions."""
+        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+
+        scorer = ALFWorldValScorer(max_steps=50, max_workers=2)
+        items = [
+            DataItem(raw_text="", question="Do X", expected_answer="", metadata={"game_file": "/fake1"}),
+        ]
+        retrieved = ["tips1"]
+
+        import concurrent.futures
+
+        with patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor), \
+             patch("programmaticmemory.benchmarks.alfworld._run_episode",
+                   side_effect=RuntimeError("env crashed")):
+            results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
+
+        assert len(results) == 1
+        assert results[0][1] == 0.0
+        assert "Episode failed" in results[0][0]
 
 
 # ── NYT Connections ──────────────────────────────────────────────────────────

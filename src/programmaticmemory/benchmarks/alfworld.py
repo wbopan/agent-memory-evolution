@@ -376,7 +376,13 @@ def _select_action(
         lines += ["", "Retrieved procedural tips (optional, short & actionable):", tips.strip()]
 
     lines += ["", "Interaction history so far (most recent info matters most):"]
-    lines.append(trajectory_text.strip() if trajectory_text else "(empty)")
+    if trajectory_text and trajectory_text.strip():
+        traj_lines = trajectory_text.strip().splitlines()
+        if len(traj_lines) > 40:
+            traj_lines = ["(earlier history truncated)", "..."] + traj_lines[-40:]
+        lines.append("\n".join(traj_lines))
+    else:
+        lines.append("(empty)")
 
     if inventory and inventory.strip() and inventory.strip().lower() not in {"none", "null", "(empty)"}:
         lines += ["", "Inventory (if available):", inventory.strip()]
@@ -408,9 +414,10 @@ class ALFWorldValScorer:
     (TextWorld's tatsu-based parsers use global singletons that are not thread-safe).
     """
 
-    def __init__(self, max_steps: int = 50, max_workers: int = 20) -> None:
+    def __init__(self, max_steps: int = 50, max_workers: int = 20, episode_timeout: float = 300.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
+        self.episode_timeout = episode_timeout
 
     def score_batch(
         self,
@@ -428,7 +435,12 @@ class ALFWorldValScorer:
                 pool.submit(_run_episode, item.metadata["game_file"], item.question, tips, task_model, self.max_steps)
                 for item, tips in zip(items, retrieved, strict=True)
             ]
-            results = [f.result() for f in futures]
+            results: list[tuple[str, float]] = []
+            for f in futures:
+                try:
+                    results.append(f.result(timeout=self.episode_timeout))
+                except Exception as exc:
+                    results.append((f"Episode failed: {exc}", 0.0))
         return results
 
 
