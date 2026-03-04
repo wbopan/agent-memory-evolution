@@ -517,10 +517,14 @@ class TestALFWorldBenchmark:
 
     def test_val_scorer_none_without_alfworld(self, alfworld_data_dir):
         """Without alfworld installed, val_scorer should be None."""
+        import sys
+        import unittest.mock
+
         from programmaticmemory.benchmarks.alfworld import load_alfworld
 
-        ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
-        # alfworld is not installed in test env, so val_scorer should be None
+        # Simulate alfworld not being installed
+        with unittest.mock.patch.dict(sys.modules, {"alfworld": None}):
+            ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
         assert ds.val_scorer is None
         # But scorer should still be set for fallback
         assert ds.scorer is not None
@@ -603,7 +607,9 @@ class TestALFWorldValScorer:
             mock_resp.choices[0].message.content = "take lamp 1"
             mock_litellm.completion.return_value = mock_resp
 
-            action = scorer._select_action("Find lamp", "tips", ["obs1"], ["take lamp 1", "go to desk 1"], "mock/model")
+            action = scorer._select_action(
+                "Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model"
+            )
         assert action == "take lamp 1"
 
     def test_select_action_substring_fallback(self):
@@ -617,7 +623,9 @@ class TestALFWorldValScorer:
             mock_resp.choices[0].message.content = "I'll take lamp 1 from the desk"
             mock_litellm.completion.return_value = mock_resp
 
-            action = scorer._select_action("Find lamp", "tips", ["obs1"], ["take lamp 1", "go to desk 1"], "mock/model")
+            action = scorer._select_action(
+                "Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model"
+            )
         assert action == "take lamp 1"
 
     def test_select_action_fallback_to_first(self):
@@ -631,7 +639,9 @@ class TestALFWorldValScorer:
             mock_resp.choices[0].message.content = "something completely unrelated"
             mock_litellm.completion.return_value = mock_resp
 
-            action = scorer._select_action("Find lamp", "tips", ["obs1"], ["take lamp 1", "go to desk 1"], "mock/model")
+            action = scorer._select_action(
+                "Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model"
+            )
         assert action == "take lamp 1"
 
     def test_score_batch_env_close_called(self):

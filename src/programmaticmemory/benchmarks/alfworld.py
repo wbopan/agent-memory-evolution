@@ -11,7 +11,11 @@ from __future__ import annotations
 
 import json
 import random
+import re
+import threading
+import uuid
 from pathlib import Path
+from typing import Any
 
 import litellm
 
@@ -196,11 +200,88 @@ def _parse_trials(
     return items
 
 
+def _unwrap_single(value: Any, default: Any) -> Any:
+    """Unwrap a batch-size-1 result from textworld.gym (handles nested lists)."""
+    if value is None:
+        return default
+    if isinstance(value, (list, tuple)):
+        if not value:
+            return default
+        first = value[0]
+        if first is None:
+            return default
+        if isinstance(first, (list, tuple)):
+            if not first:
+                return default
+            nested = first[0]
+            return default if nested is None else nested
+        return first
+    return value
+
+
+def _extract_admissible(info: dict[str, Any]) -> list[str]:
+    """Extract admissible commands from info dict, handling nested list formats."""
+    commands = info.get("admissible_commands")
+    if isinstance(commands, list) and commands:
+        if isinstance(commands[0], list):
+            commands = commands[0]
+        return [str(c) for c in commands if c]
+    return []
+
+
+def _parse_action_response(response: str, admissible: list[str]) -> str:
+    """Parse LLM response to extract an admissible action."""
+    text = (response or "").strip()
+    if not text:
+        return admissible[0] if admissible else "look"
+
+    # Strip common prefixes like "action:", "Action -", etc.
+    text = re.sub(r"^\s*action\s*[:=\-]\s*", "", text, flags=re.IGNORECASE)
+    line = text.splitlines()[0].strip().strip('"').strip("'").strip("`")
+    lowered = text.lower()
+
+    if admissible:
+        # Case-insensitive exact match
+        for cmd in admissible:
+            if line.lower() == str(cmd).lower():
+                return cmd
+        # Substring containment
+        for cmd in admissible:
+            if str(cmd).lower() in lowered:
+                return cmd
+        # Fallback to first admissible
+        return admissible[0]
+
+    return line if line else "look"
+
+
+def _reset_with_timeout(env: Any, timeout_s: float) -> tuple[Any, Any]:
+    """Reset env with timeout — alfworld env.reset() can hang on certain games."""
+    reset_result: dict[str, Any] = {}
+
+    def _do_reset() -> None:
+        try:
+            reset_result["value"] = env.reset()
+        except Exception as exc:
+            reset_result["error"] = exc
+
+    reset_thread = threading.Thread(target=_do_reset, daemon=True)
+    reset_thread.start()
+    reset_thread.join(timeout_s)
+    if reset_thread.is_alive():
+        raise TimeoutError(f"ALFWorld env.reset() timed out after {timeout_s:.1f}s")
+    if "error" in reset_result:
+        raise reset_result["error"]
+    return reset_result.get("value", ("", {}))
+
+
 class ALFWorldValScorer:
     """Pluggable val scorer that runs ALFWorld episodes via TextWorld environments.
 
-    For each val item, creates a TextWorld env from the game_file, uses LLM to select
-    actions based on KB-retrieved tips, and returns binary success (1.0/0.0).
+    Uses textworld.gym with AlfredDemangler + AlfredInfos wrappers for human-readable
+    object names and proper Gym-style API. For each val item, creates a TextWorld env
+    from the game_file, uses LLM to select actions based on KB-retrieved tips, and
+    returns binary success (1.0/0.0).
     """
 
     def __init__(self, max_steps: int = 50) -> None:
@@ -226,59 +307,114 @@ class ALFWorldValScorer:
         """Run a single ALFWorld episode. Returns (transcript, score)."""
         env = self._create_env(game_file)
         try:
-            obs, info = env.reset()
-            admissible = info.get("admissible_commands", [])
-            history: list[str] = [f"OBSERVATION: {obs}"]
-            score = 0.0
+            obs_batch, info_batch = _reset_with_timeout(env, 60.0)
+            obs = _unwrap_single(obs_batch, "")
+            info = _unwrap_single(info_batch, {})
+
+            admissible = _extract_admissible(info if isinstance(info, dict) else {})
+            trajectory_lines: list[str] = [str(obs).strip()] if obs else []
+            total_reward = 0.0
 
             for _step in range(self.max_steps):
-                action = self._select_action(objective, tips, history, admissible, task_model)
-                history.append(f"ACTION: {action}")
+                inventory = ""
+                if isinstance(info, dict):
+                    inv = info.get("inventory") or info.get("inv") or ""
+                    if isinstance(inv, list):
+                        inv = inv[0] if inv else ""
+                    inventory = str(inv) if inv else ""
 
-                obs, reward, done, info = env.step(action)
-                history.append(f"OBSERVATION: {obs}")
-                admissible = info.get("admissible_commands", [])
+                action = self._select_action(
+                    objective, tips, "\n".join(trajectory_lines), inventory, admissible, task_model
+                )
+                trajectory_lines.append(f"ACTION: {action}")
+
+                obs_batch, scores, dones, infos = env.step([action])
+                obs = _unwrap_single(obs_batch, "")
+                info = _unwrap_single(infos, {})
+
+                reward = float(scores[0]) if isinstance(scores, (list, tuple)) and scores else float(scores or 0)
+                done = bool(dones[0]) if isinstance(dones, (list, tuple)) and dones else bool(dones)
+                total_reward += reward
+
+                trajectory_lines.append(f"OBSERVATION: {str(obs).strip()}")
+                admissible = _extract_admissible(info if isinstance(info, dict) else {})
 
                 if done:
-                    score = float(reward)
                     break
 
-            return "\n".join(history), score
+            transcript = "\n".join(trajectory_lines)
+            # Success = episode finished with reward
+            score = 1.0 if done and total_reward >= 1.0 else 0.0
+            return transcript, score
         finally:
-            env.close()
+            try:
+                env.close()
+            except Exception:
+                pass
 
-    def _create_env(self, game_file: str):
-        """Create a TextWorld environment from a game file. Lazy-imports alfworld."""
-        import alfworld.agents.environment  # noqa: F401 — side-effect import registers alfworld envs
+    def _create_env(self, game_file: str) -> Any:
+        """Create a TextWorld gym environment with AlfredDemangler for readable names."""
         import textworld
+        import textworld.gym
+        from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
 
-        env = textworld.start(game_file)
-        return env
+        request_infos = textworld.EnvInfos(
+            feedback=True,
+            description=True,
+            inventory=True,
+            admissible_commands=True,
+            objective=True,
+            extras=["gamefile"],
+        )
+        wrappers = [AlfredDemangler(), AlfredInfos]
+        env_id = textworld.gym.register_games(
+            [game_file],
+            request_infos,
+            batch_size=1,
+            auto_reset=False,
+            max_episode_steps=self.max_steps,
+            asynchronous=False,
+            name=f"alfworld-eval-{uuid.uuid4().hex}",
+            wrappers=wrappers,
+        )
+        return textworld.gym.make(env_id)
 
     def _select_action(
         self,
         objective: str,
         tips: str,
-        history: list[str],
+        trajectory_text: str,
+        inventory: str,
         admissible: list[str],
         task_model: str,
     ) -> str:
         """Use LLM to select the next action from admissible commands."""
-        # Build recent history (last 20 entries to avoid context overflow)
-        recent = history[-20:]
-        history_text = "\n".join(recent)
-        admissible_text = "\n".join(f"- {cmd}" for cmd in admissible)
+        lines = [
+            "You are controlling a text-based ALFWorld environment.",
+            "Your job: choose the NEXT action as ONE text command.",
+            "Output ONLY the command string, with no extra text.",
+            "You MUST choose an action from the admissible actions list and copy it EXACTLY.",
+        ]
 
-        prompt = (
-            "You are controlling a text-based ALFWorld environment.\n"
-            "Choose the NEXT action as ONE text command.\n"
-            "You MUST choose from the admissible actions and copy it EXACTLY.\n\n"
-            f"Goal: {objective}\n\n"
-            f"Procedural tips from knowledge base:\n{tips}\n\n"
-            f"Recent interaction history:\n{history_text}\n\n"
-            f"Admissible actions (choose exactly ONE):\n{admissible_text}\n\n"
-            "Output exactly one line: the chosen action."
-        )
+        if objective:
+            lines += ["", "Goal:", objective.strip()]
+
+        if tips and tips.strip():
+            lines += ["", "Retrieved procedural tips (optional, short & actionable):", tips.strip()]
+
+        lines += ["", "Interaction history so far (most recent info matters most):"]
+        lines.append(trajectory_text.strip() if trajectory_text else "(empty)")
+
+        if inventory and inventory.strip() and inventory.strip().lower() not in {"none", "null", "(empty)"}:
+            lines += ["", "Inventory (if available):", inventory.strip()]
+
+        if admissible:
+            lines += ["", "Admissible actions (choose exactly ONE and copy it verbatim):"]
+            for cmd in admissible:
+                lines.append(f"- {cmd}")
+            lines += ["", "Now output exactly one line: the chosen action (must match one item above)."]
+
+        prompt = "\n".join(lines)
 
         resp = litellm.completion(
             model=task_model,
@@ -288,21 +424,7 @@ class ALFWorldValScorer:
             caching=True,
         )
         raw = resp.choices[0].message.content.strip()
-
-        # Exact match
-        if raw in admissible:
-            return raw
-
-        # Substring match: find admissible command contained in LLM output
-        for cmd in admissible:
-            if cmd in raw:
-                return cmd
-
-        # Fallback to first admissible
-        if admissible:
-            return admissible[0]
-
-        return raw
+        return _parse_action_response(raw, admissible)
 
 
 @register_dataset("alfworld")
