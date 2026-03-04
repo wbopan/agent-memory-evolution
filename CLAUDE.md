@@ -86,6 +86,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - **benchmarks/nyt_connections.py** — NYT Connections word-grouping puzzles (`ConnectionsScorer`, partial credit 0.25/group). Train is QA-only. Data from HuggingFace (652 puzzles).
 - **benchmarks/_download.py** — Shared download utilities (stdlib only: urllib, tarfile, zipfile).
 - **benchmarks/__init__.py** — Imports all benchmark modules to trigger `@register_dataset` decorators. Must be updated when adding new benchmarks.
+- **patcher.py** — `apply_patch()`: thin wrapper around `codex-apply-patch` for applying diffs to Knowledge Base Program source code.
 
 ### Other Modules (under `src/programmaticmemory/`)
 
@@ -93,6 +94,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - **datasets.py** — `register_dataset(name)` decorator stores dataset loader functions. `load_dataset(name, ...)` calls the loader and applies train/val size limits. Auto-imports benchmarks package on first use.
 - **logging/experiment_tracker.py** — Experiment tracking via wandb/weave.
 - **logging/run_output.py** — `RunOutputManager` + `LLMCallLogger` (litellm `CustomLogger` callback). Creates timestamped `outputs/` dir with config, logs, summary, and per-call LLM JSON. Zero-invasive via litellm callback; thread-safe.
+- **logging/logger.py** — `RichLogger` (global singleton via `get_logger()`), `set_logger()` for file-tee replacement, `LoggerProtocol`. User-facing progress output with log-level headers (`EVOLUTION`, `EVAL`, `REFLECT`, `CONFIG`, `OUTPUT`).
 - **utils/stop_condition.py** — `StopperProtocol` and `SignalStopper` for graceful stopping via signal handlers.
 
 ### Two Separate LLM Roles
@@ -128,7 +130,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 
 - Python 3.12+, `from __future__ import annotations` in all modules
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q. S (bandit) rules are NOT enabled — do not add `# noqa: S...` directives (causes RUF100 errors)
-- Default model for evolution runs: `openrouter/deepseek/deepseek-v3.2`. LLM integration tests use `openrouter/openai/gpt-5.1-codex-mini` (task) and `openrouter/openai/gpt-5.3-codex` (reflection).
+- Default models for evolution runs: `openrouter/deepseek/deepseek-v3.2` (task + toolkit), `openrouter/openai/gpt-5.3-codex` (reflection). LLM integration tests use `openrouter/openai/gpt-5.1-codex-mini` (task) and `openrouter/openai/gpt-5.3-codex` (reflection).
 - Import whitelist for Knowledge Base Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
 - A Knowledge Base Program is a **complete Python module**: three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE) + three class definitions (Observation, Query, KnowledgeBase). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness

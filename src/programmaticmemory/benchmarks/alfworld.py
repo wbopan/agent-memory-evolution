@@ -275,13 +275,137 @@ def _reset_with_timeout(env: Any, timeout_s: float) -> tuple[Any, Any]:
     return reset_result.get("value", ("", {}))
 
 
+def _run_episode(
+    game_file: str, objective: str, tips: str, task_model: str, max_steps: int
+) -> tuple[str, float]:
+    """Run a single ALFWorld episode in its own process. Returns (transcript, score).
+
+    Module-level function (not a method) so it can be pickled for ProcessPoolExecutor.
+    TextWorld's tatsu-based parsers use global singletons that are not thread-safe,
+    so each episode must run in a separate process.
+    """
+    import textworld
+    import textworld.gym
+    from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
+
+    request_infos = textworld.EnvInfos(
+        feedback=True,
+        description=True,
+        inventory=True,
+        admissible_commands=True,
+        objective=True,
+        extras=["gamefile"],
+    )
+    wrappers = [AlfredDemangler(), AlfredInfos]
+    env_id = textworld.gym.register_games(
+        [game_file],
+        request_infos,
+        batch_size=1,
+        auto_reset=False,
+        max_episode_steps=max_steps,
+        asynchronous=False,
+        name=f"alfworld-eval-{uuid.uuid4().hex}",
+        wrappers=wrappers,
+    )
+    env = textworld.gym.make(env_id)
+    try:
+        obs_batch, info_batch = _reset_with_timeout(env, 60.0)
+        obs = _unwrap_single(obs_batch, "")
+        info = _unwrap_single(info_batch, {})
+
+        admissible = _extract_admissible(info if isinstance(info, dict) else {})
+        trajectory_lines: list[str] = [str(obs).strip()] if obs else []
+        total_reward = 0.0
+        done = False
+
+        for _step in range(max_steps):
+            inventory = ""
+            if isinstance(info, dict):
+                inv = info.get("inventory") or info.get("inv") or ""
+                if isinstance(inv, list):
+                    inv = inv[0] if inv else ""
+                inventory = str(inv) if inv else ""
+
+            action = _select_action(objective, tips, "\n".join(trajectory_lines), inventory, admissible, task_model)
+            trajectory_lines.append(f"ACTION: {action}")
+
+            obs_batch, scores, dones, infos = env.step([action])
+            obs = _unwrap_single(obs_batch, "")
+            info = _unwrap_single(infos, {})
+
+            reward = float(scores[0]) if isinstance(scores, (list, tuple)) and scores else float(scores or 0)
+            done = bool(dones[0]) if isinstance(dones, (list, tuple)) and dones else bool(dones)
+            total_reward += reward
+
+            trajectory_lines.append(f"OBSERVATION: {str(obs).strip()}")
+            admissible = _extract_admissible(info if isinstance(info, dict) else {})
+
+            if done:
+                break
+
+        transcript = "\n".join(trajectory_lines)
+        score = 1.0 if done and total_reward >= 1.0 else 0.0
+        return transcript, score
+    finally:
+        try:
+            env.close()
+        except Exception:
+            pass
+
+
+def _select_action(
+    objective: str,
+    tips: str,
+    trajectory_text: str,
+    inventory: str,
+    admissible: list[str],
+    task_model: str,
+) -> str:
+    """Use LLM to select the next action from admissible commands."""
+    lines = [
+        "You are controlling a text-based ALFWorld environment.",
+        "Your job: choose the NEXT action as ONE text command.",
+        "Output ONLY the command string, with no extra text.",
+        "You MUST choose an action from the admissible actions list and copy it EXACTLY.",
+    ]
+
+    if objective:
+        lines += ["", "Goal:", objective.strip()]
+
+    if tips and tips.strip():
+        lines += ["", "Retrieved procedural tips (optional, short & actionable):", tips.strip()]
+
+    lines += ["", "Interaction history so far (most recent info matters most):"]
+    lines.append(trajectory_text.strip() if trajectory_text else "(empty)")
+
+    if inventory and inventory.strip() and inventory.strip().lower() not in {"none", "null", "(empty)"}:
+        lines += ["", "Inventory (if available):", inventory.strip()]
+
+    if admissible:
+        lines += ["", "Admissible actions (choose exactly ONE and copy it verbatim):"]
+        for cmd in admissible:
+            lines.append(f"- {cmd}")
+        lines += ["", "Now output exactly one line: the chosen action (must match one item above)."]
+
+    prompt = "\n".join(lines)
+
+    resp = litellm.completion(
+        model=task_model,
+        messages=[{"role": "user", "content": prompt}],
+        max_tokens=64,
+        temperature=0.0,
+        caching=True,
+    )
+    raw = resp.choices[0].message.content.strip()
+    return _parse_action_response(raw, admissible)
+
+
 class ALFWorldValScorer:
     """Pluggable val scorer that runs ALFWorld episodes via TextWorld environments.
 
     Uses textworld.gym with AlfredDemangler + AlfredInfos wrappers for human-readable
-    object names and proper Gym-style API. For each val item, creates a TextWorld env
-    from the game_file, uses LLM to select actions based on KB-retrieved tips, and
-    returns binary success (1.0/0.0).
+    object names and proper Gym-style API. Episodes run in parallel via ProcessPoolExecutor
+    (TextWorld's tatsu-based parsers use global singletons that are not thread-safe).
     """
 
     def __init__(self, max_steps: int = 50, max_workers: int = 20) -> None:
@@ -298,137 +422,14 @@ class ALFWorldValScorer:
         """Run one episode per item in parallel, return (transcript, score) pairs."""
         import concurrent.futures
 
-        def _run_one(item: DataItem, tips: str) -> tuple[str, float]:
-            return self._run_episode(item.metadata["game_file"], item.question, tips, task_model)
-
         workers = min(self.max_workers, len(items)) if items else 1
-        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-            futures = [pool.submit(_run_one, item, tips) for item, tips in zip(items, retrieved, strict=True)]
+        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(_run_episode, item.metadata["game_file"], item.question, tips, task_model, self.max_steps)
+                for item, tips in zip(items, retrieved, strict=True)
+            ]
             results = [f.result() for f in futures]
         return results
-
-    def _run_episode(self, game_file: str, objective: str, tips: str, task_model: str) -> tuple[str, float]:
-        """Run a single ALFWorld episode. Returns (transcript, score)."""
-        env = self._create_env(game_file)
-        try:
-            obs_batch, info_batch = _reset_with_timeout(env, 60.0)
-            obs = _unwrap_single(obs_batch, "")
-            info = _unwrap_single(info_batch, {})
-
-            admissible = _extract_admissible(info if isinstance(info, dict) else {})
-            trajectory_lines: list[str] = [str(obs).strip()] if obs else []
-            total_reward = 0.0
-
-            for _step in range(self.max_steps):
-                inventory = ""
-                if isinstance(info, dict):
-                    inv = info.get("inventory") or info.get("inv") or ""
-                    if isinstance(inv, list):
-                        inv = inv[0] if inv else ""
-                    inventory = str(inv) if inv else ""
-
-                action = self._select_action(
-                    objective, tips, "\n".join(trajectory_lines), inventory, admissible, task_model
-                )
-                trajectory_lines.append(f"ACTION: {action}")
-
-                obs_batch, scores, dones, infos = env.step([action])
-                obs = _unwrap_single(obs_batch, "")
-                info = _unwrap_single(infos, {})
-
-                reward = float(scores[0]) if isinstance(scores, (list, tuple)) and scores else float(scores or 0)
-                done = bool(dones[0]) if isinstance(dones, (list, tuple)) and dones else bool(dones)
-                total_reward += reward
-
-                trajectory_lines.append(f"OBSERVATION: {str(obs).strip()}")
-                admissible = _extract_admissible(info if isinstance(info, dict) else {})
-
-                if done:
-                    break
-
-            transcript = "\n".join(trajectory_lines)
-            # Success = episode finished with reward
-            score = 1.0 if done and total_reward >= 1.0 else 0.0
-            return transcript, score
-        finally:
-            try:
-                env.close()
-            except Exception:
-                pass
-
-    def _create_env(self, game_file: str) -> Any:
-        """Create a TextWorld gym environment with AlfredDemangler for readable names."""
-        import textworld
-        import textworld.gym
-        from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
-
-        request_infos = textworld.EnvInfos(
-            feedback=True,
-            description=True,
-            inventory=True,
-            admissible_commands=True,
-            objective=True,
-            extras=["gamefile"],
-        )
-        wrappers = [AlfredDemangler(), AlfredInfos]
-        env_id = textworld.gym.register_games(
-            [game_file],
-            request_infos,
-            batch_size=1,
-            auto_reset=False,
-            max_episode_steps=self.max_steps,
-            asynchronous=False,
-            name=f"alfworld-eval-{uuid.uuid4().hex}",
-            wrappers=wrappers,
-        )
-        return textworld.gym.make(env_id)
-
-    def _select_action(
-        self,
-        objective: str,
-        tips: str,
-        trajectory_text: str,
-        inventory: str,
-        admissible: list[str],
-        task_model: str,
-    ) -> str:
-        """Use LLM to select the next action from admissible commands."""
-        lines = [
-            "You are controlling a text-based ALFWorld environment.",
-            "Your job: choose the NEXT action as ONE text command.",
-            "Output ONLY the command string, with no extra text.",
-            "You MUST choose an action from the admissible actions list and copy it EXACTLY.",
-        ]
-
-        if objective:
-            lines += ["", "Goal:", objective.strip()]
-
-        if tips and tips.strip():
-            lines += ["", "Retrieved procedural tips (optional, short & actionable):", tips.strip()]
-
-        lines += ["", "Interaction history so far (most recent info matters most):"]
-        lines.append(trajectory_text.strip() if trajectory_text else "(empty)")
-
-        if inventory and inventory.strip() and inventory.strip().lower() not in {"none", "null", "(empty)"}:
-            lines += ["", "Inventory (if available):", inventory.strip()]
-
-        if admissible:
-            lines += ["", "Admissible actions (choose exactly ONE and copy it verbatim):"]
-            for cmd in admissible:
-                lines.append(f"- {cmd}")
-            lines += ["", "Now output exactly one line: the chosen action (must match one item above)."]
-
-        prompt = "\n".join(lines)
-
-        resp = litellm.completion(
-            model=task_model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=64,
-            temperature=0.0,
-            caching=True,
-        )
-        raw = resp.choices[0].message.content.strip()
-        return _parse_action_response(raw, admissible)
 
 
 @register_dataset("alfworld")

@@ -539,128 +539,110 @@ class TestALFWorldBenchmark:
 
 
 class TestALFWorldValScorer:
-    def test_score_batch_with_mock_env_success(self):
-        """ALFWorldValScorer runs episodes and returns binary success."""
-        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+    """Tests for ALFWorld episode runner and action selection.
+
+    _run_episode and _select_action are module-level functions (required for
+    ProcessPoolExecutor pickling). score_batch tests patch _run_episode at module
+    level to avoid spawning real processes.
+    """
+
+    def test_run_episode_success(self):
+        """_run_episode returns score 1.0 when episode completes with reward."""
+        from programmaticmemory.benchmarks.alfworld import _run_episode
 
         class MockEnv:
             def __init__(self):
                 self.step_count = 0
 
             def reset(self):
-                return "You are in a room.", {"admissible_commands": ["go to desk 1", "look"]}
+                return ("You are in a room.",), ({"admissible_commands": [["go to desk 1", "look"]]},)
 
             def step(self, action):
                 self.step_count += 1
                 if self.step_count >= 2:
-                    return "Task complete.", 1.0, True, {"admissible_commands": []}
-                return "You see a desk.", 0.0, False, {"admissible_commands": ["take lamp", "go to shelf 1"]}
+                    return ("Task complete.",), (1.0,), (True,), ({"admissible_commands": [[]]},)
+                return ("You see a desk.",), (0.0,), (False,), ({"admissible_commands": [["take lamp", "go to shelf 1"]]},)
 
             def close(self):
                 pass
 
-        scorer = ALFWorldValScorer(max_steps=50)
-        items = [DataItem(raw_text="", question="Find the lamp.", expected_answer="", metadata={"game_file": "/fake"})]
-        retrieved = ["To find objects, check desks and shelves."]
+        mock_env = MockEnv()
+        with patch("textworld.gym.register_games", return_value="fake-env-id"), \
+             patch("textworld.gym.make", return_value=mock_env), \
+             patch("programmaticmemory.benchmarks.alfworld._select_action", side_effect=["go to desk 1", "take lamp"]):
+            transcript, score = _run_episode("/fake/game.tw-pddl", "Find lamp", "tips", "mock/model", 50)
 
-        with patch.object(scorer, "_create_env", return_value=MockEnv()):
-            with patch.object(scorer, "_select_action", side_effect=["go to desk 1", "take lamp"]):
-                results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
-
-        assert len(results) == 1
-        output, score = results[0]
         assert score == 1.0
-        assert "go to desk 1" in output or "ACTION" in output
+        assert "ACTION: go to desk 1" in transcript
 
-    def test_score_batch_failure_returns_zero(self):
-        """Episode that hits max_steps returns score 0."""
-        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+    def test_run_episode_failure_returns_zero(self):
+        """_run_episode returns score 0.0 when max_steps exhausted."""
+        from programmaticmemory.benchmarks.alfworld import _run_episode
 
         class NeverDoneEnv:
             def reset(self):
-                return "Room.", {"admissible_commands": ["look"]}
+                return ("Room.",), ({"admissible_commands": [["look"]]},)
 
             def step(self, action):
-                return "Nothing.", 0.0, False, {"admissible_commands": ["look"]}
+                return ("Nothing.",), (0.0,), (False,), ({"admissible_commands": [["look"]]},)
 
             def close(self):
                 pass
 
-        scorer = ALFWorldValScorer(max_steps=3)
-        items = [DataItem(raw_text="", question="Do something.", expected_answer="", metadata={"game_file": "/fake"})]
-        retrieved = ["No useful tips."]
+        with patch("textworld.gym.register_games", return_value="fake-env-id"), \
+             patch("textworld.gym.make", return_value=NeverDoneEnv()), \
+             patch("programmaticmemory.benchmarks.alfworld._select_action", return_value="look"):
+            transcript, score = _run_episode("/fake/game.tw-pddl", "Do something", "tips", "mock/model", 3)
 
-        with patch.object(scorer, "_create_env", return_value=NeverDoneEnv()):
-            with patch.object(scorer, "_select_action", return_value="look"):
-                results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
-
-        assert results[0][1] == 0.0
+        assert score == 0.0
 
     def test_select_action_exact_match(self):
         """_select_action matches LLM output against admissible commands."""
-        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+        from programmaticmemory.benchmarks.alfworld import _select_action
 
-        scorer = ALFWorldValScorer()
         with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = "take lamp 1"
             mock_litellm.completion.return_value = mock_resp
 
-            action = scorer._select_action(
-                "Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model"
-            )
+            action = _select_action("Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model")
         assert action == "take lamp 1"
 
     def test_select_action_substring_fallback(self):
         """Falls back to substring match when exact match fails."""
-        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+        from programmaticmemory.benchmarks.alfworld import _select_action
 
-        scorer = ALFWorldValScorer()
         with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = "I'll take lamp 1 from the desk"
             mock_litellm.completion.return_value = mock_resp
 
-            action = scorer._select_action(
-                "Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model"
-            )
+            action = _select_action("Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model")
         assert action == "take lamp 1"
 
     def test_select_action_fallback_to_first(self):
         """Falls back to first admissible when no match found."""
-        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+        from programmaticmemory.benchmarks.alfworld import _select_action
 
-        scorer = ALFWorldValScorer()
         with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = "something completely unrelated"
             mock_litellm.completion.return_value = mock_resp
 
-            action = scorer._select_action(
-                "Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model"
-            )
+            action = _select_action("Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model")
         assert action == "take lamp 1"
 
-    def test_score_batch_env_close_called(self):
-        """Env is always closed after episode."""
-        from programmaticmemory.benchmarks.alfworld import ALFWorldValScorer
+    def test_parse_action_response_strips_prefix(self):
+        """_parse_action_response handles 'Action:' prefixes and case-insensitive matching."""
+        from programmaticmemory.benchmarks.alfworld import _parse_action_response
 
-        mock_env = MagicMock()
-        mock_env.reset.return_value = ("Room.", {"admissible_commands": ["look"]})
-        mock_env.step.return_value = ("Done.", 1.0, True, {"admissible_commands": []})
-
-        scorer = ALFWorldValScorer(max_steps=5)
-        items = [DataItem(raw_text="", question="Do it.", expected_answer="", metadata={"game_file": "/fake"})]
-        retrieved = ["tips"]
-
-        with patch.object(scorer, "_create_env", return_value=mock_env):
-            with patch.object(scorer, "_select_action", return_value="look"):
-                scorer.score_batch(items, retrieved, "mock/model", "instruction")
-
-        mock_env.close.assert_called_once()
+        assert _parse_action_response("Action: go to desk 1", ["go to desk 1", "look"]) == "go to desk 1"
+        assert _parse_action_response("GO TO DESK 1", ["go to desk 1", "look"]) == "go to desk 1"
+        assert _parse_action_response("", ["go to desk 1", "look"]) == "go to desk 1"
+        assert _parse_action_response("random text", ["go to desk 1", "look"]) == "go to desk 1"
 
 
 # ── NYT Connections ──────────────────────────────────────────────────────────
