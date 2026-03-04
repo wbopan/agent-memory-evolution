@@ -284,8 +284,9 @@ class ALFWorldValScorer:
     returns binary success (1.0/0.0).
     """
 
-    def __init__(self, max_steps: int = 50) -> None:
+    def __init__(self, max_steps: int = 50, max_workers: int = 20) -> None:
         self.max_steps = max_steps
+        self.max_workers = max_workers
 
     def score_batch(
         self,
@@ -294,13 +295,16 @@ class ALFWorldValScorer:
         task_model: str,
         instruction_response: str,
     ) -> list[tuple[str, float]]:
-        """Run one episode per item, return (transcript, score) pairs."""
-        results: list[tuple[str, float]] = []
-        for item, tips in zip(items, retrieved, strict=True):
-            game_file = item.metadata["game_file"]
-            objective = item.question
-            transcript, score = self._run_episode(game_file, objective, tips, task_model)
-            results.append((transcript, score))
+        """Run one episode per item in parallel, return (transcript, score) pairs."""
+        import concurrent.futures
+
+        def _run_one(item: DataItem, tips: str) -> tuple[str, float]:
+            return self._run_episode(item.metadata["game_file"], item.question, tips, task_model)
+
+        workers = min(self.max_workers, len(items)) if items else 1
+        with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(_run_one, item, tips) for item, tips in zip(items, retrieved, strict=True)]
+            results = [f.result() for f in futures]
         return results
 
     def _run_episode(self, game_file: str, objective: str, tips: str, task_model: str) -> tuple[str, float]:
