@@ -164,7 +164,7 @@ class TestMemoryLifecycle:
         assert isinstance(result, CompiledProgram)
         tk = Toolkit(ToolkitConfig(llm_model="test/model"))
         memory = result.kb_cls(tk)
-        memory.write(result.ki_cls(raw="The sky is blue."))
+        memory.write(result.ki_cls(summary="The sky is blue."), "The sky is blue.")
         output = memory.read(result.query_cls(raw="sky"))
         assert "The sky is blue." in output
         tk.close()
@@ -180,7 +180,7 @@ class TestMemoryLifecycle:
 
         # First instance: write data
         mem1 = result.kb_cls(tk)
-        mem1.write(result.ki_cls(raw="secret data"))
+        mem1.write(result.ki_cls(summary="secret data"), "secret data raw")
         output1 = mem1.read(result.query_cls(raw="anything"))
         assert "secret data" in output1
 
@@ -200,7 +200,7 @@ class TestMemoryEvaluatorOffline:
         """Offline: batch ingest → query → answer → score."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "France capital is Paris."}', '{"raw": "Germany capital is Berlin."}'],  # train batch
+                ['{"summary": "France capital is Paris."}', '{"summary": "Germany capital is Berlin."}'],  # train batch
                 ['{"raw": "capital of France"}', '{"raw": "capital of Germany"}'],  # val round 1: queries
                 ["Paris", "Berlin"],  # val round 2: answers
             ]
@@ -232,7 +232,7 @@ class TestMemoryEvaluatorOffline:
     def test_offline_wrong_answer(self, mock_litellm, snapshot: SnapshotAssertion):
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The capital of France is Paris."}'],  # train batch
+                ['{"summary": "The capital of France is Paris."}'],  # train batch
                 ['{"raw": "capital"}'],  # val round 1: query
                 ["London"],  # val round 2: wrong answer
             ]
@@ -267,7 +267,7 @@ class TestMemoryEvaluatorOffline:
         """Val uses exactly 2 batch_completion rounds with multi-turn messages."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "obs1"}'],  # offline train (1 item)
+                ['{"summary": "obs1"}'],  # offline train (1 item)
                 ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
                 ["correct1", "correct2"],  # val round 2: both answers
             ]
@@ -308,7 +308,7 @@ ALWAYS_ON_KNOWLEDGE = "Always respond in English. Be precise."
 
 @dataclass
 class KnowledgeItem:
-    raw: str
+    summary: str
 
 @dataclass
 class Query:
@@ -317,8 +317,8 @@ class Query:
 class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
-    def write(self, item):
-        self.store.append(item.raw)
+    def write(self, item, raw_text=""):
+        self.store.append(item.summary)
     def read(self, query):
         return " ".join(self.store) if self.store else "No information stored."
 '''
@@ -328,7 +328,7 @@ class KnowledgeBase:
         """Non-empty ALWAYS_ON_KNOWLEDGE should appear inside <retrieved_memory> tags."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The sky is blue."}'],  # train batch: ki
+                ['{"summary": "The sky is blue."}'],  # train batch: ki
                 ['{"raw": "sky color"}'],  # val round 1: query
                 ["blue"],  # val round 2: answer
             ]
@@ -368,7 +368,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "q"}'],  # online train round 1: query gen
                 ["my answer"],  # online train round 2: answer gen
-                ['{"raw": "obs stored"}'],  # online train round 3: ki gen
+                ['{"summary": "obs stored"}'],  # online train round 3: ki gen
                 ['{"raw": "vq"}'],  # val round 1: query gen
                 ["obs stored"],  # val round 2: answer
             ]
@@ -406,7 +406,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "parsed query"}'],  # train round 1
                 ["answer"],  # train round 2
-                ['{"raw": "obs"}'],  # train round 3
+                ['{"summary": "obs"}'],  # train round 3
                 ['{"raw": "vq"}'],  # val round 1
                 ["va"],  # val round 2
             ]
@@ -431,7 +431,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "q"}'],  # train round 1
                 ["answer"],  # train round 2
-                ['{"raw": "parsed knowledge item value"}'],  # train round 3: ki
+                ['{"summary": "parsed knowledge item value"}'],  # train round 3: ki
                 ['{"raw": "vq"}'],  # val round 1
                 ["va"],  # val round 2
             ]
@@ -455,7 +455,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "q"}'],  # train round 1
                 ["answer"],  # train round 2
-                ['{"raw": "stored via online"}'],  # train round 3: ki written
+                ['{"summary": "stored via online"}'],  # train round 3: ki written
                 ['{"raw": "vq"}'],  # val round 1
                 ["stored via online"],  # val round 2: answer matches
             ]
@@ -479,7 +479,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "q"}'],  # train round 1
                 ["wrong answer"],  # train round 2: incorrect answer
-                ['{"raw": "obs"}'],  # train round 3
+                ['{"summary": "obs"}'],  # train round 3
                 ['{"raw": "vq"}'],  # val round 1
                 ["va"],  # val round 2
             ]
@@ -511,7 +511,7 @@ class TestValidationPipeline:
         """Validation should only do Step 1 (query gen) + Step 2 (answer), no Step 3/4."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train ki
+                ['{"summary": "fact"}'],  # train ki
                 ['{"raw": "query"}'],  # val round 1: query
                 ["answer"],  # val round 2: answer
             ]
@@ -536,7 +536,7 @@ class TestValidationPipeline:
             [
                 ['{"raw": "q"}'],  # online train round 1
                 ["ans"],  # online train round 2
-                ['{"raw": "obs"}'],  # online train round 3
+                ['{"summary": "obs"}'],  # online train round 3
                 ['{"raw": "vq"}'],  # val round 1
                 ["va"],  # val round 2
             ]
@@ -554,7 +554,7 @@ ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class KnowledgeItem:
-    raw: str
+    summary: str
 
 @dataclass
 class Query:
@@ -566,10 +566,10 @@ class KnowledgeBase:
         self.store = []
         self.write_log = []
 
-    def write(self, item):
-        self.store.append(item.raw)
-        self.write_log.append(item.raw)
-        self.toolkit.logger.log(f"WRITE_CALLED:{item.raw}")
+    def write(self, item, raw_text=""):
+        self.store.append(item.summary)
+        self.write_log.append(item.summary)
+        self.toolkit.logger.log(f"WRITE_CALLED:{item.summary}")
 
     def read(self, query):
         return " ".join(self.store) if self.store else "empty"
@@ -590,7 +590,7 @@ class KnowledgeBase:
         """Failed cases should include the full multi-turn conversation history."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train ki
+                ['{"summary": "fact"}'],  # train ki
                 ['{"raw": "query"}'],  # val round 1: query
                 ["wrong answer"],  # val round 2: wrong answer
             ]
@@ -617,7 +617,7 @@ class KnowledgeBase:
         """Val round 2 batch call should contain multi-turn messages per item."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train ki
+                ['{"summary": "fact"}'],  # train ki
                 ['{"raw": "my query"}'],  # val round 1: query
                 ["the answer"],  # val round 2: answer
             ]
@@ -672,7 +672,7 @@ class TestEvaluatorEdgeCases:
         """If query generation fails during val, that item scores 0."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train ki
+                ['{"summary": "fact"}'],  # train ki
                 ["not valid json"],  # val round 1: query gen fails
                 [],  # val round 2: no valid slots, empty batch
             ]
@@ -697,7 +697,7 @@ class TestEvaluatorEdgeCases:
         with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
             batch_mock = _make_batch_mock(
                 [
-                    ['{"raw": "x"}'],  # train ki
+                    ['{"summary": "x"}'],  # train ki
                 ]
             )
             mock_litellm.batch_completion = batch_mock
@@ -714,7 +714,7 @@ class TestEvaluatorEdgeCases:
         """Correct answers should be collected as success_cases."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "f1"}'],  # train ki
+                ['{"summary": "f1"}'],  # train ki
                 ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: queries
                 ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
@@ -743,7 +743,7 @@ class TestEvaluatorEdgeCases:
     def test_multiple_val_items(self, mock_litellm, snapshot: SnapshotAssertion):
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "f1"}', '{"raw": "f2"}'],  # train ki x2
+                ['{"summary": "f1"}', '{"summary": "f2"}'],  # train ki x2
                 ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
                 ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
@@ -778,7 +778,7 @@ class TestEvaluatorEdgeCases:
             if call_idx[0] == 1:  # train batch
                 mock_resp = MagicMock()
                 mock_resp.choices = [MagicMock()]
-                mock_resp.choices[0].message.content = '{"raw": "Paris is the capital of France."}'
+                mock_resp.choices[0].message.content = '{"summary": "Paris is the capital of France."}'
                 return [ValueError("API error"), mock_resp]
             # val batch calls
             mock_resp = MagicMock()
@@ -880,7 +880,7 @@ OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
         def __init__(self, toolkit):
             pass
 
-        def write(self, item):
+        def write(self, item, raw_text=""):
             pass
 
         def read(self, query):
@@ -933,7 +933,7 @@ class TestValScorerIntegration:
 
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The sky is blue."}'],  # train: ki generation
+                ['{"summary": "The sky is blue."}'],  # train: ki generation
                 ['{"raw": "sky query"}'],  # val round 1: query generation
                 # No round 2! val_scorer handles scoring, not LLM answer generation.
             ]
@@ -975,7 +975,7 @@ class TestValScorerIntegration:
 
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The sky is blue."}'],  # train: ki generation
+                ['{"summary": "The sky is blue."}'],  # train: ki generation
                 ['{"raw": "sky query"}'],  # val round 1: query generation
             ]
         )
@@ -1010,7 +1010,7 @@ class TestValScorerIntegration:
         """When val_scorer is None, existing LLM answer + scorer path is used (3 batch calls)."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "Paris is capital of France."}'],
+                ['{"summary": "Paris is capital of France."}'],
                 ['{"raw": "capital of France"}'],
                 ["Paris"],
             ]

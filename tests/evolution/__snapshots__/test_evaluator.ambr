@@ -10,9 +10,9 @@
             Text: The sky is blue.
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: KnowledgeItem(raw: 'str')
+            // KnowledgeItem: KnowledgeItem(summary: 'str')
             {
-              "raw": "..."  // str
+              "summary": "..."  // str
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -85,14 +85,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: x
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -109,14 +109,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: fact
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -187,14 +187,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: f1
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -205,14 +205,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: f2
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -286,6 +286,8 @@
             <retrieved_memory>
             f1
             f2
+            f1
+            f2
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -319,6 +321,8 @@
             <retrieved_memory>
             f1
             f2
+            f1
+            f2
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -335,14 +339,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: fact
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -379,14 +383,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: f1
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -459,6 +463,7 @@
           'content': '''
             <retrieved_memory>
             f1
+            f1
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -491,6 +496,7 @@
           'content': '''
             <retrieved_memory>
             f1
+            f1
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -507,14 +513,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: France capital is Paris.
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -525,14 +531,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: Germany capital is Berlin.
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -606,6 +612,8 @@
             <retrieved_memory>
             France capital is Paris.
             Germany capital is Berlin.
+            France capital is Paris.
+            Germany capital is Berlin.
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -639,6 +647,8 @@
             <retrieved_memory>
             France capital is Paris.
             Germany capital is Berlin.
+            France capital is Paris.
+            Germany capital is Berlin.
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -655,14 +665,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: fact
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -735,6 +745,7 @@
           'content': '''
             <retrieved_memory>
             obs1
+            fact
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -767,6 +778,7 @@
           'content': '''
             <retrieved_memory>
             obs1
+            fact
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -783,14 +795,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: The capital of France is Paris.
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -844,6 +856,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            The capital of France is Paris.
             The capital of France is Paris.
             </retrieved_memory>
             
@@ -952,12 +965,12 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             The knowledge item must be a JSON object matching this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Respond with the JSON only.
@@ -1012,6 +1025,7 @@
           'content': '''
             <retrieved_memory>
             obs
+            
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -1119,12 +1133,12 @@
             Evaluation result: Score: 0.0 (incorrect)
             Ground truth: correct answer
             
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             The knowledge item must be a JSON object matching this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Respond with the JSON only.
@@ -1179,6 +1193,7 @@
           'content': '''
             <retrieved_memory>
             obs
+            
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -1286,12 +1301,12 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             The knowledge item must be a JSON object matching this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Respond with the JSON only.
@@ -1346,6 +1361,7 @@
           'content': '''
             <retrieved_memory>
             parsed knowledge item value
+            
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -1453,12 +1469,12 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             The knowledge item must be a JSON object matching this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Respond with the JSON only.
@@ -1513,6 +1529,7 @@
           'content': '''
             <retrieved_memory>
             obs stored
+            
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -1620,12 +1637,12 @@
             Evaluation result: Score: 1.0 (correct)
             Ground truth: A
             
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             The knowledge item must be a JSON object matching this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Respond with the JSON only.
@@ -1680,6 +1697,7 @@
           'content': '''
             <retrieved_memory>
             stored via online
+            
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -1696,14 +1714,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: fact
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -1757,6 +1775,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            fact
             fact
             </retrieved_memory>
             
@@ -1868,9 +1887,9 @@
             
             
             The knowledge item must be a JSON object matching this schema:
-            // KnowledgeItem: KnowledgeItem(raw: 'str')
+            // KnowledgeItem: KnowledgeItem(summary: 'str')
             {
-              "raw": "..."  // str
+              "summary": "..."  // str
             }
             
             Respond with the JSON only.
@@ -1941,14 +1960,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: fact
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -2003,6 +2022,7 @@
           'content': '''
             <retrieved_memory>
             fact
+            fact
             </retrieved_memory>
             
             Based on the above knowledge and the original question, provide a short answer without explanation.
@@ -2019,14 +2039,14 @@
       list([
         dict({
           'content': '''
-            Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information.
+            Summarize the key information from the text.
             
             Text: fact
             
             The KnowledgeItem must conform to this schema:
-            // KnowledgeItem: Raw text knowledge item to store in the knowledge base.
+            // KnowledgeItem: A summary of what was learnt from the source text.
             {
-              "raw": "..."  // str, The raw text to store
+              "summary": "..."  // str, What you have learnt from the text
             }
             
             Output ONLY a valid JSON object matching the schema fields. No explanation.
@@ -2080,6 +2100,7 @@
         dict({
           'content': '''
             <retrieved_memory>
+            fact
             fact
             </retrieved_memory>
             
