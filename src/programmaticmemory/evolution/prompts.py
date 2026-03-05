@@ -53,13 +53,14 @@ These limits are enforced during evaluation. Violating them results in score = 0
 
 ## Instruction Constants (required)
 
-Three module-level string constants provide the natural-language instructions used in task agent prompts:
+Four module-level string constants provide the natural-language instructions used in task agent prompts:
 
 - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
 - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
 - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+- ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
 
-These are inserted into the task agent prompts as the main directive sentence. They must not be empty.
+INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
 """
 
 INITIAL_KB_PROGRAM = '''\
@@ -68,6 +69,7 @@ from dataclasses import dataclass, field
 INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in the knowledge base. Include all key information."
 INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
 INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
@@ -278,11 +280,11 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <rules>
 1. Output your diagnosis first, then your changes as a patch using the format below.
-2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
 3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
 5. Keep it simple. Make minimal, targeted fixes.
-6. Update INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE to steer the task LLM's output format.
+6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
 7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
 </rules>
 
@@ -350,15 +352,20 @@ Respond with the JSON only."""
 def build_retrieved_memory_prompt(
     retrieved: str,
     instruction: str = "Based on the above memory and the original question, provide your answer.",
+    always_on_knowledge: str = "",
 ) -> str:
     """Prompt the task agent LLM to answer based on retrieved memory.
 
     Used as a user message in the multi-turn conversation (Step 2).
     The LLM sees the full conversation history including its own query from Step 1.
     """
+    if always_on_knowledge and always_on_knowledge.strip():
+        memory_content = f"{always_on_knowledge.strip()}\n\n{retrieved}"
+    else:
+        memory_content = retrieved
     return f"""\
 <retrieved_memory>
-{retrieved}
+{memory_content}
 </retrieved_memory>
 
 {instruction}"""
@@ -398,7 +405,7 @@ Fix the error and output your fix as a patch.
 
 Rules:
 1. Output ONLY the fix as a patch. No explanation needed.
-2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and three module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE).
+2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
 4. Make minimal changes — fix ONLY the broken line(s). Do NOT add new fields, imports, or restructure the code.
 

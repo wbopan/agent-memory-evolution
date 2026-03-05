@@ -276,7 +276,7 @@ def _reset_with_timeout(env: Any, timeout_s: float) -> tuple[Any, Any]:
 
 
 def _run_episode(
-    game_file: str, objective: str, tips: str, task_model: str, max_steps: int
+    game_file: str, objective: str, tips: str, task_model: str, max_steps: int, always_on_knowledge: str = ""
 ) -> tuple[str, float]:
     """Run a single ALFWorld episode in its own process. Returns (transcript, score).
 
@@ -326,7 +326,9 @@ def _run_episode(
                     inv = inv[0] if inv else ""
                 inventory = str(inv) if inv else ""
 
-            action = _select_action(objective, tips, "\n".join(trajectory_lines), inventory, admissible, task_model)
+            action = _select_action(
+                objective, tips, "\n".join(trajectory_lines), inventory, admissible, task_model, always_on_knowledge
+            )
             trajectory_lines.append(f"ACTION: {action}")
 
             obs_batch, scores, dones, infos = env.step([action])
@@ -360,6 +362,7 @@ def _select_action(
     inventory: str,
     admissible: list[str],
     task_model: str,
+    always_on_knowledge: str = "",
 ) -> str:
     """Use LLM to select the next action from admissible commands."""
     lines = [
@@ -371,6 +374,10 @@ def _select_action(
 
     if objective:
         lines += ["", "Goal:", objective.strip()]
+
+    aok = always_on_knowledge.strip() if always_on_knowledge else ""
+    if aok:
+        lines += ["", "Always-on knowledge:", aok]
 
     if tips and tips.strip():
         lines += ["", "Retrieved procedural tips (optional, short & actionable):", tips.strip()]
@@ -425,6 +432,7 @@ class ALFWorldValScorer:
         retrieved: list[str],
         task_model: str,
         instruction_response: str,
+        always_on_knowledge: str = "",
     ) -> list[tuple[str, float]]:
         """Run one episode per item in parallel, return (transcript, score) pairs."""
         import concurrent.futures
@@ -432,7 +440,15 @@ class ALFWorldValScorer:
         workers = min(self.max_workers, len(items)) if items else 1
         with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
             futures = [
-                pool.submit(_run_episode, item.metadata["game_file"], item.question, tips, task_model, self.max_steps)
+                pool.submit(
+                    _run_episode,
+                    item.metadata["game_file"],
+                    item.question,
+                    tips,
+                    task_model,
+                    self.max_steps,
+                    always_on_knowledge,
+                )
                 for item, tips in zip(items, retrieved, strict=True)
             ]
             results: list[tuple[str, float]] = []

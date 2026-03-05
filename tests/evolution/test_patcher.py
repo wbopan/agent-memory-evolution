@@ -10,6 +10,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = "Capture key facts."
 INSTRUCTION_QUERY = "Ask about facts."
 INSTRUCTION_RESPONSE = "Answer from memory."
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:

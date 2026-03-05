@@ -1,4 +1,84 @@
 # serializer version: 1
+# name: TestAlwaysOnKnowledgeInEvaluator.test_always_on_knowledge_in_retrieved_memory
+  list([
+    list([
+      list([
+        dict({
+          'content': '''
+            Extract the key fact.
+            
+            Text: The sky is blue.
+            
+            The Observation must conform to this schema:
+            // Observation: Observation(raw: 'str')
+            {
+              "raw": "..."  // str
+            }
+            
+            Output ONLY a valid JSON object matching the schema fields. No explanation.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Ask for the fact.
+            
+            Question: What color is the sky?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Query(raw: 'str')
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+    list([
+      list([
+        dict({
+          'content': '''
+            Ask for the fact.
+            
+            Question: What color is the sky?
+            
+            The query must be a JSON object matching this schema:
+            // Query: Query(raw: 'str')
+            {
+              "raw": "..."  // str
+            }
+            
+            Respond with the JSON only.
+          ''',
+          'role': 'user',
+        }),
+        dict({
+          'content': '{"raw": "sky color"}',
+          'role': 'assistant',
+        }),
+        dict({
+          'content': '''
+            <retrieved_memory>
+            Always respond in English. Be precise.
+            
+            The sky is blue.
+            </retrieved_memory>
+            
+            Answer concisely.
+          ''',
+          'role': 'user',
+        }),
+      ]),
+    ]),
+  ])
+# ---
 # name: TestEvaluatorEdgeCases.test_empty_val_data
   list([
     list([

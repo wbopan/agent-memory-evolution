@@ -665,7 +665,7 @@ class TestALFWorldValScorer:
         with patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor), \
              patch("programmaticmemory.benchmarks.alfworld._run_episode",
                    return_value=("transcript", 1.0)) as mock_run:
-            results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
+            results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 
         assert len(results) == 2
         assert all(score == 1.0 for _, score in results)
@@ -686,7 +686,7 @@ class TestALFWorldValScorer:
         with patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor), \
              patch("programmaticmemory.benchmarks.alfworld._run_episode",
                    side_effect=RuntimeError("env crashed")):
-            results = scorer.score_batch(items, retrieved, "mock/model", "instruction")
+            results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 
         assert len(results) == 1
         assert results[0][1] == 0.0

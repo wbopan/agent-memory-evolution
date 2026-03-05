@@ -332,6 +332,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
@@ -446,6 +447,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
@@ -554,6 +556,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
@@ -723,6 +726,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass

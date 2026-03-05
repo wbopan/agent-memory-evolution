@@ -292,6 +292,71 @@ class TestMemoryEvaluatorOffline:
         assert batch_mock.captured_calls == snapshot
 
 
+# ── Always-on Knowledge injection ─────────────────────────────────────────
+
+
+class TestAlwaysOnKnowledgeInEvaluator:
+    """Verify ALWAYS_ON_KNOWLEDGE appears inside <retrieved_memory> in evaluator LLM calls."""
+
+    PROGRAM_WITH_AOK = '''\
+from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = "Extract the key fact."
+INSTRUCTION_QUERY = "Ask for the fact."
+INSTRUCTION_RESPONSE = "Answer concisely."
+ALWAYS_ON_KNOWLEDGE = "Always respond in English. Be precise."
+
+@dataclass
+class Observation:
+    raw: str
+
+@dataclass
+class Query:
+    raw: str
+
+class KnowledgeBase:
+    def __init__(self, toolkit):
+        self.store = []
+    def write(self, obs):
+        self.store.append(obs.raw)
+    def read(self, query):
+        return " ".join(self.store) if self.store else "No information stored."
+'''
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_always_on_knowledge_in_retrieved_memory(self, mock_litellm, snapshot: SnapshotAssertion):
+        """Non-empty ALWAYS_ON_KNOWLEDGE should appear inside <retrieved_memory> tags."""
+        batch_mock = _make_batch_mock(
+            [
+                ['{"raw": "The sky is blue."}'],  # train batch: obs
+                ['{"raw": "sky color"}'],  # val round 1: query
+                ["blue"],  # val round 2: answer
+            ]
+        )
+        mock_litellm.batch_completion = batch_mock
+
+        program = KBProgram(source_code=self.PROGRAM_WITH_AOK)
+        train = [DataItem(raw_text="The sky is blue.", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="What color is the sky?", expected_answer="blue")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
+        result = evaluator.evaluate(program, train, val)
+
+        assert result.score == 1.0
+
+        # The retrieved memory prompt (val round 2) should contain the always-on knowledge
+        val_answer_call = batch_mock.captured_calls[2]  # 3rd batch call = val answer round
+        retrieved_prompt = val_answer_call[0][-1]["content"]  # last message in conversation
+        assert "Always respond in English. Be precise." in retrieved_prompt
+        assert "<retrieved_memory>" in retrieved_prompt
+        # AOK should appear before the actual retrieved content
+        aok_pos = retrieved_prompt.index("Always respond in English.")
+        retrieved_pos = retrieved_prompt.index("The sky is blue.")
+        assert aok_pos < retrieved_pos
+
+        assert batch_mock.captured_calls == snapshot
+
+
 # ── Online Pipeline Tests ──────────────────────────────────────────────────
 
 
@@ -485,6 +550,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -800,6 +866,7 @@ OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
     INSTRUCTION_OBSERVATION = ""
     INSTRUCTION_QUERY = ""
     INSTRUCTION_RESPONSE = ""
+    ALWAYS_ON_KNOWLEDGE = ""
 
     @dataclass
     class Observation:
@@ -859,7 +926,7 @@ class TestValScorerIntegration:
         received_retrieved = []
 
         class CapturingScorer:
-            def score_batch(self, items, retrieved, task_model, instruction_response):
+            def score_batch(self, items, retrieved, task_model, instruction_response, always_on_knowledge):
                 received_items.extend(items)
                 received_retrieved.extend(retrieved)
                 return [("custom_answer", 0.75)] * len(items)
@@ -903,7 +970,7 @@ class TestValScorerIntegration:
         """ValScorer path should include retrieval conversation in failed_cases."""
 
         class FailingScorer:
-            def score_batch(self, items, retrieved, task_model, instruction_response):
+            def score_batch(self, items, retrieved, task_model, instruction_response, always_on_knowledge):
                 return [("episode transcript: FAIL", 0.0)] * len(items)
 
         batch_mock = _make_batch_mock(

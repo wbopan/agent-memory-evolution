@@ -153,12 +153,13 @@ class TestValScorer:
                 retrieved: list[str],
                 task_model: str,
                 instruction_response: str,
+                always_on_knowledge: str,
             ) -> list[tuple[str, float]]:
                 return [("answer", 1.0)] * len(items)
 
         scorer = MyScorer()
         items = [DataItem(raw_text="", question="q", expected_answer="a")]
-        result = scorer.score_batch(items, ["retrieved"], "model", "instruction")
+        result = scorer.score_batch(items, ["retrieved"], "model", "instruction", "")
         assert result == [("answer", 1.0)]
 
     def test_dataset_val_scorer_defaults_to_none(self):
@@ -167,7 +168,7 @@ class TestValScorer:
 
     def test_dataset_accepts_val_scorer(self):
         class MyScorer:
-            def score_batch(self, items, retrieved, task_model, instruction_response):
+            def score_batch(self, items, retrieved, task_model, instruction_response, always_on_knowledge):
                 return []
 
         ds = Dataset(train=[], val=[], test=[], val_scorer=MyScorer())

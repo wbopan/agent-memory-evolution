@@ -26,6 +26,7 @@ class ValScorer(Protocol):
         retrieved: list[str],
         task_model: str,
         instruction_response: str,
+        always_on_knowledge: str,
     ) -> list[tuple[str, float]]: ...
 
 

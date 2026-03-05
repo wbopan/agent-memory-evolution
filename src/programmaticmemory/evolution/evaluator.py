@@ -230,6 +230,7 @@ class MemoryEvaluator:
                     instruction_observation=compiled.instruction_observation,
                     instruction_query=compiled.instruction_query,
                     instruction_response=compiled.instruction_response,
+                    always_on_knowledge=compiled.always_on_knowledge,
                 )
             else:
                 self.logger.log(
@@ -248,6 +249,7 @@ class MemoryEvaluator:
                     instruction_observation=compiled.instruction_observation,
                     instruction_query=compiled.instruction_query,
                     instruction_response=compiled.instruction_response,
+                    always_on_knowledge=compiled.always_on_knowledge,
                 )
         except RuntimeViolationError as e:
             self.logger.log(f"Runtime violation: {e}", header="EVAL")
@@ -271,6 +273,7 @@ class MemoryEvaluator:
         instruction_observation: str = "",
         instruction_query: str = "",
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> EvalResult:
         """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
         logs: list[str] = []
@@ -321,6 +324,7 @@ class MemoryEvaluator:
             toolkit,
             instruction_query=instruction_query,
             instruction_response=instruction_response,
+            always_on_knowledge=always_on_knowledge,
         )
         result.train_examples = train_examples
         return result
@@ -341,6 +345,7 @@ class MemoryEvaluator:
         instruction_observation: str = "",
         instruction_query: str = "",
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> EvalResult:
         """Online: Interleaved multi-turn train, then evaluate val."""
         logs: list[str] = []
@@ -356,6 +361,7 @@ class MemoryEvaluator:
             instruction_observation=instruction_observation,
             instruction_query=instruction_query,
             instruction_response=instruction_response,
+            always_on_knowledge=always_on_knowledge,
         )
         self.logger.log("Train: interactive QA complete", header="EVAL")
         self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
@@ -368,6 +374,7 @@ class MemoryEvaluator:
             toolkit,
             instruction_query=instruction_query,
             instruction_response=instruction_response,
+            always_on_knowledge=always_on_knowledge,
         )
         result.train_examples = train_examples
         return result
@@ -385,6 +392,7 @@ class MemoryEvaluator:
         instruction_observation: str = "",
         instruction_query: str = "",
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> list[TrainExample]:
         """Online train batched: 3 rounds of batch_completion, then serial writes."""
         if not train_data:
@@ -407,6 +415,7 @@ class MemoryEvaluator:
             log_prefix="Train",
             instruction_query=instruction_query,
             instruction_response=instruction_response,
+            always_on_knowledge=always_on_knowledge,
         )
 
         # Round 2: answer generation for valid slots
@@ -478,6 +487,7 @@ class MemoryEvaluator:
         *,
         instruction_query: str = "",
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> list[_QuerySlot | None]:
         """Parse batch query responses, read knowledge base for each. Returns slots aligned with data."""
         slots: list[_QuerySlot | None] = []
@@ -501,7 +511,9 @@ class MemoryEvaluator:
             except Exception as e:
                 retrieved_str = f"Read error: {e}"
                 logs.append(f"{log_prefix} read failed: {e}")
-            retrieved_prompt = build_retrieved_memory_prompt(retrieved_str, instruction_response)
+            retrieved_prompt = build_retrieved_memory_prompt(
+                retrieved_str, instruction_response, always_on_knowledge=always_on_knowledge
+            )
             slots.append(_QuerySlot(query, content, retrieved_str, query_prompt, retrieved_prompt))
         return slots
 
@@ -536,6 +548,7 @@ class MemoryEvaluator:
         *,
         instruction_query: str = "",
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> EvalResult:
         """Two-phase val: (1) shared KB retrieval, (2) pluggable scoring."""
         if not val_data:
@@ -550,6 +563,7 @@ class MemoryEvaluator:
             logs,
             instruction_query=instruction_query,
             instruction_response=instruction_response,
+            always_on_knowledge=always_on_knowledge,
         )
 
         # Phase 2: pluggable scoring
@@ -560,6 +574,7 @@ class MemoryEvaluator:
                 logs,
                 toolkit,
                 instruction_response=instruction_response,
+                always_on_knowledge=always_on_knowledge,
             )
         else:
             result = self._default_answer_and_score(
@@ -568,6 +583,7 @@ class MemoryEvaluator:
                 logs,
                 toolkit,
                 instruction_response=instruction_response,
+                always_on_knowledge=always_on_knowledge,
             )
 
         self.logger.log(
@@ -586,6 +602,7 @@ class MemoryEvaluator:
         *,
         instruction_query: str = "",
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> list[_QuerySlot | None]:
         """Phase 1 of val: batch query generation + serial KB reads."""
         round1_messages = [
@@ -602,6 +619,7 @@ class MemoryEvaluator:
             log_prefix="Val",
             instruction_query=instruction_query,
             instruction_response=instruction_response,
+            always_on_knowledge=always_on_knowledge,
         )
 
     def _default_answer_and_score(
@@ -612,6 +630,7 @@ class MemoryEvaluator:
         toolkit: Toolkit,
         *,
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> EvalResult:
         """Phase 2 default: batch LLM answer generation + scorer."""
         valid = [(i, s) for i, s in enumerate(slots) if s is not None]
@@ -698,11 +717,14 @@ class MemoryEvaluator:
         toolkit: Toolkit,
         *,
         instruction_response: str = "",
+        always_on_knowledge: str = "",
     ) -> EvalResult:
         """Phase 2 custom: delegate to val_scorer.score_batch."""
         retrieved = [s.retrieved_str if s is not None else "" for s in slots]
 
-        results = self.val_scorer.score_batch(val_data, retrieved, self.task_model, instruction_response)
+        results = self.val_scorer.score_batch(
+            val_data, retrieved, self.task_model, instruction_response, always_on_knowledge
+        )
 
         scores: list[float] = []
         outputs: list[str] = []

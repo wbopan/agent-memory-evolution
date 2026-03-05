@@ -14,6 +14,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -79,6 +80,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -102,6 +104,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -160,6 +163,7 @@ from typing import Any
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -189,6 +193,7 @@ from dataclasses import dataclass
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -218,6 +223,7 @@ x = 1 / 0  # RuntimeError during exec
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -276,6 +282,7 @@ from typing import Any
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -307,6 +314,7 @@ from dataclasses import dataclass, field
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -359,6 +367,7 @@ from datetime import datetime
 INSTRUCTION_OBSERVATION = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class Observation:
@@ -379,3 +388,68 @@ class KnowledgeBase:
         result = smoke_test(code, timeout=0.1)
         assert result.success is False
         assert "timed out" in result.error
+
+
+class TestAlwaysOnKnowledge:
+    """Tests for the ALWAYS_ON_KNOWLEDGE constant in compile_kb_program."""
+
+    PROGRAM_WITH_ALWAYS_ON = """\
+from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = "observe everything"
+INSTRUCTION_QUERY = "query everything"
+INSTRUCTION_RESPONSE = "respond with everything"
+ALWAYS_ON_KNOWLEDGE = "The user prefers concise answers."
+
+@dataclass
+class Observation:
+    raw: str
+
+@dataclass
+class Query:
+    raw: str
+
+class KnowledgeBase:
+    def __init__(self, toolkit):
+        self.store = []
+    def write(self, obs):
+        self.store.append(obs.raw)
+    def read(self, query):
+        return " | ".join(self.store)
+"""
+
+    PROGRAM_MISSING_ALWAYS_ON = """\
+from dataclasses import dataclass
+
+INSTRUCTION_OBSERVATION = "observe everything"
+INSTRUCTION_QUERY = "query everything"
+INSTRUCTION_RESPONSE = "respond with everything"
+
+@dataclass
+class Observation:
+    raw: str
+
+@dataclass
+class Query:
+    raw: str
+
+class KnowledgeBase:
+    def __init__(self, toolkit):
+        self.store = []
+    def write(self, obs):
+        self.store.append(obs.raw)
+    def read(self, query):
+        return " | ".join(self.store)
+"""
+
+    def test_compile_extracts_always_on_knowledge(self):
+        """compile_kb_program returns CompiledProgram with always_on_knowledge field."""
+        result = compile_kb_program(self.PROGRAM_WITH_ALWAYS_ON)
+        assert isinstance(result, CompiledProgram)
+        assert result.always_on_knowledge == "The user prefers concise answers."
+
+    def test_compile_fails_when_always_on_knowledge_missing(self):
+        """compile_kb_program returns CompileError when ALWAYS_ON_KNOWLEDGE is missing."""
+        result = compile_kb_program(self.PROGRAM_MISSING_ALWAYS_ON)
+        assert isinstance(result, CompileError)
+        assert "ALWAYS_ON_KNOWLEDGE" in result.message

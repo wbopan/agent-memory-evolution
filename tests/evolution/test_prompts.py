@@ -24,6 +24,7 @@ class TestInitialKBProgram:
         assert "INSTRUCTION_OBSERVATION" in INITIAL_KB_PROGRAM
         assert "INSTRUCTION_QUERY" in INITIAL_KB_PROGRAM
         assert "INSTRUCTION_RESPONSE" in INITIAL_KB_PROGRAM
+        assert "ALWAYS_ON_KNOWLEDGE" in INITIAL_KB_PROGRAM
 
     def test_compiles(self):
         from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program
@@ -309,6 +310,22 @@ class TestBuildRetrievedMemoryPrompt:
         prompt = build_retrieved_memory_prompt("")
         assert "<retrieved_memory>" in prompt
         assert prompt == snapshot
+
+    def test_always_on_knowledge_injected(self, snapshot: SnapshotAssertion):
+        prompt = build_retrieved_memory_prompt(
+            "some retrieved text", "answer this", always_on_knowledge="Be systematic."
+        )
+        assert prompt == snapshot
+        # always_on_knowledge should appear before the retrieved text
+        aok_pos = prompt.index("Be systematic.")
+        retrieved_pos = prompt.index("some retrieved text")
+        assert aok_pos < retrieved_pos
+
+    def test_always_on_knowledge_empty_unchanged(self, snapshot: SnapshotAssertion):
+        prompt_without = build_retrieved_memory_prompt("some retrieved text", "answer this")
+        prompt_with_empty = build_retrieved_memory_prompt("some retrieved text", "answer this", always_on_knowledge="")
+        assert prompt_without == prompt_with_empty
+        assert prompt_without == snapshot
 
 
 class TestBuildObservationWithFeedbackPrompt:

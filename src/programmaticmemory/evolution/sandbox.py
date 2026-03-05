@@ -46,9 +46,10 @@ class CompiledProgram:
     instruction_observation: str
     instruction_query: str
     instruction_response: str
+    always_on_knowledge: str
 
 
-REQUIRED_CONSTANTS = {"INSTRUCTION_OBSERVATION", "INSTRUCTION_QUERY", "INSTRUCTION_RESPONSE"}
+REQUIRED_CONSTANTS = {"INSTRUCTION_OBSERVATION", "INSTRUCTION_QUERY", "INSTRUCTION_RESPONSE", "ALWAYS_ON_KNOWLEDGE"}
 
 
 @dataclass
@@ -183,6 +184,7 @@ def compile_kb_program(
         instruction_observation=namespace["INSTRUCTION_OBSERVATION"],
         instruction_query=namespace["INSTRUCTION_QUERY"],
         instruction_response=namespace["INSTRUCTION_RESPONSE"],
+        always_on_knowledge=namespace["ALWAYS_ON_KNOWLEDGE"],
     )
 
 
