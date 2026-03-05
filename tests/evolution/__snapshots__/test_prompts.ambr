@@ -237,46 +237,6 @@
   Respond with the JSON only.
   '''
 # ---
-# name: TestBuildObservationGenerationPrompt.test_includes_text_and_schema
-  '''
-  Given the following text, create an Observation object to store this information in memory.
-  
-  Text: Paris is the capital.
-  
-  The Observation must conform to this schema:
-  Fields:
-    - raw: str
-  
-  Output ONLY a valid JSON object matching the schema fields. No explanation.
-  '''
-# ---
-# name: TestBuildObservationWithFeedbackPrompt.test_includes_feedback_and_ground_truth
-  '''
-  Evaluation result: Score: 0.0 (incorrect)
-  Ground truth: Paris
-  
-  Based on this feedback, generate an observation to write into memory.
-  
-  The observation must be a JSON object matching this schema:
-  Fields:
-    - raw: str
-  
-  Respond with the JSON only.
-  '''
-# ---
-# name: TestBuildObservationWithFeedbackPrompt.test_includes_ground_truth_label
-  '''
-  Evaluation result: ok
-  Ground truth: 42
-  
-  Based on this feedback, generate an observation to write into memory.
-  
-  The observation must be a JSON object matching this schema:
-  schema
-  
-  Respond with the JSON only.
-  '''
-# ---
 # name: TestBuildQueryGenerationPrompt.test_includes_question_and_schema
   '''
   Given the following question, generate a query to retrieve relevant memory.
