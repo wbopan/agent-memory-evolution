@@ -49,10 +49,10 @@ uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations
 LLMs can retrieve information but can't figure out *how to organize* it. This project evolves the **organizing strategy itself** — as executable Python code.
 
 A **Knowledge Base Program** (code type: `KBProgram`) is a Python module defining three classes and four module-level string constants:
-- `Observation` — what to capture from incoming information (dataclass fields)
+- `KnowledgeItem` — what to capture from incoming information (dataclass fields)
 - `Query` — how to parameterize a retrieval request (dataclass fields)
-- `KnowledgeBase` — `write(obs)` / `read(query)` logic using a `Toolkit` (SQLite, ChromaDB, LLM)
-- `INSTRUCTION_OBSERVATION` / `INSTRUCTION_QUERY` / `INSTRUCTION_RESPONSE` — directive sentences inserted into task agent prompts for observation generation, query generation, and answer generation respectively
+- `KnowledgeBase` — `write(item)` / `read(query)` logic using a `Toolkit` (SQLite, ChromaDB, LLM)
+- `INSTRUCTION_KNOWLEDGE_ITEM` / `INSTRUCTION_QUERY` / `INSTRUCTION_RESPONSE` — directive sentences inserted into task agent prompts for knowledge item generation, query generation, and answer generation respectively
 - `ALWAYS_ON_KNOWLEDGE` — persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
 
 The task agent (fixed prompt, fixed model) uses whatever Knowledge Base Program it's given. Evolution changes *only* the Knowledge Base Program code (including instructions) — so performance differences are purely attributable to the knowledge base strategy.
@@ -74,9 +74,9 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
 - **types.py** — Core types: `Scorer` protocol, `ValScorer` protocol (pluggable val scoring), `Dataset` (bundles train/val/test/scorer/val_scorer), `KBProgram`, `DataItem` (includes `metadata: dict` for benchmark-specific data), `EvalResult` (includes `runtime_violation`, `failed_cases`, `success_cases` fields), `FailedCase` (reused for both failed and success cases), `TrainExample`, `EvolutionState`
-- **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch observation ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven obs). Val has two phases: (1) shared KB retrieval (`_retrieve_for_val`), (2) pluggable scoring — either `_default_answer_and_score` (LLM answer + string scorer) or custom `ValScorer.score_batch` via `_val_scorer_path`. Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation.
+- **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch knowledge item ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven KnowledgeItem). Val has two phases: (1) shared KB retrieval (`_retrieve_for_val`), (2) pluggable scoring — either `_default_answer_and_score` (LLM answer + string scorer) or custom `ValScorer.score_batch` via `_val_scorer_path`. Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation.
 - **reflector.py** — Calls LLM with current code + failed cases + success cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_kb_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `KBProgram` is guaranteed valid.
-- **sandbox.py** — `compile_kb_program()`: AST parse → check 3 required classes (Observation, Query, KnowledgeBase) → validate import whitelist → exec → check 4 required constants. Returns `CompiledProgram` (obs_cls, query_cls, kb_cls, instruction_observation, instruction_query, instruction_response, always_on_knowledge) on success, `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
+- **sandbox.py** — `compile_kb_program()`: AST parse → check 3 required classes (KnowledgeItem, Query, KnowledgeBase) → validate import whitelist → exec → check 4 required constants. Returns `CompiledProgram` (ki_cls, query_cls, kb_cls, instruction_knowledge_item, instruction_query, instruction_response, always_on_knowledge) on success, `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
 - **toolkit.py** — Resource bundle (`db`: SQLite, `chroma`: ChromaDB, `llm_completion`: budget-limited LLM, `logger`). Instantiate via `Toolkit(config)`, created fresh per evaluation.
 - **prompts.py** — All prompt templates. `INITIAL_KB_PROGRAM` is the baseline (append-all/return-all). No system prompts — all LLM instructions are merged into user prompts via `build_reflection_user_prompt` and `build_compile_fix_prompt`. Reflection prompt uses XML tags (`<interface_spec>`, `<current_program>`, `<write_examples>`, `<success_cases>`, `<failed_cases>`, etc.) for structure. `ReflectionPromptConfig` controls limits (max failed/success cases, max examples, memory log budget).
 - **benchmarks/kv_memory.py** — Simple factual recall (`ExactMatchScorer`). Train has `raw_text`.
@@ -100,7 +100,7 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 
 ### Two Separate LLM Roles
 
-1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates Observation/Query JSON and answers questions via `litellm.batch_completion`. Separate from the knowledge base program.
+1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates KnowledgeItem/Query JSON and answers questions via `litellm.batch_completion`. Separate from the knowledge base program.
 2. **Toolkit LLM** (`toolkit.py:Toolkit.llm_completion`) — Available to Knowledge Base Programs via `toolkit.llm_completion()`, budget-limited (default 50 calls), with tenacity retry.
 
 ## Test Infrastructure
@@ -133,14 +133,14 @@ Serial: one candidate, one child per iteration. By default, always continues wit
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q. S (bandit) rules are NOT enabled — do not add `# noqa: S...` directives (causes RUF100 errors)
 - Default models for evolution runs: `openrouter/deepseek/deepseek-v3.2` (task + toolkit), `openrouter/openai/gpt-5.3-codex` (reflection). LLM integration tests use `openrouter/openai/gpt-5.1-codex-mini` (task) and `openrouter/openai/gpt-5.3-codex` (reflection).
 - Import whitelist for Knowledge Base Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
-- A Knowledge Base Program is a **complete Python module**: four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE) + three class definitions (Observation, Query, KnowledgeBase). LLM outputs the full module source.
+- A Knowledge Base Program is a **complete Python module**: four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE) + three class definitions (KnowledgeItem, Query, KnowledgeBase). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
 - Prompt template changes in `prompts.py` cascade to snapshots in `test_prompts.ambr` AND `test_reflector.ambr` — always run `--snapshot-update` for both after editing prompts
 - LLM disk cache keys include all API parameters (model, messages, temperature, max_tokens, response_format). Changing any of these invalidates cached responses, requiring re-running LLM tests with an API key.
 - LLM integration tests use two model tiers: `MODEL` (gpt-5.1-codex-mini, cheap) for task agent calls, `REFLECT_MODEL` (gpt-5.3-codex, stronger) for reflection/code-fix tests that require code reasoning.
-- `_batch_llm_call` supports `json_mode=True` for observation/query generation (adds `response_format={"type": "json_object"}`). Answer generation calls leave it off.
+- `_batch_llm_call` supports `json_mode=True` for knowledge item/query generation (adds `response_format={"type": "json_object"}`). Answer generation calls leave it off.
 - Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.
-- Inline test programs that reach execution (step 4+) in `compile_kb_program` must include the three `INSTRUCTION_*` constants and `ALWAYS_ON_KNOWLEDGE` or they'll get `CompileError`. Programs that fail earlier (syntax/class/import checks) don't need them.
+- Inline test programs that reach execution (step 4+) in `compile_kb_program` must include `INSTRUCTION_KNOWLEDGE_ITEM`, `INSTRUCTION_QUERY`, `INSTRUCTION_RESPONSE`, and `ALWAYS_ON_KNOWLEDGE` or they'll get `CompileError`. Programs that fail earlier (syntax/class/import checks) don't need them.
 - All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
 - Knowledge Base Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).
 - `DataItem.metadata` carries benchmark-specific data (e.g., `{"game_file": str, "task_type": str}` for ALFWorld val items). Defaults to empty dict.

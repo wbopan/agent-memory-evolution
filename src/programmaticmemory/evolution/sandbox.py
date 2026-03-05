@@ -40,16 +40,16 @@ class CompileError:
 class CompiledProgram:
     """Successful compilation result."""
 
-    obs_cls: type
+    ki_cls: type
     query_cls: type
     kb_cls: type
-    instruction_observation: str
+    instruction_knowledge_item: str
     instruction_query: str
     instruction_response: str
     always_on_knowledge: str
 
 
-REQUIRED_CONSTANTS = {"INSTRUCTION_OBSERVATION", "INSTRUCTION_QUERY", "INSTRUCTION_RESPONSE", "ALWAYS_ON_KNOWLEDGE"}
+REQUIRED_CONSTANTS = {"INSTRUCTION_KNOWLEDGE_ITEM", "INSTRUCTION_QUERY", "INSTRUCTION_RESPONSE", "ALWAYS_ON_KNOWLEDGE"}
 
 
 @dataclass
@@ -95,7 +95,7 @@ class _ClassFinder(ast.NodeVisitor):
 def compile_kb_program(
     source_code: str,
 ) -> CompiledProgram | CompileError:
-    """Compile knowledge base program source code and extract Observation, Query, KnowledgeBase classes.
+    """Compile knowledge base program source code and extract KnowledgeItem, Query, KnowledgeBase classes.
 
     Returns CompiledProgram on success, CompileError on failure.
     """
@@ -108,7 +108,7 @@ def compile_kb_program(
     # 2. Check required classes exist
     finder = _ClassFinder()
     finder.visit(tree)
-    required = {"Observation", "Query", "KnowledgeBase"}
+    required = {"KnowledgeItem", "Query", "KnowledgeBase"}
     missing = required - finder.class_names
     if missing:
         return CompileError(
@@ -178,10 +178,10 @@ def compile_kb_program(
 
     # 6. Extract classes and constants
     return CompiledProgram(
-        obs_cls=namespace["Observation"],
+        ki_cls=namespace["KnowledgeItem"],
         query_cls=namespace["Query"],
         kb_cls=namespace["KnowledgeBase"],
-        instruction_observation=namespace["INSTRUCTION_OBSERVATION"],
+        instruction_knowledge_item=namespace["INSTRUCTION_KNOWLEDGE_ITEM"],
         instruction_query=namespace["INSTRUCTION_QUERY"],
         instruction_response=namespace["INSTRUCTION_RESPONSE"],
         always_on_knowledge=namespace["ALWAYS_ON_KNOWLEDGE"],
@@ -258,25 +258,25 @@ def smoke_test(
         if isinstance(result, CompileError):
             return SmokeTestResult(success=False, error=f"Compile: {result.message} — {result.details}")
 
-        obs_cls, query_cls, kb_cls = result.obs_cls, result.query_cls, result.kb_cls
+        ki_cls, query_cls, kb_cls = result.ki_cls, result.query_cls, result.kb_cls
         toolkit = Toolkit(toolkit_config or ToolkitConfig(llm_model="smoke-test/noop"))
         try:
             kb = kb_cls(toolkit)
 
             # Try a basic write
-            if dataclasses.is_dataclass(obs_cls):
-                obs_fields = dataclasses.fields(obs_cls)
+            if dataclasses.is_dataclass(ki_cls):
+                ki_fields = dataclasses.fields(ki_cls)
                 kwargs = {}
-                for f in obs_fields:
+                for f in ki_fields:
                     if f.default is not dataclasses.MISSING:
                         continue
                     if f.default_factory is not dataclasses.MISSING:
                         continue
                     kwargs[f.name] = "smoke test value"
-                obs = obs_cls(**kwargs)
+                item = ki_cls(**kwargs)
             else:
-                obs = obs_cls("smoke test value")
-            kb.write(obs)
+                item = ki_cls("smoke test value")
+            kb.write(item)
 
             # Try a basic read
             if dataclasses.is_dataclass(query_cls):

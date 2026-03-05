@@ -99,7 +99,7 @@ class TestReflector:
 from dataclasses import dataclass
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -110,8 +110,8 @@ class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = {}
 
-    def write(self, obs):
-        self.store[obs.raw[:20]] = obs.raw
+    def write(self, item):
+        self.store[item.raw[:20]] = item.raw
 
     def read(self, query):
         return self.store.get(query.raw, "Not found")
@@ -203,7 +203,7 @@ class KnowledgeBase:
         assert len(messages) == 1
         assert messages[0]["role"] == "user"
         user_content = messages[0]["content"]
-        assert "Observation" in user_content  # interface spec
+        assert "KnowledgeItem" in user_content  # interface spec
         assert "code here" in user_content
         assert "0.200" in user_content
         assert "What is X?" in user_content
@@ -222,7 +222,7 @@ class KnowledgeBase:
         """Verify model and temperature are passed to litellm."""
         mock_compile.return_value = MagicMock()
         mock_smoke.return_value = SmokeTestResult(success=True)
-        mock_apply_patch.return_value = "class Observation: pass\nclass Query: pass\nclass KnowledgeBase: pass"
+        mock_apply_patch.return_value = "class KnowledgeItem: pass\nclass Query: pass\nclass KnowledgeBase: pass"
 
         captured_kwargs = []
 
@@ -339,7 +339,7 @@ class TestReflectorCompileFixLoop:
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_valid_code_returns_immediately(self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch):
         """When code compiles and passes smoke test, return without fix attempts."""
-        new_code = "from dataclasses import dataclass\n\n@dataclass\nclass Observation:\n    raw: str\n\n@dataclass\nclass Query:\n    raw: str\n\nclass KnowledgeBase:\n    def __init__(self, toolkit): pass\n    def write(self, obs): pass\n    def read(self, query): return ''"
+        new_code = "from dataclasses import dataclass\n\n@dataclass\nclass KnowledgeItem:\n    raw: str\n\n@dataclass\nclass Query:\n    raw: str\n\nclass KnowledgeBase:\n    def __init__(self, toolkit): pass\n    def write(self, item): pass\n    def read(self, query): return ''"
         mock_apply_patch.return_value = new_code
 
         mock_resp = MagicMock()
@@ -366,7 +366,7 @@ class TestReflectorCompileFixLoop:
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_compile_error_triggers_fix_and_succeeds(self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch):
         """CompileError triggers fix loop; fixed code is returned."""
-        good_code = "class Observation: pass\nclass Query: pass\nclass KnowledgeBase: pass"
+        good_code = "class KnowledgeItem: pass\nclass Query: pass\nclass KnowledgeBase: pass"
 
         # First apply_patch call (from reflect) returns bad code, second (from fix) returns good code
         mock_apply_patch.side_effect = ["bad code", good_code]
@@ -404,7 +404,7 @@ class TestReflectorCompileFixLoop:
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_smoke_test_failure_triggers_fix(self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch):
         """Smoke test failure triggers fix loop."""
-        good_code = "class Observation: pass\nclass Query: pass\nclass KnowledgeBase: pass"
+        good_code = "class KnowledgeItem: pass\nclass Query: pass\nclass KnowledgeBase: pass"
 
         # First apply_patch (reflect) returns code v1, second (fix) returns good code
         mock_apply_patch.side_effect = ["code v1", good_code]
@@ -549,7 +549,7 @@ class TestReflectorRuntimeFix:
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_fix_succeeds(self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch):
         """LLM returns valid fix -> compile+smoke pass -> return fixed code."""
-        fixed_code = "class Observation:\n  pass\nclass Query:\n  pass\nclass KnowledgeBase:\n  pass"
+        fixed_code = "class KnowledgeItem:\n  pass\nclass Query:\n  pass\nclass KnowledgeBase:\n  pass"
         mock_apply_patch.return_value = fixed_code
         mock_litellm.completion.return_value = MagicMock(
             choices=[MagicMock(message=MagicMock(content=self._PATCH_RESPONSE))]

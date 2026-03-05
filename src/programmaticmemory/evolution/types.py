@@ -34,7 +34,7 @@ class ValScorer(Protocol):
 class KBProgram:
     """A candidate knowledge base program — the unit of evolution.
 
-    Contains the full source code defining Observation, Query, and KnowledgeBase classes.
+    Contains the full source code defining KnowledgeItem, Query, and KnowledgeBase classes.
     Tracked by content hash for deduplication.
     """
 
@@ -51,7 +51,7 @@ class KBProgram:
 class DataItem:
     """A single benchmark data item.
 
-    Train items with raw_text are batch-ingested as observations.
+    Train items with raw_text are batch-ingested as knowledge items.
     Train items without raw_text use interactive QA (query→answer→feedback→write).
     Val items always use question+expected_answer for scoring.
     """
@@ -88,7 +88,7 @@ class FailedCase:
 
 @dataclass
 class TrainExample:
-    """One training write: the full message exchange that generated an Observation."""
+    """One training write: the full message exchange that generated a KnowledgeItem."""
 
     messages: list[dict[str, str]]  # [{"role":"user",...}, {"role":"assistant",...}]
 

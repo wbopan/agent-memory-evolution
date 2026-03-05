@@ -6,12 +6,12 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -21,7 +21,7 @@
           2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
-             - Same JSON-compatible type restriction and field description support as Observation
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
           
           3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -29,7 +29,7 @@
                - `toolkit.chroma`: chromadb ephemeral client
                - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
                - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-             - `write(self, observation: Observation) -> None`: Store information
+             - `write(self, item: KnowledgeItem) -> None`: Store information
              - `read(self, query: Query) -> str`: Retrieve relevant information as a string
           
           Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -46,19 +46,19 @@
           
           Four module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
           
-          INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
           
           </interface_spec>
           
           <rules>
           1. Output your diagnosis first, then your changes as a patch using the format below.
-          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes.
           6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
@@ -142,12 +142,12 @@
       'content': '''
         You are an expert Python programmer specializing in knowledge base system design.
         
-        Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+        Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
         
         <interface_spec>
         You are designing a Knowledge Base Program that implements three classes:
         
-        1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+        1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
            - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -157,7 +157,7 @@
         2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
-           - Same JSON-compatible type restriction and field description support as Observation
+           - Same JSON-compatible type restriction and field description support as KnowledgeItem
         
         3. **KnowledgeBase** (class): The core knowledge base system.
            - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -165,7 +165,7 @@
              - `toolkit.chroma`: chromadb ephemeral client
              - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
              - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-           - `write(self, observation: Observation) -> None`: Store information
+           - `write(self, item: KnowledgeItem) -> None`: Store information
            - `read(self, query: Query) -> str`: Retrieve relevant information as a string
         
         Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -182,19 +182,19 @@
         
         Four module-level string constants provide the natural-language instructions used in task agent prompts:
         
-        - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+        - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
         - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
         - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
         - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
         
-        INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+        INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
         
         </interface_spec>
         
         <rules>
         1. Output your diagnosis first, then your changes as a patch using the format below.
-        2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-        3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+        3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
         4. `read()` must return at most 1000 characters — do not return all stored text.
         5. Keep it simple. Make minimal, targeted fixes.
         6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
@@ -265,12 +265,12 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -280,7 +280,7 @@
           2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
-             - Same JSON-compatible type restriction and field description support as Observation
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
           
           3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -288,7 +288,7 @@
                - `toolkit.chroma`: chromadb ephemeral client
                - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
                - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-             - `write(self, observation: Observation) -> None`: Store information
+             - `write(self, item: KnowledgeItem) -> None`: Store information
              - `read(self, query: Query) -> str`: Retrieve relevant information as a string
           
           Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -305,19 +305,19 @@
           
           Four module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
           
-          INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
           
           </interface_spec>
           
           <rules>
           1. Output your diagnosis first, then your changes as a patch using the format below.
-          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes.
           6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
@@ -395,12 +395,12 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -410,7 +410,7 @@
           2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
-             - Same JSON-compatible type restriction and field description support as Observation
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
           
           3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -418,7 +418,7 @@
                - `toolkit.chroma`: chromadb ephemeral client
                - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
                - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-             - `write(self, observation: Observation) -> None`: Store information
+             - `write(self, item: KnowledgeItem) -> None`: Store information
              - `read(self, query: Query) -> str`: Retrieve relevant information as a string
           
           Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -435,19 +435,19 @@
           
           Four module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
           
-          INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
           
           </interface_spec>
           
           <rules>
           1. Output your diagnosis first, then your changes as a patch using the format below.
-          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes.
           6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
@@ -540,12 +540,12 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
           
-          1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
              - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -555,7 +555,7 @@
           2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
              - Must be a @dataclass with typed fields
              - An external LLM will populate instances by generating JSON matching your field definitions
-             - Same JSON-compatible type restriction and field description support as Observation
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
           
           3. **KnowledgeBase** (class): The core knowledge base system.
              - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -563,7 +563,7 @@
                - `toolkit.chroma`: chromadb ephemeral client
                - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
                - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-             - `write(self, observation: Observation) -> None`: Store information
+             - `write(self, item: KnowledgeItem) -> None`: Store information
              - `read(self, query: Query) -> str`: Retrieve relevant information as a string
           
           Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -580,19 +580,19 @@
           
           Four module-level string constants provide the natural-language instructions used in task agent prompts:
           
-          - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
           - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
           - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
           
-          INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
           
           </interface_spec>
           
           <rules>
           1. Output your diagnosis first, then your changes as a patch using the format below.
-          2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-          3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
           4. `read()` must return at most 1000 characters — do not return all stored text.
           5. Keep it simple. Make minimal, targeted fixes.
           6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
@@ -663,12 +663,12 @@
       'content': '''
         You are an expert Python programmer specializing in knowledge base system design.
         
-        Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
+        Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, diagnose the issues and fix them.
         
         <interface_spec>
         You are designing a Knowledge Base Program that implements three classes:
         
-        1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+        1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
            - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -678,7 +678,7 @@
         2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
            - Must be a @dataclass with typed fields
            - An external LLM will populate instances by generating JSON matching your field definitions
-           - Same JSON-compatible type restriction and field description support as Observation
+           - Same JSON-compatible type restriction and field description support as KnowledgeItem
         
         3. **KnowledgeBase** (class): The core knowledge base system.
            - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -686,7 +686,7 @@
              - `toolkit.chroma`: chromadb ephemeral client
              - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
              - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-           - `write(self, observation: Observation) -> None`: Store information
+           - `write(self, item: KnowledgeItem) -> None`: Store information
            - `read(self, query: Query) -> str`: Retrieve relevant information as a string
         
         Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -703,19 +703,19 @@
         
         Four module-level string constants provide the natural-language instructions used in task agent prompts:
         
-        - INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+        - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
         - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
         - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
         - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
         
-        INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+        INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
         
         </interface_spec>
         
         <rules>
         1. Output your diagnosis first, then your changes as a patch using the format below.
-        2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-        3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+        2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+        3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
         4. `read()` must return at most 1000 characters — do not return all stored text.
         5. Keep it simple. Make minimal, targeted fixes.
         6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
