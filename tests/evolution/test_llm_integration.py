@@ -110,9 +110,9 @@ def test_knowledge_item_generation(snapshot: SnapshotAssertion):
     output = _llm_call(MODEL, messages)
 
     parsed = _parse_json_from_llm(output)
-    assert "raw" in parsed
-    assert isinstance(parsed["raw"], str)
-    assert len(parsed["raw"]) > 0
+    assert "summary" in parsed
+    assert isinstance(parsed["summary"], str)
+    assert len(parsed["summary"]) > 0
 
     assert {"prompt": prompt, "output": output} == snapshot
 
@@ -132,9 +132,9 @@ def test_knowledge_item_with_feedback(snapshot: SnapshotAssertion):
     output = _llm_call(MODEL, messages)
 
     parsed = _parse_json_from_llm(output)
-    assert "raw" in parsed
-    assert isinstance(parsed["raw"], str)
-    assert "paris" in parsed["raw"].lower() or "paris" in output.lower()
+    assert "summary" in parsed
+    assert isinstance(parsed["summary"], str)
+    assert "paris" in parsed["summary"].lower() or "paris" in output.lower()
 
     assert {"prompt": prompt, "output": output} == snapshot
 
@@ -354,7 +354,7 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store: list[str] = []
 
-    def write(self, item: KnowledgeItem) -> None:
+    def write(self, item: KnowledgeItem, raw_text: str = "") -> None:
         self.store.append(item.raw)
         self.toolkit.logger.log(f"Stored: {item.raw[:80]}")
 
@@ -418,6 +418,11 @@ PROGRAM_WITH_DISALLOWED_IMPORT = """\
 import numpy as np
 from dataclasses import dataclass
 
+INSTRUCTION_KNOWLEDGE_ITEM = ""
+INSTRUCTION_QUERY = ""
+INSTRUCTION_RESPONSE = ""
+ALWAYS_ON_KNOWLEDGE = ""
+
 
 @dataclass
 class KnowledgeItem:
@@ -433,7 +438,7 @@ class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
-    def write(self, item: KnowledgeItem) -> None:
+    def write(self, item: KnowledgeItem, raw_text: str = "") -> None:
         self.store.append(item.raw)
         self.toolkit.logger.log(f"Stored: {item.raw[:80]}")
 
@@ -465,7 +470,7 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store = []
 
-    def write(self, item: KnowledgeItem) -> None:
+    def write(self, item: KnowledgeItem, raw_text: str = "") -> None:
         processed = process_text(item.raw)
         self.store.append(processed)
 
@@ -485,7 +490,7 @@ def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
     assert "numpy" in compile_result.details.lower() or "import" in compile_result.message.lower()
 
     # Step 2: LLM fixes it
-    reflector = Reflector(model=MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
     fixed_code = reflector._try_fix(
         PROGRAM_WITH_DISALLOWED_IMPORT,
         error_type=compile_result.message,
@@ -525,7 +530,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
     assert "process_text" in st.error.lower() or "nameerror" in st.error.lower()
 
     # Step 2: LLM fixes it
-    reflector = Reflector(model=MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
     fixed_code = reflector._try_fix(
         PROGRAM_WITH_RUNTIME_BUG,
         error_type="Smoke test error",
@@ -574,7 +579,7 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store: list[str] = []
 
-    def write(self, item: KnowledgeItem) -> None:
+    def write(self, item: KnowledgeItem, raw_text: str = "") -> None:
         self.store.append(item.raw)
 
     def read(self, query: Query) -> str:
@@ -606,7 +611,7 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
     assert result.score == 0.0
 
     # Step 2: LLM fixes the runtime violation
-    reflector = Reflector(model=MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
     fixed_code = reflector.fix_runtime_violation(OVERSIZED_READ_KB_PROGRAM, result.runtime_violation)
     assert fixed_code is not None, "Reflector failed to produce a fix"
 
@@ -627,7 +632,7 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
             for f in dataclasses.fields(fixed_compile.ki_cls)
             if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
         }
-        memory.write(fixed_compile.ki_cls(**ki_kwargs))
+        memory.write(fixed_compile.ki_cls(**ki_kwargs), "test raw text")
 
         query_kwargs = {
             f.name: "test query"
