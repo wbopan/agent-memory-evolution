@@ -810,14 +810,14 @@ class TestGuardedWrite:
     def test_normal_write_succeeds(self):
         memory = MagicMock()
         item = MagicMock()
-        _guarded_write(memory, item)
-        memory.write.assert_called_once_with(item)
+        _guarded_write(memory, item, raw_text="test text")
+        memory.write.assert_called_once_with(item, "test text")
 
     def test_timeout_raises_violation(self):
         memory = MagicMock()
-        memory.write.side_effect = lambda item: time.sleep(10)
+        memory.write.side_effect = lambda item, raw_text: time.sleep(10)
         with pytest.raises(RuntimeViolationError, match="timed out"):
-            _guarded_write(memory, MagicMock(), timeout=0.1)
+            _guarded_write(memory, MagicMock(), raw_text="x", timeout=0.1)
 
     def test_exception_propagates(self):
         memory = MagicMock()

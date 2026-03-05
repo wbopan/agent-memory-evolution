@@ -29,7 +29,7 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store = []
 
-    def write(self, item):
+    def write(self, item, raw_text=""):
         self.store.append(item.raw)
 
     def read(self, query):
