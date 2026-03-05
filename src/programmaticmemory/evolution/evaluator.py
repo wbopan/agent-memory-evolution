@@ -46,10 +46,10 @@ class RuntimeViolationError(Exception):
     """Raised when memory.write/read violates runtime constraints (timeout or output size)."""
 
 
-def _guarded_write(kb: Any, item: Any, timeout: float = MEMORY_OP_TIMEOUT) -> None:
-    """Wrap kb.write(item) with timeout."""
+def _guarded_write(kb: Any, item: Any, raw_text: str = "", timeout: float = MEMORY_OP_TIMEOUT) -> None:
+    """Wrap kb.write(item, raw_text) with timeout."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(kb.write, item)
+        future = pool.submit(kb.write, item, raw_text)
         try:
             future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
@@ -305,7 +305,7 @@ class MemoryEvaluator:
                 continue
             try:
                 ki = ki_cls(**_parse_json_from_llm(content))
-                _guarded_write(kb, ki)
+                _guarded_write(kb, ki, raw_text=item.raw_text)
                 write_count += 1
             except RuntimeViolationError:
                 raise
@@ -460,7 +460,9 @@ class MemoryEvaluator:
 
         # Serial writes + capture train examples
         train_examples: list[TrainExample] = []
-        for r3_msgs, ki_content in zip(round3_messages, round3_responses, strict=True):
+        for (item, _msgs, _eval), r3_msgs, ki_content in zip(
+            round3_items, round3_messages, round3_responses, strict=True
+        ):
             if ki_content is None:
                 logs.append("Train knowledge item generation failed (batch error)")
                 continue
@@ -468,7 +470,7 @@ class MemoryEvaluator:
                 train_examples.append(TrainExample(messages=[*r3_msgs, {"role": "assistant", "content": ki_content}]))
             try:
                 ki = ki_cls(**_parse_json_from_llm(ki_content))
-                _guarded_write(kb, ki)
+                _guarded_write(kb, ki, raw_text=item.raw_text)
             except RuntimeViolationError:
                 raise
             except Exception as e:

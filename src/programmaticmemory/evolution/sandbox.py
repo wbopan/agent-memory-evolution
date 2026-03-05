@@ -276,7 +276,7 @@ def smoke_test(
                 item = ki_cls(**kwargs)
             else:
                 item = ki_cls("smoke test value")
-            kb.write(item)
+            kb.write(item, "smoke test raw text")
 
             # Try a basic read
             if dataclasses.is_dataclass(query_cls):
