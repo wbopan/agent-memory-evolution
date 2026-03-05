@@ -7,8 +7,8 @@ from programmaticmemory.evolution.prompts import (
     KB_INTERFACE_SPEC,
     ReflectionPromptConfig,
     build_compile_fix_prompt,
-    build_observation_generation_prompt,
-    build_observation_with_feedback_prompt,
+    build_knowledge_item_generation_prompt,
+    build_knowledge_item_with_feedback_prompt,
     build_query_generation_prompt,
     build_reflection_user_prompt,
     build_retrieved_memory_prompt,
@@ -18,10 +18,10 @@ from programmaticmemory.evolution.types import TrainExample
 
 class TestInitialKBProgram:
     def test_contains_required_classes(self):
-        assert "class Observation" in INITIAL_KB_PROGRAM
+        assert "class KnowledgeItem" in INITIAL_KB_PROGRAM
         assert "class Query" in INITIAL_KB_PROGRAM
         assert "class KnowledgeBase" in INITIAL_KB_PROGRAM
-        assert "INSTRUCTION_OBSERVATION" in INITIAL_KB_PROGRAM
+        assert "INSTRUCTION_KNOWLEDGE_ITEM" in INITIAL_KB_PROGRAM
         assert "INSTRUCTION_QUERY" in INITIAL_KB_PROGRAM
         assert "INSTRUCTION_RESPONSE" in INITIAL_KB_PROGRAM
         assert "ALWAYS_ON_KNOWLEDGE" in INITIAL_KB_PROGRAM
@@ -41,7 +41,7 @@ class TestInitialKBProgram:
 
 class TestKBInterfaceSpec:
     def test_contains_key_components(self):
-        assert "Observation" in KB_INTERFACE_SPEC
+        assert "KnowledgeItem" in KB_INTERFACE_SPEC
         assert "Query" in KB_INTERFACE_SPEC
         assert "KnowledgeBase" in KB_INTERFACE_SPEC
         assert "Toolkit" in KB_INTERFACE_SPEC
@@ -255,7 +255,7 @@ class TestReflectionPromptConfig:
         assert prompt == snapshot
 
     def test_memory_logs_deduplicated(self):
-        shared_logs = ["init db", "write observation", "read query"]
+        shared_logs = ["init db", "write knowledge item", "read query"]
         cases = [
             {"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0, "memory_logs": shared_logs}
             for i in range(3)
@@ -288,9 +288,9 @@ class TestBuildQueryGenerationPrompt:
         assert prompt == snapshot
 
 
-class TestBuildObservationGenerationPrompt:
+class TestBuildKnowledgeItemGenerationPrompt:
     def test_includes_text_and_schema(self, snapshot: SnapshotAssertion):
-        prompt = build_observation_generation_prompt("Paris is the capital.", "Fields:\n  - raw: str")
+        prompt = build_knowledge_item_generation_prompt("Paris is the capital.", "Fields:\n  - raw: str")
         assert "Paris is the capital." in prompt
         assert "raw: str" in prompt
         assert "JSON" in prompt
@@ -328,9 +328,9 @@ class TestBuildRetrievedMemoryPrompt:
         assert prompt_without == snapshot
 
 
-class TestBuildObservationWithFeedbackPrompt:
+class TestBuildKnowledgeItemWithFeedbackPrompt:
     def test_includes_feedback_and_ground_truth(self, snapshot: SnapshotAssertion):
-        prompt = build_observation_with_feedback_prompt(
+        prompt = build_knowledge_item_with_feedback_prompt(
             evaluation_result="Score: 0.0 (incorrect)",
             ground_truth="Paris",
             schema="Fields:\n  - raw: str",
@@ -342,7 +342,7 @@ class TestBuildObservationWithFeedbackPrompt:
         assert prompt == snapshot
 
     def test_includes_ground_truth_label(self, snapshot: SnapshotAssertion):
-        prompt = build_observation_with_feedback_prompt("ok", "42", "schema")
+        prompt = build_knowledge_item_with_feedback_prompt("ok", "42", "schema")
         assert "Ground truth" in prompt
         assert "42" in prompt
         assert prompt == snapshot

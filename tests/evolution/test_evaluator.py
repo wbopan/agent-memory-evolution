@@ -164,7 +164,7 @@ class TestMemoryLifecycle:
         assert isinstance(result, CompiledProgram)
         tk = Toolkit(ToolkitConfig(llm_model="test/model"))
         memory = result.kb_cls(tk)
-        memory.write(result.obs_cls(raw="The sky is blue."))
+        memory.write(result.ki_cls(raw="The sky is blue."))
         output = memory.read(result.query_cls(raw="sky"))
         assert "The sky is blue." in output
         tk.close()
@@ -180,7 +180,7 @@ class TestMemoryLifecycle:
 
         # First instance: write data
         mem1 = result.kb_cls(tk)
-        mem1.write(result.obs_cls(raw="secret data"))
+        mem1.write(result.ki_cls(raw="secret data"))
         output1 = mem1.read(result.query_cls(raw="anything"))
         assert "secret data" in output1
 
@@ -301,13 +301,13 @@ class TestAlwaysOnKnowledgeInEvaluator:
     PROGRAM_WITH_AOK = '''\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = "Extract the key fact."
+INSTRUCTION_KNOWLEDGE_ITEM = "Extract the key fact."
 INSTRUCTION_QUERY = "Ask for the fact."
 INSTRUCTION_RESPONSE = "Answer concisely."
 ALWAYS_ON_KNOWLEDGE = "Always respond in English. Be precise."
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -317,8 +317,8 @@ class Query:
 class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
-    def write(self, obs):
-        self.store.append(obs.raw)
+    def write(self, item):
+        self.store.append(item.raw)
     def read(self, query):
         return " ".join(self.store) if self.store else "No information stored."
 '''
@@ -328,7 +328,7 @@ class KnowledgeBase:
         """Non-empty ALWAYS_ON_KNOWLEDGE should appear inside <retrieved_memory> tags."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The sky is blue."}'],  # train batch: obs
+                ['{"raw": "The sky is blue."}'],  # train batch: ki
                 ['{"raw": "sky color"}'],  # val round 1: query
                 ["blue"],  # val round 2: answer
             ]
@@ -368,7 +368,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "q"}'],  # online train round 1: query gen
                 ["my answer"],  # online train round 2: answer gen
-                ['{"raw": "obs stored"}'],  # online train round 3: obs gen
+                ['{"raw": "obs stored"}'],  # online train round 3: ki gen
                 ['{"raw": "vq"}'],  # val round 1: query gen
                 ["obs stored"],  # val round 2: answer
             ]
@@ -395,7 +395,7 @@ class TestMemoryEvaluatorOnline:
         # Round 3: 5 messages (user + asst + user + asst + user)
         assert len(batch_mock.captured_calls[2][0]) == 5
         assert batch_mock.captured_calls[2][0][3]["role"] == "assistant"  # answer
-        assert batch_mock.captured_calls[2][0][4]["role"] == "user"  # obs gen with feedback
+        assert batch_mock.captured_calls[2][0][4]["role"] == "user"  # ki gen with feedback
         assert result.score == 1.0
         assert batch_mock.captured_calls == snapshot
 
@@ -425,13 +425,13 @@ class TestMemoryEvaluatorOnline:
         assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
-    def test_online_step3_output_parses_to_observation(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Step 3 mock output should be parseable into an Observation dataclass."""
+    def test_online_step3_output_parses_to_knowledge_item(self, mock_litellm, snapshot: SnapshotAssertion):
+        """Step 3 mock output should be parseable into a KnowledgeItem dataclass."""
         batch_mock = _make_batch_mock(
             [
                 ['{"raw": "q"}'],  # train round 1
                 ["answer"],  # train round 2
-                ['{"raw": "parsed observation value"}'],  # train round 3: obs
+                ['{"raw": "parsed knowledge item value"}'],  # train round 3: ki
                 ['{"raw": "vq"}'],  # val round 1
                 ["va"],  # val round 2
             ]
@@ -445,7 +445,7 @@ class TestMemoryEvaluatorOnline:
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         result = evaluator.evaluate(program, train, val)
 
-        assert not any("observation parse failed" in log for log in result.logs)
+        assert not any("knowledge item parse failed" in log for log in result.logs)
         assert batch_mock.captured_calls == snapshot
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
@@ -455,7 +455,7 @@ class TestMemoryEvaluatorOnline:
             [
                 ['{"raw": "q"}'],  # train round 1
                 ["answer"],  # train round 2
-                ['{"raw": "stored via online"}'],  # train round 3: obs written
+                ['{"raw": "stored via online"}'],  # train round 3: ki written
                 ['{"raw": "vq"}'],  # val round 1
                 ["stored via online"],  # val round 2: answer matches
             ]
@@ -511,7 +511,7 @@ class TestValidationPipeline:
         """Validation should only do Step 1 (query gen) + Step 2 (answer), no Step 3/4."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "fact"}'],  # train ki
                 ['{"raw": "query"}'],  # val round 1: query
                 ["answer"],  # val round 2: answer
             ]
@@ -525,7 +525,7 @@ class TestValidationPipeline:
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         evaluator.evaluate(program, train, val)
 
-        # Should be exactly 3 batch_completion calls: 1 train obs + 2 val rounds
+        # Should be exactly 3 batch_completion calls: 1 train ki + 2 val rounds
         assert len(batch_mock.captured_calls) == 3
         assert batch_mock.captured_calls == snapshot
 
@@ -547,13 +547,13 @@ class TestValidationPipeline:
         tracking_program = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -566,10 +566,10 @@ class KnowledgeBase:
         self.store = []
         self.write_log = []
 
-    def write(self, obs):
-        self.store.append(obs.raw)
-        self.write_log.append(obs.raw)
-        self.toolkit.logger.log(f"WRITE_CALLED:{obs.raw}")
+    def write(self, item):
+        self.store.append(item.raw)
+        self.write_log.append(item.raw)
+        self.toolkit.logger.log(f"WRITE_CALLED:{item.raw}")
 
     def read(self, query):
         return " ".join(self.store) if self.store else "empty"
@@ -590,7 +590,7 @@ class KnowledgeBase:
         """Failed cases should include the full multi-turn conversation history."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "fact"}'],  # train ki
                 ['{"raw": "query"}'],  # val round 1: query
                 ["wrong answer"],  # val round 2: wrong answer
             ]
@@ -617,7 +617,7 @@ class KnowledgeBase:
         """Val round 2 batch call should contain multi-turn messages per item."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "fact"}'],  # train ki
                 ['{"raw": "my query"}'],  # val round 1: query
                 ["the answer"],  # val round 2: answer
             ]
@@ -645,11 +645,11 @@ class KnowledgeBase:
 
 class TestEvaluatorEdgeCases:
     @patch("programmaticmemory.evolution.evaluator.litellm")
-    def test_observation_generation_failure_skips_item(self, mock_litellm, snapshot: SnapshotAssertion):
-        """Offline: if obs generation fails (bad JSON), item is skipped but eval continues."""
+    def test_knowledge_item_generation_failure_skips_item(self, mock_litellm, snapshot: SnapshotAssertion):
+        """Offline: if knowledge item generation fails (bad JSON), item is skipped but eval continues."""
         batch_mock = _make_batch_mock(
             [
-                ["not valid json at all"],  # train obs fails
+                ["not valid json at all"],  # train ki fails
                 ['{"raw": "query"}'],  # val round 1: query
                 ["some answer"],  # val round 2: answer
             ]
@@ -672,7 +672,7 @@ class TestEvaluatorEdgeCases:
         """If query generation fails during val, that item scores 0."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "fact"}'],  # train obs
+                ['{"raw": "fact"}'],  # train ki
                 ["not valid json"],  # val round 1: query gen fails
                 [],  # val round 2: no valid slots, empty batch
             ]
@@ -697,7 +697,7 @@ class TestEvaluatorEdgeCases:
         with patch("programmaticmemory.evolution.evaluator.litellm") as mock_litellm:
             batch_mock = _make_batch_mock(
                 [
-                    ['{"raw": "x"}'],  # train obs
+                    ['{"raw": "x"}'],  # train ki
                 ]
             )
             mock_litellm.batch_completion = batch_mock
@@ -714,7 +714,7 @@ class TestEvaluatorEdgeCases:
         """Correct answers should be collected as success_cases."""
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "f1"}'],  # train obs
+                ['{"raw": "f1"}'],  # train ki
                 ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: queries
                 ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
@@ -743,7 +743,7 @@ class TestEvaluatorEdgeCases:
     def test_multiple_val_items(self, mock_litellm, snapshot: SnapshotAssertion):
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "f1"}', '{"raw": "f2"}'],  # train obs x2
+                ['{"raw": "f1"}', '{"raw": "f2"}'],  # train ki x2
                 ['{"raw": "q1"}', '{"raw": "q2"}'],  # val round 1: both queries
                 ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
@@ -809,13 +809,13 @@ class TestEvaluatorEdgeCases:
 class TestGuardedWrite:
     def test_normal_write_succeeds(self):
         memory = MagicMock()
-        obs = MagicMock()
-        _guarded_write(memory, obs)
-        memory.write.assert_called_once_with(obs)
+        item = MagicMock()
+        _guarded_write(memory, item)
+        memory.write.assert_called_once_with(item)
 
     def test_timeout_raises_violation(self):
         memory = MagicMock()
-        memory.write.side_effect = lambda obs: time.sleep(10)
+        memory.write.side_effect = lambda item: time.sleep(10)
         with pytest.raises(RuntimeViolationError, match="timed out"):
             _guarded_write(memory, MagicMock(), timeout=0.1)
 
@@ -863,13 +863,13 @@ class TestGuardedRead:
 OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
     from dataclasses import dataclass
 
-    INSTRUCTION_OBSERVATION = ""
+    INSTRUCTION_KNOWLEDGE_ITEM = ""
     INSTRUCTION_QUERY = ""
     INSTRUCTION_RESPONSE = ""
     ALWAYS_ON_KNOWLEDGE = ""
 
     @dataclass
-    class Observation:
+    class KnowledgeItem:
         content: str
 
     @dataclass
@@ -880,7 +880,7 @@ OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
         def __init__(self, toolkit):
             pass
 
-        def write(self, obs):
+        def write(self, item):
             pass
 
         def read(self, query):
@@ -894,7 +894,7 @@ class TestRuntimeViolationEarlyAbort:
         """Eval aborts on first kb.read() returning >1000 chars."""
         batch_mock = _make_batch_mock(
             [
-                ['{"content": "hello"}'],  # train obs batch
+                ['{"content": "hello"}'],  # train ki batch
                 ['{"question": "what?"}'],  # val round 1: query gen
                 # No round 2 needed — abort happens before answer generation
             ]
@@ -933,7 +933,7 @@ class TestValScorerIntegration:
 
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The sky is blue."}'],  # train: obs generation
+                ['{"raw": "The sky is blue."}'],  # train: ki generation
                 ['{"raw": "sky query"}'],  # val round 1: query generation
                 # No round 2! val_scorer handles scoring, not LLM answer generation.
             ]
@@ -962,7 +962,7 @@ class TestValScorerIntegration:
         # Score comes from val_scorer, not default scorer
         assert result.score == 0.75
         assert result.per_case_outputs == ["custom_answer"]
-        # Only 2 batch calls (train obs + val query), NOT 3 (no val answer generation)
+        # Only 2 batch calls (train ki + val query), NOT 3 (no val answer generation)
         assert len(batch_mock.captured_calls) == 2
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
@@ -975,7 +975,7 @@ class TestValScorerIntegration:
 
         batch_mock = _make_batch_mock(
             [
-                ['{"raw": "The sky is blue."}'],  # train: obs generation
+                ['{"raw": "The sky is blue."}'],  # train: ki generation
                 ['{"raw": "sky query"}'],  # val round 1: query generation
             ]
         )

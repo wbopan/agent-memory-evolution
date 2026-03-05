@@ -20,7 +20,7 @@ class ReflectionPromptConfig:
 KB_INTERFACE_SPEC = """\
 You are designing a Knowledge Base Program that implements three classes:
 
-1. **Observation** (dataclass): Defines what information is captured when writing to the knowledge base.
+1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
    - Must be a @dataclass with typed fields
    - An external LLM will populate instances by generating JSON matching your field definitions
    - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
@@ -30,7 +30,7 @@ You are designing a Knowledge Base Program that implements three classes:
 2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
    - Must be a @dataclass with typed fields
    - An external LLM will populate instances by generating JSON matching your field definitions
-   - Same JSON-compatible type restriction and field description support as Observation
+   - Same JSON-compatible type restriction and field description support as KnowledgeItem
 
 3. **KnowledgeBase** (class): The core knowledge base system.
    - `__init__(self, toolkit)`: Receives a Toolkit with:
@@ -38,7 +38,7 @@ You are designing a Knowledge Base Program that implements three classes:
      - `toolkit.chroma`: chromadb ephemeral client
      - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
      - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-   - `write(self, observation: Observation) -> None`: Store information
+   - `write(self, item: KnowledgeItem) -> None`: Store information
    - `read(self, query: Query) -> str`: Retrieve relevant information as a string
 
 Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -55,26 +55,26 @@ These limits are enforced during evaluation. Violating them results in score = 0
 
 Four module-level string constants provide the natural-language instructions used in task agent prompts:
 
-- INSTRUCTION_OBSERVATION: Instruction for observation generation. Tells the task LLM what to extract and how to structure it. The Observation schema is provided separately — no need to describe field names or types here.
+- INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
 - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
 - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
 - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
 
-INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
 """
 
 INITIAL_KB_PROGRAM = '''\
 from dataclasses import dataclass, field
 
-INSTRUCTION_OBSERVATION = "Given the following text, create an Observation object to store this information in the knowledge base. Include all key information."
+INSTRUCTION_KNOWLEDGE_ITEM = "Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information."
 INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
 INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
-class Observation:
-    """Raw text observation to store in the knowledge base."""
+class KnowledgeItem:
+    """Raw text knowledge item to store in the knowledge base."""
     raw: str = field(metadata={"description": "The raw text to store"})
 
 
@@ -91,9 +91,9 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store: list[str] = []
 
-    def write(self, observation: Observation) -> None:
-        self.store.append(observation.raw)
-        self.toolkit.logger.debug(f"Stored: {observation.raw}")
+    def write(self, item: KnowledgeItem) -> None:
+        self.store.append(item.raw)
+        self.toolkit.logger.debug(f"Stored: {item.raw}")
 
     def read(self, query: Query) -> str:
         self.toolkit.logger.debug(f"Query: {query.raw}, store size: {len(self.store)}")
@@ -226,7 +226,7 @@ def build_reflection_user_prompt(
             train_parts.append(f'<conversation id="{i}">\n{_render_messages(example.messages)}</conversation>\n')
         train_section = f"""
 The following are example write trajectories from the evaluation. \
-They show how the external LLM generates Observations from raw document text and how `memory.write()` is called. \
+They show how the external LLM generates knowledge items from raw document text and how `memory.write()` is called. \
 Read these to understand the format of the source documents.
 
 <write_examples>
@@ -271,7 +271,7 @@ Each case contains the full retrieval-and-answer conversation trajectory."""
     return f"""\
 You are an expert Python programmer specializing in knowledge base system design.
 
-Your task: Given a Knowledge Base Program (Python code defining Observation, Query, and KnowledgeBase classes), \
+Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), \
 its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <interface_spec>
@@ -280,8 +280,8 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 
 <rules>
 1. Output your diagnosis first, then your changes as a patch using the format below.
-2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-3. KnowledgeBase.__init__ must accept `toolkit`; write takes an Observation; read takes a Query and returns str.
+2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
 5. Keep it simple. Make minimal, targeted fixes.
 6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
@@ -312,18 +312,18 @@ its evaluation score, and failed cases, diagnose the issues and fix them.
 </task>"""
 
 
-def build_observation_generation_prompt(
+def build_knowledge_item_generation_prompt(
     raw_text: str,
     schema: str,
-    instruction: str = "Given the following text, create an Observation object to store this information in memory.",
+    instruction: str = "Given the following text, create a KnowledgeItem to store this information in memory.",
 ) -> str:
-    """Prompt the task agent LLM to generate an Observation from raw text."""
+    """Prompt the task agent LLM to generate a KnowledgeItem from raw text."""
     return f"""\
 {instruction}
 
 Text: {raw_text}
 
-The Observation must conform to this schema:
+The KnowledgeItem must conform to this schema:
 {schema}
 
 Output ONLY a valid JSON object matching the schema fields. No explanation."""
@@ -371,13 +371,13 @@ def build_retrieved_memory_prompt(
 {instruction}"""
 
 
-def build_observation_with_feedback_prompt(
+def build_knowledge_item_with_feedback_prompt(
     evaluation_result: str,
     ground_truth: str,
     schema: str,
-    instruction: str = "Based on this feedback, generate an observation to write into memory.",
+    instruction: str = "Based on this feedback, generate a knowledge item to write into memory.",
 ) -> str:
-    """Prompt the task agent LLM to generate an Observation informed by feedback.
+    """Prompt the task agent LLM to generate a KnowledgeItem informed by feedback.
 
     Used as a user message in Type B train (Step 3).
     The LLM sees the full conversation history including query, retrieval, and answer.
@@ -388,7 +388,7 @@ Ground truth: {ground_truth}
 
 {instruction}
 
-The observation must be a JSON object matching this schema:
+The knowledge item must be a JSON object matching this schema:
 {schema}
 
 Respond with the JSON only."""
@@ -405,7 +405,7 @@ Fix the error and output your fix as a patch.
 
 Rules:
 1. Output ONLY the fix as a patch. No explanation needed.
-2. The code must define exactly three classes (Observation, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_OBSERVATION, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
 3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
 4. Make minimal changes — fix ONLY the broken line(s). Do NOT add new fields, imports, or restructure the code.
 

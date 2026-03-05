@@ -7,13 +7,13 @@ from programmaticmemory.evolution.patcher import apply_patch
 SOURCE = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = "Capture key facts."
+INSTRUCTION_KNOWLEDGE_ITEM = "Capture key facts."
 INSTRUCTION_QUERY = "Ask about facts."
 INSTRUCTION_RESPONSE = "Answer from memory."
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -24,8 +24,8 @@ class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
-    def write(self, obs):
-        self.store.append(obs.raw)
+    def write(self, item):
+        self.store.append(item.raw)
 
     def read(self, query):
         return " | ".join(self.store)
@@ -42,7 +42,7 @@ class TestApplyPatch:
 +    category: str
 """
         result = apply_patch(SOURCE, patch_body)
-        # First Observation.raw replaced
+        # First KnowledgeItem.raw replaced
         assert "    text: str" in result
         assert "    category: str" in result
 
@@ -75,8 +75,8 @@ class TestApplyPatch:
         patch_body = """\
 *** Update File: program.py
 @@
--INSTRUCTION_OBSERVATION = "Capture key facts."
-+INSTRUCTION_OBSERVATION = "Extract entities and relationships."
+-INSTRUCTION_KNOWLEDGE_ITEM = "Capture key facts."
++INSTRUCTION_KNOWLEDGE_ITEM = "Extract entities and relationships."
 @@
 -INSTRUCTION_QUERY = "Ask about facts."
 +INSTRUCTION_QUERY = "Query by entity name."
@@ -87,12 +87,12 @@ class TestApplyPatch:
 +        return "\\n".join(self.store)
 """
         result = apply_patch(SOURCE, patch_body)
-        assert 'INSTRUCTION_OBSERVATION = "Extract entities and relationships."' in result
+        assert 'INSTRUCTION_KNOWLEDGE_ITEM = "Extract entities and relationships."' in result
         assert 'INSTRUCTION_QUERY = "Query by entity name."' in result
         assert '"\\n".join(self.store)' in result
         # Unchanged parts preserved
         assert "class KnowledgeBase:" in result
-        assert "class Observation:" in result
+        assert "class KnowledgeItem:" in result
 
     def test_invalid_patch_raises(self):
         patch_body = """\
@@ -125,4 +125,4 @@ class TestApplyPatch:
         result = apply_patch(SOURCE, patch_body)
         assert 'INSTRUCTION_RESPONSE = "Answer concisely."' in result
         # Other instructions unchanged
-        assert 'INSTRUCTION_OBSERVATION = "Capture key facts."' in result
+        assert 'INSTRUCTION_KNOWLEDGE_ITEM = "Capture key facts."' in result

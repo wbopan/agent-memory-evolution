@@ -11,13 +11,13 @@ from programmaticmemory.evolution.sandbox import (
 VALID_PROGRAM = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -29,8 +29,8 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store = []
 
-    def write(self, obs):
-        self.store.append(obs.raw)
+    def write(self, item):
+        self.store.append(item.raw)
 
     def read(self, query):
         return " | ".join(self.store)
@@ -39,7 +39,7 @@ class KnowledgeBase:
 SYNTAX_ERROR_PROGRAM = """\
 def foo(
     # missing closing paren
-class Observation:
+class KnowledgeItem:
     pass
 """
 
@@ -47,12 +47,12 @@ MISSING_CLASS_PROGRAM = """\
 from dataclasses import dataclass
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 class KnowledgeBase:
     def __init__(self, toolkit): pass
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
 
@@ -61,7 +61,7 @@ import os
 from dataclasses import dataclass
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -70,20 +70,20 @@ class Query:
 
 class KnowledgeBase:
     def __init__(self, toolkit): pass
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
 
 RUNTIME_ERROR_PROGRAM = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -94,20 +94,20 @@ class KnowledgeBase:
     def __init__(self, toolkit):
         raise ValueError("init error")
 
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
 
 READ_ERROR_PROGRAM = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -118,8 +118,8 @@ class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
-    def write(self, obs):
-        self.store.append(obs.raw)
+    def write(self, item):
+        self.store.append(item.raw)
 
     def read(self, query):
         return 1 / 0  # ZeroDivisionError
@@ -130,7 +130,7 @@ class TestCompileKBProgram:
     def test_valid_program(self):
         result = compile_kb_program(VALID_PROGRAM)
         assert isinstance(result, CompiledProgram)
-        assert result.obs_cls.__name__ == "Observation"
+        assert result.ki_cls.__name__ == "KnowledgeItem"
         assert result.query_cls.__name__ == "Query"
         assert result.kb_cls.__name__ == "KnowledgeBase"
 
@@ -160,13 +160,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -176,9 +176,9 @@ class Query:
 class KnowledgeBase:
     def __init__(self, toolkit):
         self.data = defaultdict(list)
-    def write(self, obs):
-        key = hashlib.md5(obs.raw.encode()).hexdigest()[:8]
-        self.data[key].append(obs.raw)
+    def write(self, item):
+        key = hashlib.md5(item.raw.encode()).hexdigest()[:8]
+        self.data[key].append(item.raw)
     def read(self, query):
         return json.dumps(dict(self.data))
 """
@@ -190,13 +190,13 @@ class KnowledgeBase:
 import chromadb
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -206,8 +206,8 @@ class Query:
 class KnowledgeBase:
     def __init__(self, toolkit):
         self.col = toolkit.chroma.get_or_create_collection("mem")
-    def write(self, obs):
-        self.col.add(ids=[str(id(obs))], documents=[obs.raw])
+    def write(self, item):
+        self.col.add(ids=[str(id(item))], documents=[item.raw])
     def read(self, query):
         results = self.col.query(query_texts=[query.raw], n_results=3)
         return str(results["documents"])
@@ -220,13 +220,13 @@ class KnowledgeBase:
 from dataclasses import dataclass
 x = 1 / 0  # RuntimeError during exec
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -235,7 +235,7 @@ class Query:
 
 class KnowledgeBase:
     def __init__(self, toolkit): pass
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
         result = compile_kb_program(code)
@@ -247,7 +247,7 @@ class KnowledgeBase:
 from dataclasses import dataclass
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -256,7 +256,7 @@ class Query:
 
 class KnowledgeBase:
     def __init__(self, toolkit): pass
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
         result = compile_kb_program(code)
@@ -268,8 +268,8 @@ class TestExtractDataclassSchema:
     def test_simple_dataclass(self):
         result = compile_kb_program(VALID_PROGRAM)
         assert isinstance(result, CompiledProgram)
-        schema = extract_dataclass_schema(result.obs_cls)
-        assert "Observation" in schema
+        schema = extract_dataclass_schema(result.ki_cls)
+        assert "KnowledgeItem" in schema
         assert '"raw"' in schema
         assert "str" in schema
         assert "{" in schema  # JSON object
@@ -279,13 +279,13 @@ class TestExtractDataclassSchema:
 from dataclasses import dataclass, field
 from typing import Any
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     text: str
     category: str = "general"
     priority: int = 0
@@ -296,12 +296,12 @@ class Query:
 
 class KnowledgeBase:
     def __init__(self, toolkit): pass
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
         result = compile_kb_program(code)
         assert isinstance(result, CompiledProgram)
-        schema = extract_dataclass_schema(result.obs_cls)
+        schema = extract_dataclass_schema(result.ki_cls)
         assert '"text"' in schema
         assert '"category"' in schema
         assert '"priority"' in schema
@@ -311,13 +311,13 @@ class KnowledgeBase:
         code = """\
 from dataclasses import dataclass, field
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     text: str = field(metadata={"description": "The main content to store"})
     tag: str = field(default="misc", metadata={"description": "Category tag"})
 
@@ -327,12 +327,12 @@ class Query:
 
 class KnowledgeBase:
     def __init__(self, toolkit): pass
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
         result = compile_kb_program(code)
         assert isinstance(result, CompiledProgram)
-        schema = extract_dataclass_schema(result.obs_cls)
+        schema = extract_dataclass_schema(result.ki_cls)
         assert "The main content to store" in schema
         assert "Category tag" in schema
 
@@ -364,13 +364,13 @@ class TestSmokeTest:
 from dataclasses import dataclass
 from datetime import datetime
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -382,7 +382,7 @@ class KnowledgeBase:
         start = datetime.now()
         while (datetime.now() - start).total_seconds() < 0.5:
             pass  # Busy-wait
-    def write(self, obs): pass
+    def write(self, item): pass
     def read(self, query): return ""
 """
         result = smoke_test(code, timeout=0.1)
@@ -396,13 +396,13 @@ class TestAlwaysOnKnowledge:
     PROGRAM_WITH_ALWAYS_ON = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = "observe everything"
+INSTRUCTION_KNOWLEDGE_ITEM = "observe everything"
 INSTRUCTION_QUERY = "query everything"
 INSTRUCTION_RESPONSE = "respond with everything"
 ALWAYS_ON_KNOWLEDGE = "The user prefers concise answers."
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -412,8 +412,8 @@ class Query:
 class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
-    def write(self, obs):
-        self.store.append(obs.raw)
+    def write(self, item):
+        self.store.append(item.raw)
     def read(self, query):
         return " | ".join(self.store)
 """
@@ -421,12 +421,12 @@ class KnowledgeBase:
     PROGRAM_MISSING_ALWAYS_ON = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = "observe everything"
+INSTRUCTION_KNOWLEDGE_ITEM = "observe everything"
 INSTRUCTION_QUERY = "query everything"
 INSTRUCTION_RESPONSE = "respond with everything"
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 @dataclass
@@ -436,8 +436,8 @@ class Query:
 class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
-    def write(self, obs):
-        self.store.append(obs.raw)
+    def write(self, item):
+        self.store.append(item.raw)
     def read(self, query):
         return " | ".join(self.store)
 """

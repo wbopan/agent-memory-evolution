@@ -17,8 +17,8 @@ from programmaticmemory.evolution.patcher import apply_patch
 from programmaticmemory.evolution.prompts import (
     INITIAL_KB_PROGRAM,
     build_compile_fix_prompt,
-    build_observation_generation_prompt,
-    build_observation_with_feedback_prompt,
+    build_knowledge_item_generation_prompt,
+    build_knowledge_item_with_feedback_prompt,
     build_query_generation_prompt,
     build_reflection_user_prompt,
     build_retrieved_memory_prompt,
@@ -43,11 +43,11 @@ def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str
     return response.choices[0].message.content
 
 
-def _get_obs_query_schema() -> tuple[str, str]:
-    """Compile INITIAL_KB_PROGRAM and return (obs_schema, query_schema)."""
+def _get_ki_query_schema() -> tuple[str, str]:
+    """Compile INITIAL_KB_PROGRAM and return (ki_schema, query_schema)."""
     result = compile_kb_program(INITIAL_KB_PROGRAM)
     assert isinstance(result, CompiledProgram)
-    return extract_dataclass_schema(result.obs_cls), extract_dataclass_schema(result.query_cls)
+    return extract_dataclass_schema(result.ki_cls), extract_dataclass_schema(result.query_cls)
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def test_toolkit_llm_completion(snapshot: SnapshotAssertion):
 @pytest.mark.llm
 def test_query_generation(snapshot: SnapshotAssertion):
     """LLM generates a valid Query JSON from a natural-language question."""
-    _, query_schema = _get_obs_query_schema()
+    _, query_schema = _get_ki_query_schema()
     prompt = build_query_generation_prompt("What is the capital of France?", query_schema)
     messages = [{"role": "user", "content": prompt}]
 
@@ -96,15 +96,15 @@ def test_query_generation(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3b. Observation Generation (write — offline standalone)
+# 3b. Knowledge Item Generation (write — offline standalone)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.llm
-def test_observation_generation(snapshot: SnapshotAssertion):
-    """LLM generates a valid Observation JSON from raw text."""
-    obs_schema, _ = _get_obs_query_schema()
-    prompt = build_observation_generation_prompt("The capital of France is Paris.", obs_schema)
+def test_knowledge_item_generation(snapshot: SnapshotAssertion):
+    """LLM generates a valid KnowledgeItem JSON from raw text."""
+    ki_schema, _ = _get_ki_query_schema()
+    prompt = build_knowledge_item_generation_prompt("The capital of France is Paris.", ki_schema)
     messages = [{"role": "user", "content": prompt}]
 
     output = _llm_call(MODEL, messages)
@@ -118,15 +118,15 @@ def test_observation_generation(snapshot: SnapshotAssertion):
 
 
 # ---------------------------------------------------------------------------
-# 3c. Observation with Feedback (write — online with feedback)
+# 3c. Knowledge Item with Feedback (write — online with feedback)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.llm
-def test_observation_with_feedback(snapshot: SnapshotAssertion):
-    """LLM generates an Observation informed by evaluation feedback."""
-    obs_schema, _ = _get_obs_query_schema()
-    prompt = build_observation_with_feedback_prompt("Score: 0.0 (incorrect)", "Paris", obs_schema)
+def test_knowledge_item_with_feedback(snapshot: SnapshotAssertion):
+    """LLM generates a KnowledgeItem informed by evaluation feedback."""
+    ki_schema, _ = _get_ki_query_schema()
+    prompt = build_knowledge_item_with_feedback_prompt("Score: 0.0 (incorrect)", "Paris", ki_schema)
     messages = [{"role": "user", "content": prompt}]
 
     output = _llm_call(MODEL, messages)
@@ -147,7 +147,7 @@ def test_observation_with_feedback(snapshot: SnapshotAssertion):
 @pytest.mark.llm
 def test_retrieved_memory_answer(snapshot: SnapshotAssertion):
     """LLM answers a question using retrieved memory in a multi-turn conversation."""
-    _, query_schema = _get_obs_query_schema()
+    _, query_schema = _get_ki_query_schema()
 
     # Step 1: query generation
     step1_prompt = build_query_generation_prompt("What is the capital of France?", query_schema)
@@ -216,7 +216,7 @@ def test_reflection(snapshot: SnapshotAssertion):
     # Patched code must compile and define all three classes
     compile_result = compile_kb_program(patched_code)
     assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
-    assert compile_result.obs_cls.__name__ == "Observation"
+    assert compile_result.ki_cls.__name__ == "KnowledgeItem"
     assert compile_result.query_cls.__name__ == "Query"
     assert compile_result.kb_cls.__name__ == "KnowledgeBase"
 
@@ -329,15 +329,15 @@ def test_end_to_end_online(snapshot: SnapshotAssertion):
 BROKEN_KB_PROGRAM = '''\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
-class Observation:
-    """Raw text observation to store in memory."""
+class KnowledgeItem:
+    """Raw text knowledge item to store in memory."""
     raw: str
 
 
@@ -354,9 +354,9 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store: list[str] = []
 
-    def write(self, observation: Observation) -> None:
-        self.store.append(observation.raw)
-        self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+    def write(self, item: KnowledgeItem) -> None:
+        self.store.append(item.raw)
+        self.toolkit.logger.log(f"Stored: {item.raw[:80]}")
 
     def read(self, query: Query) -> str:
         self.toolkit.logger.log(f"Query: {query.raw[:80]}, store size: {len(self.store)}")
@@ -420,7 +420,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 
@@ -433,9 +433,9 @@ class KnowledgeBase:
     def __init__(self, toolkit):
         self.store = []
 
-    def write(self, observation: Observation) -> None:
-        self.store.append(observation.raw)
-        self.toolkit.logger.log(f"Stored: {observation.raw[:80]}")
+    def write(self, item: KnowledgeItem) -> None:
+        self.store.append(item.raw)
+        self.toolkit.logger.log(f"Stored: {item.raw[:80]}")
 
     def read(self, query: Query) -> str:
         return "\\n".join(self.store) if self.store else "No information stored."
@@ -444,14 +444,14 @@ class KnowledgeBase:
 PROGRAM_WITH_RUNTIME_BUG = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 
@@ -465,8 +465,8 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store = []
 
-    def write(self, observation: Observation) -> None:
-        processed = process_text(observation.raw)
+    def write(self, item: KnowledgeItem) -> None:
+        processed = process_text(item.raw)
         self.store.append(processed)
 
     def read(self, query: Query) -> str:
@@ -496,7 +496,7 @@ def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
     # Step 3: Verify the fix compiles
     fixed_result = compile_kb_program(fixed_code)
     assert isinstance(fixed_result, CompiledProgram), f"Fixed code still fails to compile: {fixed_result}"
-    assert fixed_result.obs_cls.__name__ == "Observation"
+    assert fixed_result.ki_cls.__name__ == "KnowledgeItem"
     assert fixed_result.query_cls.__name__ == "Query"
     assert fixed_result.kb_cls.__name__ == "KnowledgeBase"
 
@@ -553,14 +553,14 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
 OVERSIZED_READ_KB_PROGRAM = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 
@@ -574,8 +574,8 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store: list[str] = []
 
-    def write(self, observation: Observation) -> None:
-        self.store.append(observation.raw)
+    def write(self, item: KnowledgeItem) -> None:
+        self.store.append(item.raw)
 
     def read(self, query: Query) -> str:
         return "x" * 5000
@@ -621,13 +621,13 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
             toolkit.chroma.delete_collection(col.name)
         memory = fixed_compile.kb_cls(toolkit)
 
-        # Build obs/query dynamically from dataclass fields (LLM may rename fields)
-        obs_kwargs = {
+        # Build ki/query dynamically from dataclass fields (LLM may rename fields)
+        ki_kwargs = {
             f.name: "test value"
-            for f in dataclasses.fields(fixed_compile.obs_cls)
+            for f in dataclasses.fields(fixed_compile.ki_cls)
             if f.default is dataclasses.MISSING and f.default_factory is dataclasses.MISSING
         }
-        memory.write(fixed_compile.obs_cls(**obs_kwargs))
+        memory.write(fixed_compile.ki_cls(**ki_kwargs))
 
         query_kwargs = {
             f.name: "test query"
@@ -702,10 +702,10 @@ def test_patch_generation_reflection(snapshot: SnapshotAssertion):
     # Patched code must compile and define all three classes + three constants
     compile_result = compile_kb_program(patched_code)
     assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
-    assert compile_result.obs_cls.__name__ == "Observation"
+    assert compile_result.ki_cls.__name__ == "KnowledgeItem"
     assert compile_result.query_cls.__name__ == "Query"
     assert compile_result.kb_cls.__name__ == "KnowledgeBase"
-    assert isinstance(compile_result.instruction_observation, str)
+    assert isinstance(compile_result.instruction_knowledge_item, str)
     assert isinstance(compile_result.instruction_query, str)
     assert isinstance(compile_result.instruction_response, str)
 
@@ -723,14 +723,14 @@ def test_patch_generation_reflection(snapshot: SnapshotAssertion):
 PROGRAM_WITH_SYNTAX_ERROR = """\
 from dataclasses import dataclass
 
-INSTRUCTION_OBSERVATION = ""
+INSTRUCTION_KNOWLEDGE_ITEM = ""
 INSTRUCTION_QUERY = ""
 INSTRUCTION_RESPONSE = ""
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
-class Observation:
+class KnowledgeItem:
     raw: str
 
 
@@ -744,8 +744,8 @@ class KnowledgeBase:
         self.toolkit = toolkit
         self.store = []
 
-    def write(self, observation: Observation) -> None:
-        self.store.append(observation.raw)
+    def write(self, item: KnowledgeItem) -> None:
+        self.store.append(item.raw)
 
     def read(self, query: Query) -> str:
         # Bug: missing closing parenthesis
@@ -787,10 +787,10 @@ def test_patch_generation_compile_fix(snapshot: SnapshotAssertion):
     # Step 4: Verify the fix compiles
     fixed_result = compile_kb_program(fixed_code)
     assert isinstance(fixed_result, CompiledProgram), f"Fixed code still fails to compile: {fixed_result}"
-    assert fixed_result.obs_cls.__name__ == "Observation"
+    assert fixed_result.ki_cls.__name__ == "KnowledgeItem"
     assert fixed_result.query_cls.__name__ == "Query"
     assert fixed_result.kb_cls.__name__ == "KnowledgeBase"
-    assert isinstance(fixed_result.instruction_observation, str)
+    assert isinstance(fixed_result.instruction_knowledge_item, str)
     assert isinstance(fixed_result.instruction_query, str)
     assert isinstance(fixed_result.instruction_response, str)
 

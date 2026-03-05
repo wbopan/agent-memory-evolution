@@ -16,8 +16,8 @@ import litellm
 import weave
 
 from programmaticmemory.evolution.prompts import (
-    build_observation_generation_prompt,
-    build_observation_with_feedback_prompt,
+    build_knowledge_item_generation_prompt,
+    build_knowledge_item_with_feedback_prompt,
     build_query_generation_prompt,
     build_retrieved_memory_prompt,
 )
@@ -46,10 +46,10 @@ class RuntimeViolationError(Exception):
     """Raised when memory.write/read violates runtime constraints (timeout or output size)."""
 
 
-def _guarded_write(kb: Any, obs: Any, timeout: float = MEMORY_OP_TIMEOUT) -> None:
-    """Wrap kb.write(obs) with timeout."""
+def _guarded_write(kb: Any, item: Any, timeout: float = MEMORY_OP_TIMEOUT) -> None:
+    """Wrap kb.write(item) with timeout."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(kb.write, obs)
+        future = pool.submit(kb.write, item)
         try:
             future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
@@ -192,7 +192,7 @@ class MemoryEvaluator:
         """Run evaluation pipeline and return results.
 
         Pipeline is inferred from train data: items with raw_text use batch
-        observation ingestion; items without raw_text use interactive QA training.
+        knowledge item ingestion; items without raw_text use interactive QA training.
         """
         compile_result = compile_kb_program(program.source_code)
         if isinstance(compile_result, CompileError):
@@ -203,7 +203,7 @@ class MemoryEvaluator:
             )
 
         compiled = compile_result
-        obs_schema = extract_dataclass_schema(compiled.obs_cls)
+        ki_schema = extract_dataclass_schema(compiled.ki_cls)
         query_schema = extract_dataclass_schema(compiled.query_cls)
 
         toolkit = Toolkit(self.toolkit_config)
@@ -215,19 +215,19 @@ class MemoryEvaluator:
         try:
             if train_data and train_data[0].raw_text:
                 self.logger.log(
-                    f"Pipeline: offline (batch obs ingestion), train={len(train_data)}, val={len(val_data)}",
+                    f"Pipeline: offline (batch KI ingestion), train={len(train_data)}, val={len(val_data)}",
                     header="EVAL",
                 )
                 return self._evaluate_offline(
                     kb,
-                    compiled.obs_cls,
+                    compiled.ki_cls,
                     compiled.query_cls,
-                    obs_schema,
+                    ki_schema,
                     query_schema,
                     train_data,
                     val_data,
                     toolkit,
-                    instruction_observation=compiled.instruction_observation,
+                    instruction_knowledge_item=compiled.instruction_knowledge_item,
                     instruction_query=compiled.instruction_query,
                     instruction_response=compiled.instruction_response,
                     always_on_knowledge=compiled.always_on_knowledge,
@@ -239,14 +239,14 @@ class MemoryEvaluator:
                 )
                 return self._evaluate_online(
                     kb,
-                    compiled.obs_cls,
+                    compiled.ki_cls,
                     compiled.query_cls,
-                    obs_schema,
+                    ki_schema,
                     query_schema,
                     train_data,
                     val_data,
                     toolkit,
-                    instruction_observation=compiled.instruction_observation,
+                    instruction_knowledge_item=compiled.instruction_knowledge_item,
                     instruction_query=compiled.instruction_query,
                     instruction_response=compiled.instruction_response,
                     always_on_knowledge=compiled.always_on_knowledge,
@@ -262,29 +262,31 @@ class MemoryEvaluator:
     def _evaluate_offline(
         self,
         kb: Any,
-        obs_cls: type,
+        ki_cls: type,
         query_cls: type,
-        obs_schema: str,
+        ki_schema: str,
         query_schema: str,
         train_data: list[DataItem],
         val_data: list[DataItem],
         toolkit: Toolkit,
         *,
-        instruction_observation: str = "",
+        instruction_knowledge_item: str = "",
         instruction_query: str = "",
         instruction_response: str = "",
         always_on_knowledge: str = "",
     ) -> EvalResult:
-        """Offline: Batch ingest train (LLM generates observations), then evaluate val."""
+        """Offline: Batch ingest train (LLM generates knowledge items), then evaluate val."""
         logs: list[str] = []
 
-        # Batch all observation generation prompts in one call
-        self.logger.log(f"Train: generating observations for {len(train_data)} items", header="EVAL")
+        # Batch all knowledge item generation prompts in one call
+        self.logger.log(f"Train: generating knowledge items for {len(train_data)} items", header="EVAL")
         all_messages = [
             [
                 {
                     "role": "user",
-                    "content": build_observation_generation_prompt(item.raw_text, obs_schema, instruction_observation),
+                    "content": build_knowledge_item_generation_prompt(
+                        item.raw_text, ki_schema, instruction_knowledge_item
+                    ),
                 }
             ]
             for item in train_data
@@ -298,17 +300,17 @@ class MemoryEvaluator:
             if idx < 3 and content is not None:
                 train_examples.append(TrainExample(messages=[*msgs, {"role": "assistant", "content": content}]))
             if content is None:
-                logs.append(f"Failed to generate observation for: {item.raw_text}")
+                logs.append(f"Failed to generate knowledge item for: {item.raw_text}")
                 fail_count += 1
                 continue
             try:
-                obs = obs_cls(**_parse_json_from_llm(content))
-                _guarded_write(kb, obs)
+                ki = ki_cls(**_parse_json_from_llm(content))
+                _guarded_write(kb, ki)
                 write_count += 1
             except RuntimeViolationError:
                 raise
             except Exception as e:
-                logs.append(f"Obs parse/write failed: {e}")
+                logs.append(f"Knowledge item parse/write failed: {e}")
                 fail_count += 1
 
         self.logger.log(f"Train: write phase complete — {write_count} written, {fail_count} failed", header="EVAL")
@@ -334,15 +336,15 @@ class MemoryEvaluator:
     def _evaluate_online(
         self,
         kb: Any,
-        obs_cls: type,
+        ki_cls: type,
         query_cls: type,
-        obs_schema: str,
+        ki_schema: str,
         query_schema: str,
         train_data: list[DataItem],
         val_data: list[DataItem],
         toolkit: Toolkit,
         *,
-        instruction_observation: str = "",
+        instruction_knowledge_item: str = "",
         instruction_query: str = "",
         instruction_response: str = "",
         always_on_knowledge: str = "",
@@ -352,13 +354,13 @@ class MemoryEvaluator:
         self.logger.log(f"Train: interactive QA for {len(train_data)} items (3 rounds)", header="EVAL")
         train_examples = self._online_train_batched(
             kb,
-            obs_cls,
+            ki_cls,
             query_cls,
-            obs_schema,
+            ki_schema,
             query_schema,
             train_data,
             logs,
-            instruction_observation=instruction_observation,
+            instruction_knowledge_item=instruction_knowledge_item,
             instruction_query=instruction_query,
             instruction_response=instruction_response,
             always_on_knowledge=always_on_knowledge,
@@ -382,14 +384,14 @@ class MemoryEvaluator:
     def _online_train_batched(
         self,
         kb: Any,
-        obs_cls: type,
+        ki_cls: type,
         query_cls: type,
-        obs_schema: str,
+        ki_schema: str,
         query_schema: str,
         train_data: list[DataItem],
         logs: list[str],
         *,
-        instruction_observation: str = "",
+        instruction_knowledge_item: str = "",
         instruction_query: str = "",
         instruction_response: str = "",
         always_on_knowledge: str = "",
@@ -441,14 +443,14 @@ class MemoryEvaluator:
             msgs_so_far = r2_msgs + [{"role": "assistant", "content": answer}]
             round3_items.append((train_data[i], msgs_so_far, evaluation_result))
 
-        # Round 3: observation generation with feedback
+        # Round 3: knowledge item generation with feedback
         round3_messages = [
             msgs_so_far
             + [
                 {
                     "role": "user",
-                    "content": build_observation_with_feedback_prompt(
-                        evaluation_result, item.expected_answer, obs_schema, instruction_observation
+                    "content": build_knowledge_item_with_feedback_prompt(
+                        evaluation_result, item.expected_answer, ki_schema, instruction_knowledge_item
                     ),
                 }
             ]
@@ -458,19 +460,19 @@ class MemoryEvaluator:
 
         # Serial writes + capture train examples
         train_examples: list[TrainExample] = []
-        for r3_msgs, obs_content in zip(round3_messages, round3_responses, strict=True):
-            if obs_content is None:
-                logs.append("Train observation generation failed (batch error)")
+        for r3_msgs, ki_content in zip(round3_messages, round3_responses, strict=True):
+            if ki_content is None:
+                logs.append("Train knowledge item generation failed (batch error)")
                 continue
             if len(train_examples) < 3:
-                train_examples.append(TrainExample(messages=[*r3_msgs, {"role": "assistant", "content": obs_content}]))
+                train_examples.append(TrainExample(messages=[*r3_msgs, {"role": "assistant", "content": ki_content}]))
             try:
-                obs = obs_cls(**_parse_json_from_llm(obs_content))
-                _guarded_write(kb, obs)
+                ki = ki_cls(**_parse_json_from_llm(ki_content))
+                _guarded_write(kb, ki)
             except RuntimeViolationError:
                 raise
             except Exception as e:
-                logs.append(f"Train observation parse/write failed: {e}")
+                logs.append(f"Train knowledge item parse/write failed: {e}")
 
         return train_examples
 
