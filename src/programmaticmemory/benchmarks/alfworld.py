@@ -525,7 +525,7 @@ def load_alfworld(
     try:
         import alfworld  # noqa: F401
 
-        val_scorer = ALFWorldValScorer(max_steps=50)
+        val_scorer = ALFWorldValScorer(max_steps=20)
     except ImportError:
         pass  # Fall back to default LLM answer path if alfworld not installed
 

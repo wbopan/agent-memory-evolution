@@ -58,7 +58,7 @@ Four module-level string constants provide the natural-language instructions use
 - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
 - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
 - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
-- ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+- ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
 
 INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
 """
@@ -272,7 +272,7 @@ Each case contains the full retrieval-and-answer conversation trajectory."""
 You are an expert Python programmer specializing in knowledge base system design.
 
 Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), \
-its evaluation score, and failed cases, diagnose the issues and fix them.
+its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
 
 <interface_spec>
 {KB_INTERFACE_SPEC}
