@@ -46,7 +46,7 @@ class RuntimeViolationError(Exception):
     """Raised when memory.write/read violates runtime constraints (timeout or output size)."""
 
 
-def _guarded_write(kb: Any, item: Any, raw_text: str = "", timeout: float = MEMORY_OP_TIMEOUT) -> None:
+def _guarded_write(kb: Any, item: Any, raw_text: str, timeout: float = MEMORY_OP_TIMEOUT) -> None:
     """Wrap kb.write(item, raw_text) with timeout."""
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(kb.write, item, raw_text)
@@ -132,7 +132,6 @@ class LLMJudgeScorer:
                     ),
                 },
             ],
-            temperature=0.0,
             caching=True,
         )
         text = response.choices[0].message.content.strip()
@@ -774,7 +773,7 @@ class MemoryEvaluator:
         """
         if not all_messages:
             return []
-        kwargs: dict = dict(model=self.task_model, messages=all_messages, temperature=0.0, caching=True)
+        kwargs: dict = dict(model=self.task_model, messages=all_messages, caching=True)
         if json_mode:
             kwargs["response_format"] = {"type": "json_object"}
         responses = litellm.batch_completion(**kwargs)

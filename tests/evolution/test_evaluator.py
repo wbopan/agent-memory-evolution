@@ -823,7 +823,7 @@ class TestGuardedWrite:
         memory = MagicMock()
         memory.write.side_effect = ValueError("boom")
         with pytest.raises(ValueError, match="boom"):
-            _guarded_write(memory, MagicMock())
+            _guarded_write(memory, MagicMock(), raw_text="")
 
 
 class TestGuardedRead:

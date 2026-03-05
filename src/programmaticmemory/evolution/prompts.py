@@ -103,7 +103,8 @@ class KnowledgeBase:
             return "No information stored."
         summary_text = "\\n".join(self.summaries)[:500]
         observation_text = "\\n".join(self.observations)[:500]
-        return summary_text + "\\n" + observation_text
+        result = summary_text + "\\n" + observation_text
+        return result[:1000]
 '''
 
 
