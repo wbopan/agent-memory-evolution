@@ -38,7 +38,7 @@ You are designing a Knowledge Base Program that implements three classes:
      - `toolkit.chroma`: chromadb ephemeral client
      - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
      - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-   - `write(self, item: KnowledgeItem) -> None`: Store information
+   - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
    - `read(self, query: Query) -> str`: Retrieve relevant information as a string
 
 Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
@@ -66,7 +66,7 @@ INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not
 INITIAL_KB_PROGRAM = '''\
 from dataclasses import dataclass, field
 
-INSTRUCTION_KNOWLEDGE_ITEM = "Given the following text, create a KnowledgeItem to store this information in the knowledge base. Include all key information."
+INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
 INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
 INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
 ALWAYS_ON_KNOWLEDGE = ""
@@ -74,8 +74,8 @@ ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class KnowledgeItem:
-    """Raw text knowledge item to store in the knowledge base."""
-    raw: str = field(metadata={"description": "The raw text to store"})
+    """A summary of what was learnt from the source text."""
+    summary: str = field(metadata={"description": "What you have learnt from the text"})
 
 
 @dataclass
@@ -89,18 +89,21 @@ class KnowledgeBase:
 
     def __init__(self, toolkit):
         self.toolkit = toolkit
-        self.store: list[str] = []
+        self.summaries: list[str] = []
+        self.observations: list[str] = []
 
-    def write(self, item: KnowledgeItem) -> None:
-        self.store.append(item.raw)
-        self.toolkit.logger.debug(f"Stored: {item.raw}")
+    def write(self, item: KnowledgeItem, raw_text: str) -> None:
+        self.summaries.append(item.summary)
+        self.observations.append(raw_text)
+        self.toolkit.logger.debug(f"Stored summary: {item.summary}")
 
     def read(self, query: Query) -> str:
-        self.toolkit.logger.debug(f"Query: {query.raw}, store size: {len(self.store)}")
-        if not self.store:
+        self.toolkit.logger.debug(f"Query: {query.raw}, summaries: {len(self.summaries)}, observations: {len(self.observations)}")
+        if not self.summaries and not self.observations:
             return "No information stored."
-        result = "\\n".join(self.store)
-        return result[:1000]
+        summary_text = "\\n".join(self.summaries)[:500]
+        observation_text = "\\n".join(self.observations)[:500]
+        return summary_text + "\\n" + observation_text
 '''
 
 
