@@ -406,7 +406,6 @@ def _select_action(
         model=task_model,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=64,
-        temperature=0.0,
         caching=True,
     )
     raw = resp.choices[0].message.content.strip()

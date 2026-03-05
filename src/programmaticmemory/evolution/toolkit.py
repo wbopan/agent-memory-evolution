@@ -32,7 +32,6 @@ class ToolkitConfig:
 
     llm_model: str
     llm_call_budget: int = 50
-    llm_temperature: float = 0.0
 
 
 class Toolkit:
@@ -49,7 +48,6 @@ class Toolkit:
         self.logger: MemoryLogger = MemoryLogger()
         self._llm_call_budget: int = config.llm_call_budget
         self._llm_calls_used: int = 0
-        self._llm_temperature: float = config.llm_temperature
 
     def llm_completion(self, messages: list[dict], **kwargs: object) -> str:
         """Call LLM with budget enforcement and retry logic."""
@@ -59,7 +57,6 @@ class Toolkit:
                 "Knowledge base program is making too many LLM calls."
             )
         self._llm_calls_used += 1
-        kwargs.setdefault("temperature", self._llm_temperature)
         return self._llm_call_with_retry(messages, **kwargs)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))

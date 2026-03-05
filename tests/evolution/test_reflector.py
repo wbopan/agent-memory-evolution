@@ -216,10 +216,10 @@ class KnowledgeBase:
     @patch("programmaticmemory.evolution.reflector.smoke_test")
     @patch("programmaticmemory.evolution.reflector.compile_kb_program")
     @patch("programmaticmemory.evolution.reflector.litellm")
-    def test_reflection_uses_configured_model_and_temperature(
+    def test_reflection_uses_configured_model(
         self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch, snapshot: SnapshotAssertion
     ):
-        """Verify model and temperature are passed to litellm."""
+        """Verify model is passed to litellm."""
         mock_compile.return_value = MagicMock()
         mock_smoke.return_value = SmokeTestResult(success=True)
         mock_apply_patch.return_value = "class KnowledgeItem: pass\nclass Query: pass\nclass KnowledgeBase: pass"
@@ -237,7 +237,7 @@ class KnowledgeBase:
 
         mock_litellm.completion = capture_completion
 
-        reflector = Reflector(model="custom/reflect-model", temperature=0.9)
+        reflector = Reflector(model="custom/reflect-model")
         reflector.reflect_and_mutate(
             KBProgram(source_code="x"),
             EvalResult(score=0.0),
@@ -245,7 +245,7 @@ class KnowledgeBase:
         )
 
         assert captured_kwargs[0]["model"] == "custom/reflect-model"
-        assert captured_kwargs[0]["temperature"] == 0.9
+        assert "temperature" not in captured_kwargs[0]
         assert [kw["messages"] for kw in captured_kwargs] == snapshot
 
     @patch("programmaticmemory.evolution.reflector.litellm")

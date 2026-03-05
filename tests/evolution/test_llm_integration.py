@@ -37,9 +37,9 @@ MODEL = "openrouter/openai/gpt-5.1-codex-mini"
 REFLECT_MODEL = "openrouter/openai/gpt-5.3-codex"
 
 
-def _llm_call(model: str, messages: list[dict], temperature: float = 0.0) -> str:
+def _llm_call(model: str, messages: list[dict]) -> str:
     """Task agent LLM call for integration tests."""
-    response = litellm.completion(model=model, messages=messages, temperature=temperature, caching=True)
+    response = litellm.completion(model=model, messages=messages, caching=True)
     return response.choices[0].message.content
 
 
@@ -389,7 +389,7 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
     result1 = evaluator.evaluate(program, train_data, val_data)
 
     # Reflect on failures (uses stronger model for code reasoning)
-    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL)
     child = reflector.reflect_and_mutate(program, result1, iteration=1)
     assert child is not None, "Reflection failed to produce code"
 
@@ -490,7 +490,7 @@ def test_compile_fix_disallowed_import(snapshot: SnapshotAssertion):
     assert "numpy" in compile_result.details.lower() or "import" in compile_result.message.lower()
 
     # Step 2: LLM fixes it
-    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL)
     fixed_code = reflector._try_fix(
         PROGRAM_WITH_DISALLOWED_IMPORT,
         error_type=compile_result.message,
@@ -530,7 +530,7 @@ def test_compile_fix_runtime_bug(snapshot: SnapshotAssertion):
     assert "process_text" in st.error.lower() or "nameerror" in st.error.lower()
 
     # Step 2: LLM fixes it
-    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL)
     fixed_code = reflector._try_fix(
         PROGRAM_WITH_RUNTIME_BUG,
         error_type="Smoke test error",
@@ -611,7 +611,7 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
     assert result.score == 0.0
 
     # Step 2: LLM fixes the runtime violation
-    reflector = Reflector(model=REFLECT_MODEL, temperature=0.0)
+    reflector = Reflector(model=REFLECT_MODEL)
     fixed_code = reflector.fix_runtime_violation(OVERSIZED_READ_KB_PROGRAM, result.runtime_violation)
     assert fixed_code is not None, "Reflector failed to produce a fix"
 
@@ -693,7 +693,6 @@ def test_patch_generation_reflection(snapshot: SnapshotAssertion):
     output = _llm_call(
         PATCH_MODEL,
         [{"role": "user", "content": user_prompt}],
-        temperature=0.0,
     )
 
     # Must extract a V4A patch
@@ -780,7 +779,6 @@ def test_patch_generation_compile_fix(snapshot: SnapshotAssertion):
     output = _llm_call(
         PATCH_MODEL,
         [{"role": "user", "content": user_prompt}],
-        temperature=0.0,
     )
 
     # Step 3: Extract and apply patch

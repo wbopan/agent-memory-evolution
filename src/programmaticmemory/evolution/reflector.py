@@ -38,13 +38,11 @@ class Reflector:
     def __init__(
         self,
         model: str,
-        temperature: float = 0.7,
         max_fix_attempts: int = 3,
         toolkit_config: ToolkitConfig | None = None,
         prompt_config: ReflectionPromptConfig | None = None,
     ) -> None:
         self.model = model
-        self.temperature = temperature
         self.max_fix_attempts = max_fix_attempts
         self.toolkit_config = toolkit_config
         self.prompt_config = prompt_config
@@ -71,7 +69,6 @@ class Reflector:
             messages=[
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=self.temperature,
             max_tokens=16384,
             caching=True,
         )
@@ -144,7 +141,6 @@ class Reflector:
             messages=[
                 {"role": "user", "content": user_prompt},
             ],
-            temperature=self.temperature,
             max_tokens=16384,
             caching=True,
         )

@@ -38,10 +38,9 @@ class TestToolkitConfig:
         config = ToolkitConfig(llm_model="test/model")
         assert config.llm_model == "test/model"
         assert config.llm_call_budget == 50
-        assert config.llm_temperature == 0.0
 
     def test_custom(self):
-        config = ToolkitConfig(llm_model="custom/model", llm_call_budget=10, llm_temperature=0.5)
+        config = ToolkitConfig(llm_model="custom/model", llm_call_budget=10)
         assert config.llm_model == "custom/model"
         assert config.llm_call_budget == 10
 
