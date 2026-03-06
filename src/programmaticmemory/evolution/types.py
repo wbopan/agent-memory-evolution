@@ -148,6 +148,21 @@ class ProgramPool:
     def __len__(self) -> int:
         return len(self.entries)
 
+    def summary(self) -> str:
+        """Format pool status: entries sorted by score with selection probabilities."""
+        if not self.entries:
+            return "Pool: empty"
+        sorted_entries = sorted(self.entries, key=lambda e: e.score, reverse=True)
+        max_score = sorted_entries[0].score
+        weights = [math.exp((e.score - max_score) / self.temperature) for e in sorted_entries]
+        total = sum(weights)
+        lines = [f"Pool ({len(self.entries)} programs, T={self.temperature}):"]
+        for entry, w in zip(sorted_entries, weights, strict=True):
+            prob = w / total
+            gen = entry.program.generation
+            lines.append(f"  {entry.program.hash}  score={entry.score:.3f}  P={prob:.1%}  gen={gen}")
+        return "\n".join(lines)
+
 
 @dataclass
 class EvolutionRecord:

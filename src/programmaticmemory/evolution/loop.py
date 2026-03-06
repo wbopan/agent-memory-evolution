@@ -92,6 +92,7 @@ class EvolutionLoop:
                 self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
 
         best_score = pool.best.score
+        self.logger.log(pool.summary(), header="EVOLUTION")
         if self.tracker:
             self.tracker.log_metrics({"score": best_score, "accepted": 1}, iteration=0)
 
@@ -180,6 +181,8 @@ class EvolutionLoop:
             if improved:
                 self.logger.log(f"New best! {best_score:.3f} -> {child_score:.3f}", header="EVOLUTION")
                 best_score = child_score
+
+            self.logger.log(pool.summary(), header="EVOLUTION")
 
             state.history.append(
                 EvolutionRecord(iteration=i, program=child, score=child_score, parent_hash=parent.hash)
