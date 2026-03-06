@@ -115,6 +115,7 @@ class PoolEntry:
 
     program: KBProgram
     eval_result: EvalResult
+    iteration: int = 0
 
     @property
     def score(self) -> float:
@@ -130,8 +131,8 @@ class ProgramPool:
         self.entries: list[PoolEntry] = []
         self.temperature = temperature
 
-    def add(self, program: KBProgram, eval_result: EvalResult) -> None:
-        self.entries.append(PoolEntry(program=program, eval_result=eval_result))
+    def add(self, program: KBProgram, eval_result: EvalResult, iteration: int = 0) -> None:
+        self.entries.append(PoolEntry(program=program, eval_result=eval_result, iteration=iteration))
 
     def sample_parent(self) -> PoolEntry:
         """Sample a parent using softmax-weighted selection."""
@@ -159,8 +160,11 @@ class ProgramPool:
         lines = [f"Pool ({len(self.entries)} programs, T={self.temperature}):"]
         for entry, w in zip(sorted_entries, weights, strict=True):
             prob = w / total
-            gen = entry.program.generation
-            lines.append(f"  {entry.program.hash}  score={entry.score:.3f}  P={prob:.1%}  gen={gen}")
+            label = "initial" if entry.iteration == 0 else f"iter_{entry.iteration}"
+            lines.append(
+                f"  {entry.program.hash}  score={entry.score:.3f}  P={prob:.1%}"
+                f"  gen={entry.program.generation}  programs/{label}.py"
+            )
         return "\n".join(lines)
 
 

@@ -82,7 +82,7 @@ class EvolutionLoop:
                 header="EVOLUTION",
             )
             eval_result = self.evaluator.evaluate(seed, ds.train, ds.val)
-            pool.add(seed, eval_result)
+            pool.add(seed, eval_result, iteration=0)
             seed_eval_results.append(eval_result)
             self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
 
@@ -166,7 +166,7 @@ class EvolutionLoop:
             child_score = child_result.score
 
             # Add child to pool unconditionally
-            pool.add(child, child_result)
+            pool.add(child, child_result, iteration=i)
 
             improved = child_score > best_score
             self.logger.log(
