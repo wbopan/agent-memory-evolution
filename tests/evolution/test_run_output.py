@@ -111,19 +111,30 @@ class TestRunOutputManager:
             prog_path = manager.run_dir / "programs" / "iter_1.py"
             assert prog_path.exists()
             content = prog_path.read_text(encoding="utf-8")
-            assert content.startswith("# iter=1  score=0.7500  accepted\n")
+            assert content.startswith("# iter_1  score=0.7500  accepted\n")
             assert "class KnowledgeBase: pass" in content
         finally:
             manager.close()
 
-    def test_write_program_iter_0(self, tmp_path):
-        """write_program at iteration 0 should be labelled 'initial'."""
+    def test_write_program_seed(self, tmp_path):
+        """write_program with name='seed_0' should save to programs/seed_0.py."""
         manager = RunOutputManager(tmp_path, config={})
         try:
-            manager.write_program(iteration=0, source_code="# initial", accepted=True, score=0.5)
-            prog_path = manager.run_dir / "programs" / "iter_0.py"
+            manager.write_program(iteration=0, source_code="# seed", accepted=True, score=0.5, name="seed_0")
+            prog_path = manager.run_dir / "programs" / "seed_0.py"
             assert prog_path.exists()
-            assert "initial" in prog_path.read_text(encoding="utf-8")
+            content = prog_path.read_text(encoding="utf-8")
+            assert "seed" in content
+        finally:
+            manager.close()
+
+    def test_write_program_default_name_iter_0(self, tmp_path):
+        """write_program at iteration 0 without name defaults to seed_0.py."""
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_program(iteration=0, source_code="# default", accepted=True, score=0.5)
+            prog_path = manager.run_dir / "programs" / "seed_0.py"
+            assert prog_path.exists()
         finally:
             manager.close()
 
