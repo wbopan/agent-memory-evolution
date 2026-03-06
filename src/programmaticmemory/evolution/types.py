@@ -115,18 +115,23 @@ class PoolEntry:
 
     program: KBProgram
     eval_result: EvalResult
-    score: float
+
+    @property
+    def score(self) -> float:
+        return self.eval_result.score
 
 
 class ProgramPool:
     """Unbounded pool of evaluated programs with softmax parent selection."""
 
     def __init__(self, temperature: float = 0.15) -> None:
+        if temperature <= 0:
+            raise ValueError(f"temperature must be positive, got {temperature}")
         self.entries: list[PoolEntry] = []
         self.temperature = temperature
 
     def add(self, program: KBProgram, eval_result: EvalResult) -> None:
-        self.entries.append(PoolEntry(program=program, eval_result=eval_result, score=eval_result.score))
+        self.entries.append(PoolEntry(program=program, eval_result=eval_result))
 
     def sample_parent(self) -> PoolEntry:
         """Sample a parent using softmax-weighted selection."""

@@ -179,7 +179,7 @@ class TestPoolEntry:
     def test_construction(self):
         p = KBProgram(source_code="x")
         er = EvalResult(score=0.8)
-        entry = PoolEntry(program=p, eval_result=er, score=0.8)
+        entry = PoolEntry(program=p, eval_result=er)
         assert entry.score == 0.8
         assert entry.program == p
         assert entry.eval_result == er

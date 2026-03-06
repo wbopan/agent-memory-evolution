@@ -54,7 +54,7 @@ class EvolutionLoop:
         self.dataset = dataset
         self.initial_programs = initial_programs or [KBProgram(source_code=INITIAL_KB_PROGRAM)]
         self.max_iterations = max_iterations
-        self.temperature = temperature
+        self._temperature = temperature
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
@@ -64,11 +64,11 @@ class EvolutionLoop:
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
         ds = self.dataset
-        pool = ProgramPool(temperature=self.temperature)
+        pool = ProgramPool(temperature=self._temperature)
 
         self.logger.log(
             f"Starting evolution: max_iter={self.max_iterations}, seeds={len(self.initial_programs)}, "
-            f"train={len(ds.train)}, val={len(ds.val)}, temperature={self.temperature}",
+            f"train={len(ds.train)}, val={len(ds.val)}, temperature={pool.temperature}",
             header="EVOLUTION",
         )
 
@@ -198,16 +198,17 @@ class EvolutionLoop:
             f"Evolution complete: {state.total_iterations} iterations, best score: {state.best_score:.3f}",
             header="EVOLUTION",
         )
+        best = state.best_program
         summary = {
             "best_score": state.best_score,
             "total_iterations": state.total_iterations,
-            "best_program_hash": state.best_program.hash,
-            "best_program_generation": state.best_program.generation,
+            "best_program_hash": best.hash,
+            "best_program_generation": best.generation,
             "pool_size": len(pool),
             "score_history": [
                 {"iteration": r.iteration, "score": r.score, "parent_hash": r.parent_hash} for r in state.history
             ],
-            "best_program_source": state.best_program.source_code,
+            "best_program_source": best.source_code,
         }
         if self.tracker:
             self.tracker.log_summary(summary)
