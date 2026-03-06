@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import random
 import sys
+from pathlib import Path
 
 from programmaticmemory.datasets import load_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
@@ -82,6 +83,12 @@ def main() -> None:
         default=0.15,
         help="Softmax temperature for parent selection (default: 0.15, lower = more greedy)",
     )
+    parser.add_argument(
+        "--seed-dir",
+        type=Path,
+        default=None,
+        help="Directory of .py seed programs to use as initial population (default: built-in baseline)",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -136,12 +143,36 @@ def main() -> None:
     reflector = Reflector(model=args.reflect_model, prompt_config=prompt_config)
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
+    # Load seed programs
+    initial_programs = None
+    if args.seed_dir:
+        from programmaticmemory.evolution.sandbox import smoke_test
+        from programmaticmemory.evolution.types import KBProgram
+
+        if not args.seed_dir.is_dir():
+            print(f"Error: --seed-dir is not a directory: {args.seed_dir}", file=sys.stderr)
+            sys.exit(1)
+        seed_files = sorted(args.seed_dir.glob("*.py"))
+        if not seed_files:
+            print(f"Error: no .py files found in --seed-dir: {args.seed_dir}", file=sys.stderr)
+            sys.exit(1)
+        initial_programs = []
+        for f in seed_files:
+            source = f.read_text()
+            result = smoke_test(source)
+            if not result.success:
+                print(f"Error: invalid seed program {f.name}: {result.error}", file=sys.stderr)
+                sys.exit(1)
+            initial_programs.append(KBProgram(source_code=source))
+            logger.log(f"Loaded seed: {f.name}", header="CONFIG")
+
     # Run
     with tracker:
         loop = EvolutionLoop(
             evaluator=evaluator,
             reflector=reflector,
             dataset=dataset,
+            initial_programs=initial_programs,
             max_iterations=args.iterations,
             temperature=args.temperature,
             tracker=tracker,
