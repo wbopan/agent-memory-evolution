@@ -26,5 +26,7 @@ from programmaticmemory.evolution.types import (
     EvolutionState,
     FailedCase,
     KBProgram,
+    PoolEntry,
+    ProgramPool,
     Scorer,
 )

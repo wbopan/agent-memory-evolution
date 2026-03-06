@@ -77,9 +77,10 @@ def main() -> None:
         help="Max chars for memory logs in reflection prompt, 0 to exclude (default: 0)",
     )
     parser.add_argument(
-        "--drop-degraded-program",
-        action="store_true",
-        help="Revert to best program when child scores lower (default: keep child regardless)",
+        "--temperature",
+        type=float,
+        default=0.15,
+        help="Softmax temperature for parent selection (default: 0.15, lower = more greedy)",
     )
     args, extra = parser.parse_known_args()
 
@@ -142,9 +143,9 @@ def main() -> None:
             reflector=reflector,
             dataset=dataset,
             max_iterations=args.iterations,
+            temperature=args.temperature,
             tracker=tracker,
             output_manager=output_manager,
-            drop_degraded_program=args.drop_degraded_program,
         )
         state = loop.run()
 

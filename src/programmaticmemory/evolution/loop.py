@@ -100,7 +100,7 @@ class EvolutionLoop:
             best_score=best_score,
             history=[
                 EvolutionRecord(iteration=0, program=seed, score=er.score)
-                for seed, er in zip(self.initial_programs, seed_eval_results)
+                for seed, er in zip(self.initial_programs, seed_eval_results, strict=True)
             ],
             total_iterations=0,
         )
