@@ -210,21 +210,42 @@ class TestProgramPool:
         assert entry.program == p
 
     def test_sample_parent_softmax_distribution(self):
-        """Higher-scoring programs should be sampled more often."""
+        """Verify softmax selection matches expected probabilities.
+
+        Scores [0.6, 0.4, 0.4, 0.2] at T=0.15:
+        P(0.6) ≈ 63%, P(0.4) ≈ 16.5% each, P(0.2) ≈ 4.3%
+        """
+        import math
         import random as _random
+        from collections import Counter
+
         _random.seed(42)
         pool = ProgramPool(temperature=0.15)
-        pool.add(KBProgram(source_code="high"), EvalResult(score=0.6))
-        pool.add(KBProgram(source_code="low"), EvalResult(score=0.2))
+        pool.add(KBProgram(source_code="best"), EvalResult(score=0.6))
+        pool.add(KBProgram(source_code="mid1"), EvalResult(score=0.4))
+        pool.add(KBProgram(source_code="mid2"), EvalResult(score=0.4))
+        pool.add(KBProgram(source_code="weak"), EvalResult(score=0.2))
 
-        from collections import Counter
+        n = 10000
         counts = Counter()
-        for _ in range(1000):
+        for _ in range(n):
             entry = pool.sample_parent()
             counts[entry.program.source_code] += 1
 
-        # With T=0.15, score 0.6 vs 0.2: exp(0.6/0.15)/exp(0.2/0.15) = exp(2.67) ≈ 14.4x
-        assert counts["high"] > counts["low"] * 5
+        # Compute expected softmax probabilities
+        scores = [0.6, 0.4, 0.4, 0.2]
+        max_s = max(scores)
+        weights = [math.exp((s - max_s) / 0.15) for s in scores]
+        z = sum(weights)
+        expected = [w / z for w in weights]  # [0.626, 0.165, 0.165, 0.043]
+
+        # Verify empirical frequencies are within ±5% absolute of expected
+        labels = ["best", "mid1", "mid2", "weak"]
+        for label, exp_p in zip(labels, expected, strict=True):
+            empirical_p = counts[label] / n
+            assert abs(empirical_p - exp_p) < 0.05, (
+                f"{label}: expected {exp_p:.3f}, got {empirical_p:.3f}"
+            )
 
     def test_sample_parent_single_entry_always_returns_it(self):
         pool = ProgramPool(temperature=0.15)
