@@ -151,16 +151,18 @@ class EvolutionRecord:
     iteration: int
     program: KBProgram
     score: float
-    accepted: bool
+    parent_hash: str | None = None
 
 
 @dataclass
 class EvolutionState:
     """Full state of an evolution run."""
 
-    best_program: KBProgram
+    pool: ProgramPool
     best_score: float
-    current_program: KBProgram
-    current_score: float
     history: list[EvolutionRecord] = field(default_factory=list)
     total_iterations: int = 0
+
+    @property
+    def best_program(self) -> KBProgram:
+        return self.pool.best.program

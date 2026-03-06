@@ -105,29 +105,27 @@ class TestEvalResult:
 
 class TestEvolutionState:
     def test_construction(self):
+        pool = ProgramPool(temperature=0.15)
         p = KBProgram(source_code="x")
-        state = EvolutionState(
-            best_program=p,
-            best_score=0.8,
-            current_program=p,
-            current_score=0.8,
-        )
+        pool.add(p, EvalResult(score=0.8))
+        state = EvolutionState(pool=pool, best_score=0.8)
         assert state.history == []
         assert state.total_iterations == 0
+        assert state.best_program == p
 
     def test_with_history(self):
+        pool = ProgramPool(temperature=0.15)
         p = KBProgram(source_code="x")
-        record = EvolutionRecord(iteration=1, program=p, score=0.9, accepted=True)
+        pool.add(p, EvalResult(score=0.9))
+        record = EvolutionRecord(iteration=1, program=p, score=0.9, parent_hash=None)
         state = EvolutionState(
-            best_program=p,
+            pool=pool,
             best_score=0.9,
-            current_program=p,
-            current_score=0.9,
             history=[record],
             total_iterations=1,
         )
         assert len(state.history) == 1
-        assert state.history[0].accepted is True
+        assert state.history[0].parent_hash is None
 
 
 class TestDataItemMetadata:
