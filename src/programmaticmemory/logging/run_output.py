@@ -170,21 +170,26 @@ class RunOutputManager:
         summary_path.write_text(json.dumps(metrics, indent=2, default=str), encoding="utf-8")
         get_logger().log(f"Saved summary → {summary_path}", header="OUTPUT")
 
-    def write_program(self, iteration: int, source_code: str, accepted: bool, score: float) -> None:
-        """Save a Knowledge Base Program's source code to programs/iter_N.py.
+    def write_program(
+        self, iteration: int, source_code: str, accepted: bool, score: float, name: str | None = None
+    ) -> None:
+        """Save a Knowledge Base Program's source code to programs/<name>.py.
 
         Args:
-            iteration: Evolution iteration number. 0 is labelled "initial".
+            iteration: Evolution iteration number.
             source_code: Full Python source of the Knowledge Base Program.
-            accepted: Whether the program was accepted as the new best. Ignored at iteration 0.
+            accepted: Whether the program was accepted as the new best.
             score: Evaluation score to embed in the file header comment.
+            name: Filename stem (without .py). Defaults to "seed_0" for iteration 0, "iter_N" otherwise.
         """
         try:
             programs_dir = self.run_dir / "programs"
             programs_dir.mkdir(exist_ok=True)
-            label = "initial" if iteration == 0 else ("accepted" if accepted else "rejected")
-            header = f"# iter={iteration}  score={score:.4f}  {label}\n\n"
-            program_path = programs_dir / f"iter_{iteration}.py"
+            if name is None:
+                name = "seed_0" if iteration == 0 else f"iter_{iteration}"
+            label = "seed" if name.startswith("seed_") else ("accepted" if accepted else "rejected")
+            header = f"# {name}  score={score:.4f}  {label}\n\n"
+            program_path = programs_dir / f"{name}.py"
             program_path.write_text(header + source_code, encoding="utf-8")
             get_logger().log(f"Saved program ({label}) → {program_path}", header="OUTPUT")
         except Exception:

@@ -75,6 +75,7 @@ class EvolutionLoop:
         # Evaluate all seed programs
         seed_eval_results = []
         for idx, seed in enumerate(self.initial_programs):
+            seed_name = f"seed_{idx}"
             if self.output_manager:
                 self.output_manager.set_phase(0, "train")
             self.logger.log(
@@ -82,12 +83,14 @@ class EvolutionLoop:
                 header="EVOLUTION",
             )
             eval_result = self.evaluator.evaluate(seed, ds.train, ds.val)
-            pool.add(seed, eval_result, iteration=0)
+            pool.add(seed, eval_result, name=seed_name)
             seed_eval_results.append(eval_result)
             self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
 
             if self.output_manager:
-                self.output_manager.write_program(0, seed.source_code, accepted=True, score=eval_result.score)
+                self.output_manager.write_program(
+                    0, seed.source_code, accepted=True, score=eval_result.score, name=seed_name
+                )
             if self.output_manager and eval_result.failed_cases:
                 self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
 
@@ -166,7 +169,7 @@ class EvolutionLoop:
             child_score = child_result.score
 
             # Add child to pool unconditionally
-            pool.add(child, child_result, iteration=i)
+            pool.add(child, child_result, name=f"iter_{i}")
 
             improved = child_score > best_score
             self.logger.log(
