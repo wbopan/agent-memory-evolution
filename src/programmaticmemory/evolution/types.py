@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import math
+import random
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -105,6 +107,41 @@ class EvalResult:
     logs: list[str] = field(default_factory=list)
     train_examples: list[TrainExample] = field(default_factory=list)
     runtime_violation: str | None = None
+
+
+@dataclass
+class PoolEntry:
+    """A program in the population pool with its evaluation result."""
+
+    program: KBProgram
+    eval_result: EvalResult
+    score: float
+
+
+class ProgramPool:
+    """Unbounded pool of evaluated programs with softmax parent selection."""
+
+    def __init__(self, temperature: float = 0.15) -> None:
+        self.entries: list[PoolEntry] = []
+        self.temperature = temperature
+
+    def add(self, program: KBProgram, eval_result: EvalResult) -> None:
+        self.entries.append(PoolEntry(program=program, eval_result=eval_result, score=eval_result.score))
+
+    def sample_parent(self) -> PoolEntry:
+        """Sample a parent using softmax-weighted selection."""
+        if len(self.entries) == 1:
+            return self.entries[0]
+        max_score = max(e.score for e in self.entries)
+        weights = [math.exp((e.score - max_score) / self.temperature) for e in self.entries]
+        return random.choices(self.entries, weights=weights, k=1)[0]
+
+    @property
+    def best(self) -> PoolEntry:
+        return max(self.entries, key=lambda e: e.score)
+
+    def __len__(self) -> int:
+        return len(self.entries)
 
 
 @dataclass

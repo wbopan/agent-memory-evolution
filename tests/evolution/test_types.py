@@ -8,6 +8,8 @@ from programmaticmemory.evolution.types import (
     EvolutionState,
     FailedCase,
     KBProgram,
+    PoolEntry,
+    ProgramPool,
 )
 
 
@@ -173,3 +175,73 @@ class TestValScorer:
 
         ds = Dataset(train=[], val=[], test=[], val_scorer=MyScorer())
         assert ds.val_scorer is not None
+
+
+class TestPoolEntry:
+    def test_construction(self):
+        p = KBProgram(source_code="x")
+        er = EvalResult(score=0.8)
+        entry = PoolEntry(program=p, eval_result=er, score=0.8)
+        assert entry.score == 0.8
+        assert entry.program == p
+        assert entry.eval_result == er
+
+
+class TestProgramPool:
+    def test_add_and_best(self):
+        pool = ProgramPool(temperature=0.15)
+        p1 = KBProgram(source_code="a")
+        p2 = KBProgram(source_code="b")
+        pool.add(p1, EvalResult(score=0.3))
+        pool.add(p2, EvalResult(score=0.8))
+        assert pool.best.score == 0.8
+        assert pool.best.program == p2
+
+    def test_best_with_single_entry(self):
+        pool = ProgramPool(temperature=0.15)
+        p = KBProgram(source_code="x")
+        pool.add(p, EvalResult(score=0.5))
+        assert pool.best.score == 0.5
+
+    def test_sample_parent_returns_pool_entry(self):
+        pool = ProgramPool(temperature=0.15)
+        p = KBProgram(source_code="x")
+        pool.add(p, EvalResult(score=0.5))
+        entry = pool.sample_parent()
+        assert isinstance(entry, PoolEntry)
+        assert entry.program == p
+
+    def test_sample_parent_softmax_distribution(self):
+        """Higher-scoring programs should be sampled more often."""
+        import random as _random
+        _random.seed(42)
+        pool = ProgramPool(temperature=0.15)
+        pool.add(KBProgram(source_code="high"), EvalResult(score=0.6))
+        pool.add(KBProgram(source_code="low"), EvalResult(score=0.2))
+
+        from collections import Counter
+        counts = Counter()
+        for _ in range(1000):
+            entry = pool.sample_parent()
+            counts[entry.program.source_code] += 1
+
+        # With T=0.15, score 0.6 vs 0.2: exp(0.6/0.15)/exp(0.2/0.15) = exp(2.67) ≈ 14.4x
+        assert counts["high"] > counts["low"] * 5
+
+    def test_sample_parent_single_entry_always_returns_it(self):
+        pool = ProgramPool(temperature=0.15)
+        p = KBProgram(source_code="only")
+        pool.add(p, EvalResult(score=0.5))
+        for _ in range(10):
+            assert pool.sample_parent().program == p
+
+    def test_len(self):
+        pool = ProgramPool(temperature=0.15)
+        assert len(pool) == 0
+        pool.add(KBProgram(source_code="a"), EvalResult(score=0.5))
+        assert len(pool) == 1
+
+    def test_entries_accessible(self):
+        pool = ProgramPool(temperature=0.15)
+        pool.add(KBProgram(source_code="a"), EvalResult(score=0.5))
+        assert len(pool.entries) == 1
