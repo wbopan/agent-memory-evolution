@@ -13,6 +13,7 @@ from programmaticmemory.evolution.types import (
     EvolutionState,
     FailedCase,
     KBProgram,
+    ProgramPool,
 )
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.logger import get_logger
@@ -34,94 +35,112 @@ def _serialize_failed_cases(failed_cases: list[FailedCase]) -> list[dict]:
 
 
 class EvolutionLoop:
-    """Serial greedy evolution loop for Knowledge Base Programs."""
+    """Population-based evolution loop for Knowledge Base Programs."""
 
     def __init__(
         self,
         evaluator: MemoryEvaluator,
         reflector: Reflector,
         dataset: Dataset,
-        initial_program: KBProgram | None = None,
+        initial_programs: list[KBProgram] | None = None,
         max_iterations: int = 20,
+        temperature: float = 0.15,
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
         output_manager: RunOutputManager | None = None,
-        drop_degraded_program: bool = False,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
         self.dataset = dataset
-        self.initial_program = initial_program or KBProgram(source_code=INITIAL_KB_PROGRAM)
+        self.initial_programs = initial_programs or [KBProgram(source_code=INITIAL_KB_PROGRAM)]
         self.max_iterations = max_iterations
+        self.temperature = temperature
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
-        self.drop_degraded_program = drop_degraded_program
         self.logger = get_logger()
 
     @weave.op()
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
-        current = self.initial_program
         ds = self.dataset
+        pool = ProgramPool(temperature=self.temperature)
+
         self.logger.log(
-            f"Starting evolution: max_iter={self.max_iterations}, train={len(ds.train)}, val={len(ds.val)}",
+            f"Starting evolution: max_iter={self.max_iterations}, seeds={len(self.initial_programs)}, "
+            f"train={len(ds.train)}, val={len(ds.val)}, temperature={self.temperature}",
             header="EVOLUTION",
         )
 
-        # Evaluate initial program
-        if self.output_manager:
-            self.output_manager.set_phase(0, "train")
-        self.logger.log(
-            f"Evaluating initial program (gen={current.generation}, hash={current.hash})", header="EVOLUTION"
-        )
-        eval_result = self.evaluator.evaluate(current, ds.train, ds.val)
-        best_score = eval_result.score
-        best_program = current
-        self.logger.log(f"Initial score: {best_score:.3f}", header="EVOLUTION")
+        # Evaluate all seed programs
+        seed_eval_results = []
+        for idx, seed in enumerate(self.initial_programs):
+            if self.output_manager:
+                self.output_manager.set_phase(0, "train")
+            self.logger.log(
+                f"Evaluating seed {idx + 1}/{len(self.initial_programs)} (hash={seed.hash})",
+                header="EVOLUTION",
+            )
+            eval_result = self.evaluator.evaluate(seed, ds.train, ds.val)
+            pool.add(seed, eval_result)
+            seed_eval_results.append(eval_result)
+            self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
 
-        if self.output_manager:
-            self.output_manager.write_program(0, current.source_code, accepted=True, score=best_score)
-        if self.output_manager and eval_result.failed_cases:
-            self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
+            if self.output_manager:
+                self.output_manager.write_program(0, seed.source_code, accepted=True, score=eval_result.score)
+            if self.output_manager and eval_result.failed_cases:
+                self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
 
+        best_score = pool.best.score
         if self.tracker:
             self.tracker.log_metrics({"score": best_score, "accepted": 1}, iteration=0)
 
         state = EvolutionState(
-            best_program=best_program,
+            pool=pool,
             best_score=best_score,
-            current_program=current,
-            current_score=best_score,
-            history=[EvolutionRecord(iteration=0, program=current, score=best_score, accepted=True)],
+            history=[
+                EvolutionRecord(iteration=0, program=seed, score=er.score)
+                for seed, er in zip(self.initial_programs, seed_eval_results)
+            ],
             total_iterations=0,
         )
 
         for i in range(1, self.max_iterations + 1):
-            # Check stop condition
             if self.stop_condition and self.stop_condition(state):
                 self.logger.log(f"Stop condition triggered at iteration {i}", header="EVOLUTION")
                 break
 
             self.logger.log(f"--- Iteration {i}/{self.max_iterations} ---", header="EVOLUTION")
 
+            # Sample parent from pool
+            parent_entry = pool.sample_parent()
+            parent = parent_entry.program
+            parent_eval = parent_entry.eval_result
+            self.logger.log(
+                f"Selected parent (hash={parent.hash}, score={parent_entry.score:.3f})",
+                header="EVOLUTION",
+            )
+
             # Reflect and mutate
             if self.output_manager:
                 self.output_manager.set_phase(i, "reflect")
             self.logger.log("Starting reflection", header="EVOLUTION")
-            child = self.reflector.reflect_and_mutate(current, eval_result, i)
+            child = self.reflector.reflect_and_mutate(parent, parent_eval, i)
             if child is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
-                if self.output_manager:
-                    self.output_manager.write_program(i, current.source_code, accepted=False, score=best_score)
-                state.history.append(EvolutionRecord(iteration=i, program=current, score=best_score, accepted=False))
+                state.history.append(
+                    EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
+                )
                 state.total_iterations = i
                 continue
 
             # Evaluate child
             if self.output_manager:
                 self.output_manager.set_phase(i, "train")
-            self.logger.log(f"Evaluating child program (gen={child.generation}, hash={child.hash})", header="EVOLUTION")
+            self.logger.log(
+                f"Evaluating child program (gen={child.generation}, hash={child.hash})",
+                header="EVOLUTION",
+            )
             child_result = self.evaluator.evaluate(child, ds.train, ds.val)
 
             # Runtime violation fix loop
@@ -138,57 +157,39 @@ class EvolutionLoop:
                     break
                 child = KBProgram(
                     source_code=fixed_code,
-                    generation=current.generation + 1,
-                    parent_hash=current.hash,
+                    generation=parent.generation + 1,
+                    parent_hash=parent.hash,
                 )
                 child_result = self.evaluator.evaluate(child, ds.train, ds.val)
 
             child_score = child_result.score
+
+            # Add child to pool unconditionally
+            pool.add(child, child_result)
+
+            improved = child_score > best_score
             self.logger.log(
                 f"Child score: {child_score:.3f} (best: {best_score:.3f})",
                 header="EVOLUTION",
             )
-
-            improved = child_score > best_score
             if self.output_manager:
                 self.output_manager.write_program(i, child.source_code, accepted=improved, score=child_score)
             if self.output_manager and child_result.failed_cases:
                 self.output_manager.write_failed_cases(i, _serialize_failed_cases(child_result.failed_cases))
+
             if improved:
-                self.logger.log(
-                    f"Improved! {best_score:.3f} -> {child_score:.3f}",
-                    header="EVOLUTION",
-                )
+                self.logger.log(f"New best! {best_score:.3f} -> {child_score:.3f}", header="EVOLUTION")
                 best_score = child_score
-                best_program = child
-            elif self.drop_degraded_program:
-                self.logger.log(
-                    f"Dropped ({child_score:.3f} <= {best_score:.3f}), reverting to best",
-                    header="EVOLUTION",
-                )
-            else:
-                self.logger.log(
-                    f"Degraded ({child_score:.3f} <= {best_score:.3f}), continuing anyway",
-                    header="EVOLUTION",
-                )
 
-            # Always advance to child unless drop_degraded_program is set and score didn't improve
-            if improved or not self.drop_degraded_program:
-                current = child
-                eval_result = child_result
-
-            accepted = improved or not self.drop_degraded_program
-
-            state.history.append(EvolutionRecord(iteration=i, program=child, score=child_score, accepted=accepted))
-            state.best_program = best_program
+            state.history.append(
+                EvolutionRecord(iteration=i, program=child, score=child_score, parent_hash=parent.hash)
+            )
             state.best_score = best_score
-            state.current_program = current
-            state.current_score = child_score if accepted else best_score
             state.total_iterations = i
 
             if self.tracker:
                 self.tracker.log_metrics(
-                    {"score": child_score, "best_score": best_score, "accepted": int(accepted)},
+                    {"score": child_score, "best_score": best_score, "pool_size": len(pool)},
                     iteration=i,
                 )
 
@@ -202,8 +203,9 @@ class EvolutionLoop:
             "total_iterations": state.total_iterations,
             "best_program_hash": state.best_program.hash,
             "best_program_generation": state.best_program.generation,
+            "pool_size": len(pool),
             "score_history": [
-                {"iteration": r.iteration, "score": r.score, "accepted": r.accepted} for r in state.history
+                {"iteration": r.iteration, "score": r.score, "parent_hash": r.parent_hash} for r in state.history
             ],
             "best_program_source": state.best_program.source_code,
         }
