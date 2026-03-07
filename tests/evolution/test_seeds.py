@@ -59,67 +59,10 @@ def test_seed_smoke_test(seed_file: Path):
 
 @pytest.mark.llm
 @pytest.mark.uses_chroma
-def test_vector_search_end_to_end(snapshot: SnapshotAssertion):
-    """vector_search seed: ingest fact via raw_text, retrieve and answer via ChromaDB similarity."""
-    source = (SEEDS_DIR / "vector_search.py").read_text()
-    program = KBProgram(source_code=source)
-    train_data = [
-        DataItem(
-            raw_text="Project Zephyr's access code is DELTA-7742.",
-            question="What is Project Zephyr's access code?",
-            expected_answer="DELTA-7742",
-        ),
-    ]
-    val_data = list(train_data)
-
-    evaluator = MemoryEvaluator(task_model=MODEL, toolkit_config=ToolkitConfig(llm_model=MODEL))
-    result = evaluator.evaluate(program, train_data, val_data)
-
-    assert result.score > 0, f"Expected positive score, got {result.score}. Outputs: {result.per_case_outputs}"
-    assert len(result.per_case_outputs) == 1
-    assert len(result.per_case_outputs[0]) > 0
-
-    assert {
-        "score": result.score,
-        "output": result.per_case_outputs[0],
-        "num_failed": len(result.failed_cases),
-    } == snapshot
-
-
-@pytest.mark.llm
-@pytest.mark.uses_chroma
-def test_llm_summarizer_end_to_end(snapshot: SnapshotAssertion):
-    """llm_summarizer seed: ingest fact via raw_text, retrieve via LLM-powered summary."""
-    source = (SEEDS_DIR / "llm_summarizer.py").read_text()
-    program = KBProgram(source_code=source)
-    train_data = [
-        DataItem(
-            raw_text="Project Zephyr's access code is DELTA-7742.",
-            question="What is Project Zephyr's access code?",
-            expected_answer="DELTA-7742",
-        ),
-    ]
-    val_data = list(train_data)
-
-    evaluator = MemoryEvaluator(task_model=MODEL, toolkit_config=ToolkitConfig(llm_model=MODEL))
-    result = evaluator.evaluate(program, train_data, val_data)
-
-    assert result.score > 0, f"Expected positive score, got {result.score}. Outputs: {result.per_case_outputs}"
-    assert len(result.per_case_outputs) == 1
-    assert len(result.per_case_outputs[0]) > 0
-
-    assert {
-        "score": result.score,
-        "output": result.per_case_outputs[0],
-        "num_failed": len(result.failed_cases),
-    } == snapshot
-
-
-@pytest.mark.llm
-@pytest.mark.uses_chroma
-def test_experience_learner_end_to_end(snapshot: SnapshotAssertion):
-    """experience_learner seed: ingest fact via raw_text, retrieve from lessons/facts dump."""
-    source = (SEEDS_DIR / "experience_learner.py").read_text()
+@pytest.mark.parametrize("seed_file", SEED_FILES, ids=SEED_IDS)
+def test_seed_end_to_end(seed_file: Path, snapshot: SnapshotAssertion):
+    """Each seed: ingest fact via raw_text, retrieve and answer correctly."""
+    source = seed_file.read_text()
     program = KBProgram(source_code=source)
     train_data = [
         DataItem(

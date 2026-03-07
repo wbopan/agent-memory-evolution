@@ -16,7 +16,9 @@ from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvalu
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector
+from programmaticmemory.evolution.sandbox import smoke_test
 from programmaticmemory.evolution.toolkit import ToolkitConfig
+from programmaticmemory.evolution.types import KBProgram
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.run_output import RunOutputManager
 
@@ -146,9 +148,6 @@ def main() -> None:
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
     # Load seed programs
-    from programmaticmemory.evolution.sandbox import smoke_test
-    from programmaticmemory.evolution.types import KBProgram
-
     if not args.seed_dir.is_dir():
         print(f"Error: --seed-dir is not a directory: {args.seed_dir}", file=sys.stderr)
         sys.exit(1)

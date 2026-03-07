@@ -134,12 +134,16 @@ class ProgramPool:
     def add(self, program: KBProgram, eval_result: EvalResult, name: str = "seed_0") -> None:
         self.entries.append(PoolEntry(program=program, eval_result=eval_result, name=name))
 
+    def _softmax_weights(self, entries: list[PoolEntry]) -> list[float]:
+        """Compute softmax weights for the given entries."""
+        max_score = max(e.score for e in entries)
+        return [math.exp((e.score - max_score) / self.temperature) for e in entries]
+
     def sample_parent(self) -> PoolEntry:
         """Sample a parent using softmax-weighted selection."""
         if len(self.entries) == 1:
             return self.entries[0]
-        max_score = max(e.score for e in self.entries)
-        weights = [math.exp((e.score - max_score) / self.temperature) for e in self.entries]
+        weights = self._softmax_weights(self.entries)
         return random.choices(self.entries, weights=weights, k=1)[0]
 
     @property
@@ -154,8 +158,7 @@ class ProgramPool:
         if not self.entries:
             return "Pool: empty"
         sorted_entries = sorted(self.entries, key=lambda e: e.score, reverse=True)
-        max_score = sorted_entries[0].score
-        weights = [math.exp((e.score - max_score) / self.temperature) for e in sorted_entries]
+        weights = self._softmax_weights(sorted_entries)
         total = sum(weights)
         lines = [f"Pool ({len(self.entries)} programs, T={self.temperature}):"]
         for entry, w in zip(sorted_entries, weights, strict=True):
