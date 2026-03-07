@@ -249,7 +249,7 @@ def extract_dataclass_schema(cls: type) -> str:
 def smoke_test(
     source_code: str,
     toolkit_config: ToolkitConfig | None = None,
-    timeout: float = 10.0,
+    timeout: float = 60.0,
 ) -> SmokeTestResult:
     """Compile and run a basic write/read cycle to verify the program works."""
 

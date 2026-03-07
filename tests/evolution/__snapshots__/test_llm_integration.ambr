@@ -2,22 +2,22 @@
 # name: test_compile_fix_disallowed_import
   dict({
     'fixed_code': '''
-      from dataclasses import dataclass
+      from dataclasses import dataclass, field
       
-      INSTRUCTION_KNOWLEDGE_ITEM = "Extract concise factual knowledge from the source text."
-      INSTRUCTION_QUERY = "Create a focused query that captures the user's information need."
-      INSTRUCTION_RESPONSE = "Answer clearly and briefly using only relevant retrieved knowledge."
+      INSTRUCTION_KNOWLEDGE_ITEM = "Extract concise, factual knowledge from the source text and avoid speculation."
+      INSTRUCTION_QUERY = "Create a focused retrieval query that captures the user's information need."
+      INSTRUCTION_RESPONSE = "Answer clearly using only retrieved knowledge, and keep the response concise."
       ALWAYS_ON_KNOWLEDGE = ""
       
       
       @dataclass
       class KnowledgeItem:
-          raw: str
+          raw: str = field(metadata={"description": "Primary knowledge content extracted from the source text."})
       
       
       @dataclass
       class Query:
-          raw: str
+          raw: str = field(metadata={"description": "User query text used to retrieve relevant stored knowledge."})
       
       
       class KnowledgeBase:
@@ -30,8 +30,7 @@
               self.toolkit.logger.debug(f"Stored: {item.raw[:80]}")
       
           def read(self, query: Query) -> str:
-              result = "\n".join(self.store[-20:]) if self.store else "No information stored."
-              return result[:1000]
+              return ("\n".join(self.store)[:1000]) if self.store else "No information stored."
   
     ''',
     'original_error_details': 'Disallowed import: numpy',
@@ -41,22 +40,22 @@
 # name: test_compile_fix_runtime_bug
   dict({
     'fixed_code': '''
-      from dataclasses import dataclass
+      from dataclasses import dataclass, field
       
-      INSTRUCTION_KNOWLEDGE_ITEM = "Extract the most important factual information from the source text as a concise knowledge item."
-      INSTRUCTION_QUERY = "Formulate a focused retrieval query that captures the user's information need."
-      INSTRUCTION_RESPONSE = "Provide a concise, direct answer using only relevant retrieved knowledge."
+      INSTRUCTION_KNOWLEDGE_ITEM = "Extract concise, factual knowledge from the provided text."
+      INSTRUCTION_QUERY = "Create a focused retrieval query that captures the user's information need."
+      INSTRUCTION_RESPONSE = "Answer clearly and briefly using only relevant stored knowledge."
       ALWAYS_ON_KNOWLEDGE = ""
       
       
       @dataclass
       class KnowledgeItem:
-          raw: str
+          raw: str = field(metadata={"description": "Canonical knowledge text to store."})
       
       
       @dataclass
       class Query:
-          raw: str
+          raw: str = field(metadata={"description": "Search text describing what to retrieve."})
       
       
       class KnowledgeBase:
@@ -65,11 +64,12 @@
               self.store = []
       
           def write(self, item: KnowledgeItem, raw_text: str = "") -> None:
-              processed = item.raw if item.raw else raw_text
+              processed = (item.raw or raw_text or "").strip()
               self.store.append(processed)
       
           def read(self, query: Query) -> str:
-              return ("\n".join(self.store))[:1000] if self.store else "No information stored."
+              result = "\n".join(self.store) if self.store else "No information stored."
+              return result[:1000]
   
     ''',
     'original_smoke_error': "Runtime: name 'process_text' is not defined",
@@ -96,7 +96,7 @@
 # ---
 # name: test_knowledge_item_generation
   dict({
-    'output': '{"summary":"The capital of France is Paris."}',
+    'output': '{"summary": "The capital of France is Paris."}',
     'prompt': '''
       Given the following text, create a KnowledgeItem to store this information in memory.
       
@@ -114,7 +114,11 @@
 # ---
 # name: test_knowledge_item_with_feedback
   dict({
-    'output': '{"summary":"The correct answer to the question referenced in the evaluation is Paris."}',
+    'output': '''
+      {
+        "summary": "The previous answer '0.0 (incorrect)' indicates that 'Paris' is the correct answer to a specific, unstated question. This reinforces the need to verify facts against authoritative sources when answering questions about well-established information."
+      }
+    ''',
     'prompt': '''
       Evaluation result: Score: 0.0 (incorrect)
       Ground truth: Paris
@@ -170,9 +174,8 @@
       *** Update File: program.py
       @@
            def read(self, query: Query) -> str:
-      -        # Bug: missing closing parenthesis
+               # Bug: missing closing parenthesis
       -        return "\n".join(self.store[:5] if self.store else "No information stored."
-      +        # Bug: missing closing parenthesis
       +        return "\n".join(self.store[:5]) if self.store else "No information stored."
       *** End Patch
     ''',
@@ -210,8 +213,8 @@
       These limits are enforced during evaluation. Violating them results in score = 0.
       
       - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
-      - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
-      - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+      - **`write()` / `read()` timeout**: Each call must complete within **15 seconds**. Avoid expensive computation in these methods.
+      - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
       
       ## Instruction Constants (required)
       
@@ -307,323 +310,240 @@
 # name: test_patch_generation_reflection
   dict({
     'output': '''
-      Diagnosis:
-      The knowledge base was simply appending every summary and raw text and returning them verbatim, so queries couldn’t retrieve specific facts such as “Alice’s favorite color.” There was no structured schema for knowledge or queries beyond a single summary string, no storage/indexing, and no search logic, so read() always returned the entire (truncated) history regardless of the question. To fix this we need a richer KnowledgeItem/Query schema, persistent storage with indexing, keyword-based retrieval, and output truncation with logging—plus clearer instructions to the task LLM.
+      Diagnosis
+      - **Root cause of failure:** `read()` does not actually retrieve by query relevance. It returns the first 500 chars of all summaries plus first 500 chars of all raw observations.  
+      - In realistic memory sizes, the relevant fact (e.g., “Alice’s favorite color is blue”) can be outside those truncated prefixes, so the downstream answer model gets no useful evidence and responds “I don't know.”
+      - Secondary issue: instructions are too generic, so extracted/query data may be less precise than needed for exact fact lookup.
       
+      Here is a minimal targeted fix: add deterministic keyword-based retrieval over stored items (using SQLite), return only top-matching snippets, and strengthen instructions.
+      
+      ```patch
       *** Begin Patch
       *** Update File: program.py
       @@
       -from dataclasses import dataclass, field
-      -
+      +import re
+      +from dataclasses import dataclass, field
+       
       -INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
       -INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
       -INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
       -ALWAYS_ON_KNOWLEDGE = ""
-      -
-      -
-      -@dataclass
-      -class KnowledgeItem:
-      -    """A summary of what was learnt from the source text."""
-      -    summary: str = field(metadata={"description": "What you have learnt from the text"})
-      -
-      -
-      -@dataclass
-      -class Query:
-      -    """Raw text query to retrieve from the knowledge base."""
-      -    raw: str = field(metadata={"description": "The query text to search for"})
-      -
-      -
-      -class KnowledgeBase:
+      +INSTRUCTION_KNOWLEDGE_ITEM = "Extract concrete, checkable facts from the text. Prefer short factual statements with names, attributes, values, dates, and relationships."
+      +INSTRUCTION_QUERY = "Convert the user question into a focused search query using the key entities, attributes, and terms needed to find an exact fact."
+      +INSTRUCTION_RESPONSE = "Answer using only retrieved knowledge. Be concise and factual; if the fact is missing, reply exactly: I don't know."
+      +ALWAYS_ON_KNOWLEDGE = "Prioritize exact entity-attribute-value facts (e.g., 'Alice favorite color blue') and avoid speculation."
+      @@
+       class KnowledgeBase:
       -    """Simple append-all / return-all knowledge base."""
-      -
-      -    def __init__(self, toolkit):
-      -        self.toolkit = toolkit
+      +    """Lightweight SQLite-backed KB with deterministic lexical retrieval."""
+       
+           def __init__(self, toolkit):
+               self.toolkit = toolkit
       -        self.summaries: list[str] = []
       -        self.observations: list[str] = []
-      -
-      -    def write(self, item: KnowledgeItem, raw_text: str) -> None:
+      +        # We use sqlite so data handling is deterministic and fast under tight runtime limits.
+      +        self.db = toolkit.db
+      +        self.db.execute(
+      +            """
+      +            CREATE TABLE IF NOT EXISTS kb_items (
+      +                id INTEGER PRIMARY KEY AUTOINCREMENT,
+      +                summary TEXT NOT NULL,
+      +                raw_text TEXT NOT NULL
+      +            )
+      +            """
+      +        )
+      +        self.db.commit()
+      +        self.toolkit.logger.debug("KnowledgeBase initialized with table kb_items")
+      +
+      +    def _normalize(self, text: str) -> str:
+      +        # Normalization improves token matching robustness across punctuation/casing variants.
+      +        return re.sub(r"\s+", " ", (text or "").strip())
+      +
+      +    def _tokens(self, text: str) -> list[str]:
+      +        # Simple lexical tokens are cheap and work well for factual lookup.
+      +        return re.findall(r"[a-z0-9]+", text.lower())
+       
+           def write(self, item: KnowledgeItem, raw_text: str) -> None:
       -        self.summaries.append(item.summary)
       -        self.observations.append(raw_text)
       -        self.toolkit.logger.debug(f"Stored summary: {item.summary}")
-      -
-      -    def read(self, query: Query) -> str:
+      +        summary = self._normalize(item.summary)
+      +        raw = self._normalize(raw_text)
+      +        self.db.execute(
+      +            "INSERT INTO kb_items(summary, raw_text) VALUES (?, ?)",
+      +            (summary, raw),
+      +        )
+      +        self.db.commit()
+      +        self.toolkit.logger.debug(f"Stored item summary={summary[:120]!r}")
+       
+           def read(self, query: Query) -> str:
       -        self.toolkit.logger.debug(f"Query: {query.raw}, summaries: {len(self.summaries)}, observations: {len(self.observations)}")
       -        if not self.summaries and not self.observations:
       -            return "No information stored."
       -        summary_text = "\n".join(self.summaries)[:500]
-      -        observation_text = "\n".join(self.observations)[:499]
-      -        return summary_text + "\n" + observation_text
-      +import json
-      +import sqlite3
-      +from dataclasses import dataclass, field
-      +from typing import List, Optional
+      -        observation_text = "\n".join(self.observations)[:500]
+      -        result = summary_text + "\n" + observation_text
+      -        return result[:1000]
+      +        q = self._normalize(query.raw)
+      +        q_tokens = self._tokens(q)
+      +        self.toolkit.logger.debug(f"Read query={q!r}, tokens={q_tokens}")
       +
-      +INSTRUCTION_KNOWLEDGE_ITEM = (
-      +    "Read the source text and extract a concise fact plus the most relevant keywords that "
-      +    "will help later retrieval. Capture any source identifier if present."
-      +)
-      +INSTRUCTION_QUERY = (
-      +    "Translate the user’s question into a list of important keywords or concepts. "
-      +    "If there is a narrower focus, include it so the retrieval can be guided precisely."
-      +)
-      +INSTRUCTION_RESPONSE = (
-      +    "Answer using only the retrieved knowledge, citing facts briefly and clearly. "
-      +    "If no stored information applies, reply with 'No information found.' Keep answers short."
-      +)
-      +ALWAYS_ON_KNOWLEDGE = (
-      +    "Always consult the persisted knowledge before guessing, and mention when information is missing."
-      +)
-      +
-      +
-      +@dataclass
-      +class KnowledgeItem:
-      +    """Structured knowledge captured from each source when writing new memories."""
-      +    summary: str = field(metadata={"description": "Concise summary of the key fact learned"})
-      +    tags: List[str] = field(
-      +        default_factory=list,
-      +        metadata={"description": "Keywords or topics that best describe the fact"},
-      +    )
-      +    source_id: Optional[str] = field(
-      +        default=None, metadata={"description": "Optional identifier for the raw source text"}
-      +    )
-      +
-      +
-      +@dataclass
-      +class Query:
-      +    """Structured query parameters used for knowledge retrieval."""
-      +    keywords: List[str] = field(
-      +        default_factory=list,
-      +        metadata={"description": "Important keywords that should appear in relevant knowledge"},
-      +    )
-      +    focus: Optional[str] = field(
-      +        default=None,
-      +        metadata={"description": "Optional clarifying detail to bias the search toward specific facts"},
-      +    )
-      +
-      +
-      +class KnowledgeBase:
-      +    """Knowledge base that persists structured items in SQLite and retrieves them via keyword matching."""
-      +
-      +    def __init__(self, toolkit):
-      +        self.toolkit = toolkit
-      +        self.db: sqlite3.Connection = toolkit.db
-      +        # Create a simple table with tags stored as JSON so we can search summaries/raw efficiently.
-      +        self.db.execute(
-      +            """
-      +            CREATE TABLE IF NOT EXISTS knowledge (
-      +                summary TEXT NOT NULL,
-      +                tags TEXT NOT NULL,
-      +                source_id TEXT,
-      +                raw TEXT NOT NULL
-      +            )
-      +            """
-      +        )
-      +        self.db.execute("CREATE INDEX IF NOT EXISTS idx_summary ON knowledge(summary)")
-      +        self.db.execute("CREATE INDEX IF NOT EXISTS idx_raw ON knowledge(raw)")
-      +        self.db.commit()
-      +
-      +    def write(self, item: KnowledgeItem, raw_text: str) -> None:
-      +        """Store the structured item along with the original text for future retrieval."""
-      +        tags_json = json.dumps(item.tags)
-      +        self.db.execute(
-      +            "INSERT INTO knowledge (summary, tags, source_id, raw) VALUES (?, ?, ?, ?)",
-      +            (item.summary, tags_json, item.source_id, raw_text),
-      +        )
-      +        self.db.commit()
-      +        self.toolkit.logger.debug(
-      +            f"Stored knowledge summary='{item.summary[:50]}...' with tags={item.tags} source={item.source_id}"
-      +        )
-      +
-      +    def read(self, query: Query) -> str:
-      +        """Find the most relevant stored summaries via keyword matching, then return a concise digest."""
-      +        self.toolkit.logger.debug(
-      +            f"Retrieving knowledge with keywords={query.keywords} focus={query.focus}"
-      +        )
-      +
-      +        params = []
-      +        where_clauses = []
-      +
-      +        def add_like_clause(value: str) -> str:
-      +            """Helper to add case-insensitive LIKE clauses safely."""
-      +            sanitized = f"%{value.strip().lower()}%" if value.strip() else "%"
-      +            params.extend([sanitized, sanitized])
-      +            return "(LOWER(summary) LIKE ? OR LOWER(raw) LIKE ?)"
-      +
-      +        for keyword in query.keywords:
-      +            if keyword:
-      +                where_clauses.append(add_like_clause(keyword))
-      +
-      +        if query.focus:
-      +            where_clauses.append(add_like_clause(query.focus))
-      +
-      +        if where_clauses:
-      +            sql = f"""
-      +                SELECT summary, raw FROM knowledge
-      +                WHERE {" OR ".join(where_clauses)}
-      +                ORDER BY rowid DESC
-      +                LIMIT 5
-      +            """
-      +        else:
-      +            sql = """
-      +                SELECT summary, raw FROM knowledge
-      +                ORDER BY rowid DESC
-      +                LIMIT 5
-      +            """
-      +
-      +        rows = list(self.db.execute(sql, params))
+      +        rows = self.db.execute(
+      +            "SELECT id, summary, raw_text FROM kb_items ORDER BY id DESC LIMIT 500"
+      +        ).fetchall()
       +        if not rows:
-      +            self.toolkit.logger.debug("Read found no matching knowledge.")
-      +            return "No information found."
+      +            return "No information stored."
       +
-      +        self.toolkit.logger.debug(f"Read returned {len(rows)} candidate(s).")
+      +        # Score rows by overlap with query tokens; summary matches are weighted higher.
+      +        scored: list[tuple[int, int, str, str]] = []
+      +        q_lc = q.lower()
+      +        for row_id, summary, raw in rows:
+      +            s_lc = (summary or "").lower()
+      +            r_lc = (raw or "").lower()
+      +            score = 0
+      +            for t in q_tokens:
+      +                if t in s_lc:
+      +                    score += 2
+      +                elif t in r_lc:
+      +                    score += 1
+      +            if q_lc and (q_lc in s_lc or q_lc in r_lc):
+      +                score += 5
+      +            scored.append((score, row_id, summary or "", raw or ""))
       +
-      +        parts = []
-      +        for idx, (summary, raw) in enumerate(rows, 1):
-      +            snippet = raw.strip().split("\n", 1)[0][:80]
-      +            parts.append(f"{idx}. {summary} (source snippet: {snippet})")
+      +        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+      +        top = [x for x in scored if x[0] > 0][:6]
+      +        if not top:
+      +            # Fallback: return recent summaries so the caller still gets useful context.
+      +            top = scored[:3]
       +
-      +        result = "\n".join(parts)
-      +        if len(result) > 1000:
-      +            result = result[:997].rstrip() + "..."
+      +        # Keep output compact and focused; this directly improves downstream answer quality.
+      +        snippets: list[str] = []
+      +        seen = set()
+      +        for score, row_id, summary, raw in top:
+      +            text = summary if summary else raw
+      +            text = self._normalize(text)
+      +            if not text:
+      +                continue
+      +            text = text[:220]
+      +            if text in seen:
+      +                continue
+      +            seen.add(text)
+      +            snippets.append(f"- {text}")
       +
-      +        return result
+      +        result = "\n".join(snippets) if snippets else "No relevant information found."
+      +        return result[:1000]
       *** End Patch
+      ```
     ''',
     'patched_code': '''
-      import json
-      import sqlite3
+      import re
       from dataclasses import dataclass, field
-      from typing import List, Optional
       
-      INSTRUCTION_KNOWLEDGE_ITEM = (
-          "Read the source text and extract a concise fact plus the most relevant keywords that "
-          "will help later retrieval. Capture any source identifier if present."
-      )
-      INSTRUCTION_QUERY = (
-          "Translate the user’s question into a list of important keywords or concepts. "
-          "If there is a narrower focus, include it so the retrieval can be guided precisely."
-      )
-      INSTRUCTION_RESPONSE = (
-          "Answer using only the retrieved knowledge, citing facts briefly and clearly. "
-          "If no stored information applies, reply with 'No information found.' Keep answers short."
-      )
-      ALWAYS_ON_KNOWLEDGE = (
-          "Always consult the persisted knowledge before guessing, and mention when information is missing."
-      )
+      INSTRUCTION_KNOWLEDGE_ITEM = "Extract concrete, checkable facts from the text. Prefer short factual statements with names, attributes, values, dates, and relationships."
+      INSTRUCTION_QUERY = "Convert the user question into a focused search query using the key entities, attributes, and terms needed to find an exact fact."
+      INSTRUCTION_RESPONSE = "Answer using only retrieved knowledge. Be concise and factual; if the fact is missing, reply exactly: I don't know."
+      ALWAYS_ON_KNOWLEDGE = "Prioritize exact entity-attribute-value facts (e.g., 'Alice favorite color blue') and avoid speculation."
       
       
       @dataclass
       class KnowledgeItem:
-          """Structured knowledge captured from each source when writing new memories."""
-          summary: str = field(metadata={"description": "Concise summary of the key fact learned"})
-          tags: List[str] = field(
-              default_factory=list,
-              metadata={"description": "Keywords or topics that best describe the fact"},
-          )
-          source_id: Optional[str] = field(
-              default=None, metadata={"description": "Optional identifier for the raw source text"}
-          )
+          """A summary of what was learnt from the source text."""
+          summary: str = field(metadata={"description": "What you have learnt from the text"})
       
       
       @dataclass
       class Query:
-          """Structured query parameters used for knowledge retrieval."""
-          keywords: List[str] = field(
-              default_factory=list,
-              metadata={"description": "Important keywords that should appear in relevant knowledge"},
-          )
-          focus: Optional[str] = field(
-              default=None,
-              metadata={"description": "Optional clarifying detail to bias the search toward specific facts"},
-          )
+          """Raw text query to retrieve from the knowledge base."""
+          raw: str = field(metadata={"description": "The query text to search for"})
       
       
       class KnowledgeBase:
-          """Knowledge base that persists structured items in SQLite and retrieves them via keyword matching."""
+          """Lightweight SQLite-backed KB with deterministic lexical retrieval."""
       
           def __init__(self, toolkit):
               self.toolkit = toolkit
-              self.db: sqlite3.Connection = toolkit.db
-              # Create a simple table with tags stored as JSON so we can search summaries/raw efficiently.
+              # We use sqlite so data handling is deterministic and fast under tight runtime limits.
+              self.db = toolkit.db
               self.db.execute(
                   """
-                  CREATE TABLE IF NOT EXISTS knowledge (
+                  CREATE TABLE IF NOT EXISTS kb_items (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
                       summary TEXT NOT NULL,
-                      tags TEXT NOT NULL,
-                      source_id TEXT,
-                      raw TEXT NOT NULL
+                      raw_text TEXT NOT NULL
                   )
                   """
               )
-              self.db.execute("CREATE INDEX IF NOT EXISTS idx_summary ON knowledge(summary)")
-              self.db.execute("CREATE INDEX IF NOT EXISTS idx_raw ON knowledge(raw)")
               self.db.commit()
+              self.toolkit.logger.debug("KnowledgeBase initialized with table kb_items")
+      
+          def _normalize(self, text: str) -> str:
+              # Normalization improves token matching robustness across punctuation/casing variants.
+              return re.sub(r"\s+", " ", (text or "").strip())
+      
+          def _tokens(self, text: str) -> list[str]:
+              # Simple lexical tokens are cheap and work well for factual lookup.
+              return re.findall(r"[a-z0-9]+", text.lower())
       
           def write(self, item: KnowledgeItem, raw_text: str) -> None:
-              """Store the structured item along with the original text for future retrieval."""
-              tags_json = json.dumps(item.tags)
+              summary = self._normalize(item.summary)
+              raw = self._normalize(raw_text)
               self.db.execute(
-                  "INSERT INTO knowledge (summary, tags, source_id, raw) VALUES (?, ?, ?, ?)",
-                  (item.summary, tags_json, item.source_id, raw_text),
+                  "INSERT INTO kb_items(summary, raw_text) VALUES (?, ?)",
+                  (summary, raw),
               )
               self.db.commit()
-              self.toolkit.logger.debug(
-                  f"Stored knowledge summary='{item.summary[:50]}...' with tags={item.tags} source={item.source_id}"
-              )
+              self.toolkit.logger.debug(f"Stored item summary={summary[:120]!r}")
       
           def read(self, query: Query) -> str:
-              """Find the most relevant stored summaries via keyword matching, then return a concise digest."""
-              self.toolkit.logger.debug(
-                  f"Retrieving knowledge with keywords={query.keywords} focus={query.focus}"
-              )
+              q = self._normalize(query.raw)
+              q_tokens = self._tokens(q)
+              self.toolkit.logger.debug(f"Read query={q!r}, tokens={q_tokens}")
       
-              params = []
-              where_clauses = []
-      
-              def add_like_clause(value: str) -> str:
-                  """Helper to add case-insensitive LIKE clauses safely."""
-                  sanitized = f"%{value.strip().lower()}%" if value.strip() else "%"
-                  params.extend([sanitized, sanitized])
-                  return "(LOWER(summary) LIKE ? OR LOWER(raw) LIKE ?)"
-      
-              for keyword in query.keywords:
-                  if keyword:
-                      where_clauses.append(add_like_clause(keyword))
-      
-              if query.focus:
-                  where_clauses.append(add_like_clause(query.focus))
-      
-              if where_clauses:
-                  sql = f"""
-                      SELECT summary, raw FROM knowledge
-                      WHERE {" OR ".join(where_clauses)}
-                      ORDER BY rowid DESC
-                      LIMIT 5
-                  """
-              else:
-                  sql = """
-                      SELECT summary, raw FROM knowledge
-                      ORDER BY rowid DESC
-                      LIMIT 5
-                  """
-      
-              rows = list(self.db.execute(sql, params))
+              rows = self.db.execute(
+                  "SELECT id, summary, raw_text FROM kb_items ORDER BY id DESC LIMIT 500"
+              ).fetchall()
               if not rows:
-                  self.toolkit.logger.debug("Read found no matching knowledge.")
-                  return "No information found."
+                  return "No information stored."
       
-              self.toolkit.logger.debug(f"Read returned {len(rows)} candidate(s).")
+              # Score rows by overlap with query tokens; summary matches are weighted higher.
+              scored: list[tuple[int, int, str, str]] = []
+              q_lc = q.lower()
+              for row_id, summary, raw in rows:
+                  s_lc = (summary or "").lower()
+                  r_lc = (raw or "").lower()
+                  score = 0
+                  for t in q_tokens:
+                      if t in s_lc:
+                          score += 2
+                      elif t in r_lc:
+                          score += 1
+                  if q_lc and (q_lc in s_lc or q_lc in r_lc):
+                      score += 5
+                  scored.append((score, row_id, summary or "", raw or ""))
       
-              parts = []
-              for idx, (summary, raw) in enumerate(rows, 1):
-                  snippet = raw.strip().split("\n", 1)[0][:80]
-                  parts.append(f"{idx}. {summary} (source snippet: {snippet})")
+              scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+              top = [x for x in scored if x[0] > 0][:6]
+              if not top:
+                  # Fallback: return recent summaries so the caller still gets useful context.
+                  top = scored[:3]
       
-              result = "\n".join(parts)
-              if len(result) > 1000:
-                  result = result[:997].rstrip() + "..."
+              # Keep output compact and focused; this directly improves downstream answer quality.
+              snippets: list[str] = []
+              seen = set()
+              for score, row_id, summary, raw in top:
+                  text = summary if summary else raw
+                  text = self._normalize(text)
+                  if not text:
+                      continue
+                  text = text[:220]
+                  if text in seen:
+                      continue
+                  seen.add(text)
+                  snippets.append(f"- {text}")
       
-              return result
+              result = "\n".join(snippets) if snippets else "No relevant information found."
+              return result[:1000]
   
     ''',
     'prompt': '''
@@ -662,8 +582,8 @@
       These limits are enforced during evaluation. Violating them results in score = 0.
       
       - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
-      - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
-      - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+      - **`write()` / `read()` timeout**: Each call must complete within **15 seconds**. Avoid expensive computation in these methods.
+      - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
       
       ## Instruction Constants (required)
       
@@ -760,8 +680,9 @@
               if not self.summaries and not self.observations:
                   return "No information stored."
               summary_text = "\n".join(self.summaries)[:500]
-              observation_text = "\n".join(self.observations)[:499]
-              return summary_text + "\n" + observation_text
+              observation_text = "\n".join(self.observations)[:500]
+              result = summary_text + "\n" + observation_text
+              return result[:1000]
       
       ```
       </current_program>
@@ -795,7 +716,11 @@
 # ---
 # name: test_query_generation
   dict({
-    'output': '{"raw":"capital of France"}',
+    'output': '''
+      {
+        "raw": "capital of France"
+      }
+    ''',
     'prompt': '''
       Given the following question, generate a query to retrieve relevant memory.
       
@@ -814,187 +739,143 @@
 # name: test_reflection
   dict({
     'output': '''
-      Diagnosis:
-      The current knowledge base simply appends every incoming summary and observation to in-memory lists, then returns the entire stored content regardless of the query text. As a result, questions like “What is the capital of France?” cannot be answered because `read()` never searches the stored knowledge—it just dumps what was written, and it doesn’t match the user’s question. We therefore need to persist knowledge in SQLite for structured retrieval, add a query-driven search over summaries/details/raw text, and trim the response so the answer is focused and stays within the 1000-character limit.
+      Diagnosis
+      - **Root cause of failure:** `read()` ignores the query semantics and mostly returns a truncated dump of all stored summaries/raw text. This makes retrieval noisy and often omits the needed fact, so the answering model defaults to “I don't know.”
+      - **Specific issue in case 1:** For “What is the capital of France?”, the system does no keyword/entity matching (e.g., `capital`, `france`), so the returned context may not contain “Paris” in a clear, high-signal way.
+      - **Secondary issue:** Instructions are too generic and do not strongly steer extraction/querying/answering toward atomic factual retrieval.
       
+      Below is a minimal targeted fix: store items in SQLite, rank by token overlap with query, return only top relevant snippets (bounded), and strengthen prompt instructions.
+      
+      ```patch
       *** Begin Patch
       *** Update File: program.py
       @@
       -from dataclasses import dataclass, field
-      -
+      +from dataclasses import dataclass, field
+      +import re
+      @@
       -INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
       -INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
       -INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
       -ALWAYS_ON_KNOWLEDGE = ""
-      -
-      -
-      -@dataclass
-      -class KnowledgeItem:
-      -    """A summary of what was learnt from the source text."""
-      -    summary: str = field(metadata={"description": "What you have learnt from the text"})
-      -
-      -
-      -@dataclass
-      -class Query:
-      -    """Raw text query to retrieve from the knowledge base."""
-      -    raw: str = field(metadata={"description": "The query text to search for"})
-      -
-      -
-      -class KnowledgeBase:
-      -    """Simple append-all / return-all knowledge base."""
-      -
-      -    def __init__(self, toolkit):
-      -        self.toolkit = toolkit
-      -        self.summaries: list[str] = []
-      -        self.observations: list[str] = []
-      -
-      -    def write(self, item: KnowledgeItem, raw_text: str) -> None:
-      -        self.summaries.append(item.summary)
-      -        self.observations.append(raw_text)
-      -        self.toolkit.logger.debug(f"Stored summary: {item.summary}")
-      -
-      -    def read(self, query: Query) -> str:
-      -        self.toolkit.logger.debug(f"Query: {query.raw}, summaries: {len(self.summaries)}, observations: {len(self.observations)}")
-      -        if not self.summaries and not self.observations:
-      -            return "No information stored."
-      -        summary_text = "\n".join(self.summaries)[:500]
-      -        observation_text = "\n".join(self.observations)[:499]
-      -        return summary_text + "\n" + observation_text
-      +import json
-      +from dataclasses import dataclass, field
-      +from typing import List, Optional
-      +
       +INSTRUCTION_KNOWLEDGE_ITEM = (
-      +    "Extract the most important fact from the text, add relevant supporting details, and list descriptive topics. "
-      +    "Return JSON that conforms to the KnowledgeItem schema."
+      +    "Extract concise, factual knowledge from the source text. Prefer atomic facts "
+      +    "(who/what/when/where relationships) that are directly useful for question answering."
       +)
       +INSTRUCTION_QUERY = (
-      +    "Translate the user's request into keywords and a desired number of top matches using JSON that conforms to the Query schema."
+      +    "Convert the user question into a focused retrieval query that preserves key entities, "
+      +    "terms, and constraints."
       +)
       +INSTRUCTION_RESPONSE = (
-      +    "Answer in 1-3 concise sentences by summarizing only the retrieved knowledge and citing its source. "
-      +    "Keep the response under 1000 characters."
+      +    "Answer using the retrieved knowledge. If the fact is present, respond with the direct answer "
+      +    "in one short sentence (or just the value). Do not add extra explanation."
       +)
-      +ALWAYS_ON_KNOWLEDGE = "Always search the knowledge base for evidence before answering a user question."
+      +ALWAYS_ON_KNOWLEDGE = (
+      +    "Prioritize exact factual matches from memory. Prefer specific answers over uncertainty when "
+      +    "supporting facts are present."
+      +)
+      @@
+       class KnowledgeBase:
+      -    """Simple append-all / return-all knowledge base."""
+      +    """SQLite-backed KB with lightweight lexical ranking.
       +
-      +
-      +@dataclass
-      +class KnowledgeItem:
-      +    """Structured facts extracted from a text source."""
-      +    summary: str = field(metadata={"description": "A single-sentence summary capturing the most important fact from the text."})
-      +    details: Optional[str] = field(
-      +        default=None,
-      +        metadata={"description": "Supporting or contextual details that augment the main summary."},
-      +    )
-      +    source: Optional[str] = field(
-      +        default=None,
-      +        metadata={"description": "The origin of the information, such as a document title or URL."},
-      +    )
-      +    topics: List[str] = field(
-      +        default_factory=list,
-      +        metadata={"description": "Keywords or tags that describe the main concepts discussed in the text."},
-      +    )
-      +
-      +
-      +@dataclass
-      +class Query:
-      +    """Structured parameters for retrieving knowledge."""
-      +    keywords: List[str] = field(
-      +        default_factory=list,
-      +        metadata={"description": "Keywords that describe the user's question or intent."},
-      +    )
-      +    top_k: int = field(
-      +        default=3,
-      +        metadata={"description": "Maximum number of matching knowledge items to return (1-5)."},
-      +    )
-      +
-      +
-      +class KnowledgeBase:
-      +    """A SQLite-backed knowledge base that supports keyword filtering and bounded responses."""
-      +
-      +    def __init__(self, toolkit):
-      +        self.toolkit = toolkit
-      +        # Keep responses under 1000 characters by trimming the assembled answer.
-      +        self._max_response_chars = 950
-      +        cursor = self.toolkit.db.cursor()
-      +        # Persist summaries, details, topics, and raw text so that queries can search by keyword.
-      +        cursor.execute(
+      +    Design goal:
+      +    - Keep writes cheap and deterministic.
+      +    - Make reads query-focused (not dump-all), so downstream answering sees the right fact.
+      +    """
+       
+           def __init__(self, toolkit):
+               self.toolkit = toolkit
+      -        self.summaries: list[str] = []
+      -        self.observations: list[str] = []
+      +        self.db = toolkit.db
+      +        # WHY: durable structured storage lets us rank and filter at read time.
+      +        self.db.execute(
       +            """
-      +            CREATE TABLE IF NOT EXISTS knowledge (
+      +            CREATE TABLE IF NOT EXISTS kb_items (
       +                id INTEGER PRIMARY KEY AUTOINCREMENT,
       +                summary TEXT NOT NULL,
-      +                details TEXT,
-      +                source TEXT,
-      +                topics TEXT,
       +                raw_text TEXT NOT NULL
       +            )
       +            """
       +        )
-      +        self.toolkit.db.commit()
+      +        self.db.execute("CREATE INDEX IF NOT EXISTS idx_kb_items_id ON kb_items(id)")
+      +        self.db.commit()
       +
-      +    def write(self, item: KnowledgeItem, raw_text: str) -> None:
-      +        cursor = self.toolkit.db.cursor()
-      +        topics_json = json.dumps(item.topics or [])
-      +        cursor.execute(
-      +            """
-      +            INSERT INTO knowledge (summary, details, source, topics, raw_text)
-      +            VALUES (?, ?, ?, ?, ?)
-      +            """,
-      +            (item.summary, item.details, item.source, topics_json, raw_text),
+      +    @staticmethod
+      +    def _tokenize(text: str) -> set[str]:
+      +        """Simple JSON-safe lexical tokenization for deterministic ranking."""
+      +        tokens = set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+      +        # Minimal stopword removal improves signal for short factual queries.
+      +        stop = {"the", "a", "an", "is", "are", "of", "to", "in", "on", "and", "what", "who", "when", "where"}
+      +        return {t for t in tokens if t not in stop}
+       
+           def write(self, item: KnowledgeItem, raw_text: str) -> None:
+      -        self.summaries.append(item.summary)
+      -        self.observations.append(raw_text)
+      -        self.toolkit.logger.debug(f"Stored summary: {item.summary}")
+      +        self.db.execute(
+      +            "INSERT INTO kb_items(summary, raw_text) VALUES(?, ?)",
+      +            (item.summary or "", raw_text or ""),
       +        )
-      +        self.toolkit.db.commit()
-      +        self.toolkit.logger.debug(f"Stored knowledge: {item.summary}")
+      +        self.db.commit()
+      +        self.toolkit.logger.debug(f"Stored summary: {item.summary}")
+       
+           def read(self, query: Query) -> str:
+      -        self.toolkit.logger.debug(f"Query: {query.raw}, summaries: {len(self.summaries)}, observations: {len(self.observations)}")
+      -        if not self.summaries and not self.observations:
+      +        q = (query.raw or "").strip()
+      +        q_tokens = self._tokenize(q)
+      +        self.toolkit.logger.debug(f"Read query='{q}' tokens={sorted(q_tokens)}")
       +
-      +    def read(self, query: Query) -> str:
-      +        cursor = self.toolkit.db.cursor()
-      +        base_query = "SELECT summary, details, source, topics, raw_text FROM knowledge"
-      +        params: List[str] = []
-      +        conditions: List[str] = []
-      +        if query.keywords:
-      +            # Build a WHERE clause that ensures every keyword appears in at least one searchable field.
-      +            for keyword in query.keywords:
-      +                like_pattern = f"%{keyword}%"
-      +                search_fields = ["summary", "details", "source", "raw_text"]
-      +                field_conditions = []
-      +                for field_name in search_fields:
-      +                    field_conditions.append(f"{field_name} LIKE ?")
-      +                    params.append(like_pattern)
-      +                conditions.append("(" + " OR ".join(field_conditions) + ")")
-      +        if conditions:
-      +            base_query += " WHERE " + " AND ".join(conditions)
-      +        limit = max(1, min(query.top_k, 5))
-      +        base_query += " ORDER BY id DESC LIMIT ?"
-      +        params.append(str(limit))
-      +        rows = cursor.execute(base_query, params).fetchall()
-      +        self.toolkit.logger.debug(f"Query keywords={query.keywords} returning {len(rows)} rows.")
+      +        rows = self.db.execute(
+      +            "SELECT id, summary, raw_text FROM kb_items ORDER BY id DESC LIMIT 300"
+      +        ).fetchall()
       +        if not rows:
-      +            return "No matching knowledge stored."
+                   return "No information stored."
+      -        summary_text = "\n".join(self.summaries)[:500]
+      -        observation_text = "\n".join(self.observations)[:500]
+      -        result = summary_text + "\n" + observation_text
+      -        return result[:1000]
       +
-      +        snippets: List[str] = []
-      +        for summary, details, source, topics_json, raw_text in rows:
-      +            topic_list = json.loads(topics_json or "[]")
-      +            snippet_parts = [summary]
-      +            if details:
-      +                snippet_parts.append(details)
-      +            if source:
-      +                snippet_parts.append(f"Source: {source}")
-      +            if topic_list:
-      +                snippet_parts.append("Topics: " + ", ".join(topic_list))
-      +            if raw_text:
-      +                excerpt = raw_text.replace("\n", " ").strip()
-      +                if len(excerpt) > 120:
-      +                    excerpt = excerpt[:120] + "…"
-      +                snippet_parts.append(f"Excerpt: {excerpt}")
-      +            snippet = " | ".join(snippet_parts)
-      +            if len(snippet) > 400:
-      +                snippet = snippet[:400] + "…"
-      +            projected = "\n".join(snippets + [snippet])
-      +            if len(projected) > self._max_response_chars:
-      +                break
-      +            snippets.append(snippet)
-      +        result = "\n".join(snippets)[: self._max_response_chars]
-      +        return result if result else "No matching knowledge stored."
+      +        # WHY: overlap-based ranking is fast, deterministic, and works well for factual lookup.
+      +        scored = []
+      +        for row_id, summary, raw_text in rows:
+      +            s_tokens = self._tokenize(summary)
+      +            r_tokens = self._tokenize(raw_text)
+      +            overlap_s = len(q_tokens & s_tokens)
+      +            overlap_r = len(q_tokens & r_tokens)
+      +            score = overlap_s * 3 + overlap_r  # summary is higher-signal than raw text
+      +            if q_tokens:
+      +                scored.append((score, row_id, summary, raw_text))
+      +            else:
+      +                # Empty query fallback: rely on recency.
+      +                scored.append((0, row_id, summary, raw_text))
+      +
+      +        # Keep best matches; if no positive match, fall back to most recent few entries.
+      +        scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
+      +        top = [x for x in scored if x[0] > 0][:5]
+      +        if not top:
+      +            top = scored[:3]
+      +
+      +        # Build concise retrieval context; strict cap prevents overlong outputs.
+      +        parts = []
+      +        for score, row_id, summary, raw_text in top:
+      +            summary_clean = (summary or "").strip()
+      +            raw_clean = re.sub(r"\s+", " ", (raw_text or "").strip())
+      +            if not summary_clean:
+      +                summary_clean = raw_clean[:220]
+      +            line = f"- {summary_clean}"
+      +            # Include short source hint only when it adds information.
+      +            if raw_clean and raw_clean[:120] not in summary_clean:
+      +                line += f" | source: {raw_clean[:120]}"
+      +            parts.append(line)
+      +
+      +        result = "Relevant knowledge:\n" + "\n".join(parts)
+      +        return result[:1000]
+       
       *** End Patch
+      ```
     ''',
     'prompt': '''
       You are an expert Python programmer specializing in knowledge base system design.
@@ -1032,8 +913,8 @@
       These limits are enforced during evaluation. Violating them results in score = 0.
       
       - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
-      - **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
-      - **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+      - **`write()` / `read()` timeout**: Each call must complete within **15 seconds**. Avoid expensive computation in these methods.
+      - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
       
       ## Instruction Constants (required)
       
@@ -1130,8 +1011,9 @@
               if not self.summaries and not self.observations:
                   return "No information stored."
               summary_text = "\n".join(self.summaries)[:500]
-              observation_text = "\n".join(self.observations)[:499]
-              return summary_text + "\n" + observation_text
+              observation_text = "\n".join(self.observations)[:500]
+              result = summary_text + "\n" + observation_text
+              return result[:1000]
       
       ```
       </current_program>
@@ -1166,104 +1048,120 @@
 # name: test_reflection_recovery
   dict({
     'reflected_code': '''
-      from dataclasses import dataclass, field
       import re
+      from dataclasses import dataclass, field
       
       INSTRUCTION_KNOWLEDGE_ITEM = (
-          "Extract a concise factual memory from the provided text. Preserve exact "
-          "identifiers, codes, names, and numbers when present."
+          "Extract the most useful factual memory from the source text as a concise string. "
+          "Prefer exact values (codes, IDs, names, dates, numbers) and keep key wording intact."
       )
       INSTRUCTION_QUERY = (
-          "Create a short retrieval query containing the key entities and terms needed "
-          "to find the requested fact."
+          "Convert the user question into a short retrieval-oriented search string. "
+          "Keep critical entities and requested attribute names."
       )
       INSTRUCTION_RESPONSE = (
-          "Answer using the retrieved memory. Be concise and factual. If a specific value "
-          "like a code is requested, return it exactly."
+          "Answer using retrieved memory only. Be concise and precise. "
+          "If a direct value is present (e.g., access code), return that value clearly."
       )
       ALWAYS_ON_KNOWLEDGE = (
-          "Prefer exact lexical matching for factual recall (codes, IDs, names, dates). "
-          "When uncertain, do not invent values."
+          "Prioritize exact factual matches. Keep identifiers and codes verbatim."
       )
       
       
       @dataclass
       class KnowledgeItem:
-          # Single JSON-safe text field keeps extraction robust while still allowing
-          # arbitrary facts to be captured.
+          """Single memory string extracted from source text."""
           raw: str = field(
-              metadata={"description": "A concise factual statement to store in memory."}
+              metadata={
+                  "description": "Concise factual memory to store; include exact values like codes and IDs."
+              }
           )
       
       
       @dataclass
       class Query:
-          # Query text used for deterministic lexical retrieval.
+          """Short retrieval query string."""
           raw: str = field(
-              metadata={"description": "A short text query describing the fact to retrieve."}
+              metadata={
+                  "description": "Search phrase describing what fact should be retrieved from memory."
+              }
           )
       
       
       class KnowledgeBase:
-          """Lightweight lexical memory with deterministic retrieval."""
+          """Simple lexical memory store with deterministic retrieval.
+      
+          Why this design:
+          - Deterministic matching is fast and robust under the 15s runtime limit.
+          - No LLM call is required for retrieval, preserving call budget.
+          - Returning only top hits prevents overlong outputs and improves precision.
+          """
       
           def __init__(self, toolkit):
               self.toolkit = toolkit
-              # Store raw text plus normalized tokens for fast overlap scoring.
-              self.store: list[dict] = []
+              self.store: list[str] = []
       
-          def _tokenize(self, text: str) -> list[str]:
-              # Simple tokenizer: lowercased alphanumerics only.
-              # Deterministic and fast, avoiding LLM calls in read/write.
-              return re.findall(r"[a-z0-9]+", text.lower())
-      
-          def write(self, item: KnowledgeItem, raw_text: str = "") -> None:
-              # Prefer structured extraction, but fall back to source text if needed.
+          def write(self, item: KnowledgeItem, raw_text: str) -> None:
+              # Prefer structured extraction from item.raw; fall back to raw_text if needed.
               text = (item.raw or "").strip() or (raw_text or "").strip()
               if not text:
-                  self.toolkit.logger.debug("Write skipped: empty knowledge item.")
+                  self.toolkit.logger.debug("write(): skipped empty knowledge item")
                   return
-              self.store.append({"text": text, "tokens": set(self._tokenize(text))})
-              self.toolkit.logger.debug(f"Stored item. chars={len(text)} total={len(self.store)}")
+      
+              self.store.append(text)
+              self.toolkit.logger.debug(
+                  f"write(): stored item #{len(self.store)} preview={text[:80]!r}"
+              )
       
           def read(self, query: Query) -> str:
               q = (query.raw or "").strip()
-              self.toolkit.logger.debug(f"Read query='{q[:80]}' store_size={len(self.store)}")
+              self.toolkit.logger.debug(
+                  f"read(): query={q[:80]!r}, store_size={len(self.store)}"
+              )
       
               if not self.store:
-                  return "No relevant information found."
-              if not q:
-                  # Safe fallback: return most recent item, bounded.
-                  text = self.store[-1]["text"]
-                  return text[:1000] if len(text) <= 1000 else text[:997] + "..."
+                  return "No information stored."
       
-              q_tokens = set(self._tokenize(q))
+              # If query is empty, return most recent memory (smallest surprising behavior).
+              if not q:
+                  out = self.store[-1]
+                  return out[:1000]
+      
               q_lower = q.lower()
-              scored = []
-              for idx, row in enumerate(self.store):
-                  overlap = len(q_tokens & row["tokens"]) if q_tokens else 0
-                  phrase_bonus = 3 if q_lower and q_lower in row["text"].lower() else 0
-                  score = overlap + phrase_bonus
+              tokens = [t for t in re.findall(r"[a-z0-9]+", q_lower) if len(t) > 1]
+      
+              scored: list[tuple[int, int, str]] = []
+              for i, text in enumerate(self.store):
+                  t_lower = text.lower()
+                  score = 0
+      
+                  # Strong boost for phrase-level containment.
+                  if q_lower and q_lower in t_lower:
+                      score += 10
+      
+                  # Token overlap gives robust matching for paraphrases.
+                  for tok in tokens:
+                      if tok in t_lower:
+                          score += 1
+      
                   if score > 0:
-                      # Recency tie-breaker via idx.
-                      scored.append((score, idx, row["text"]))
+                      scored.append((score, i, text))
       
               if not scored:
-                  return "No relevant information found."
+                  # Helpful fallback: return the most recent memory instead of a hard failure.
+                  out = self.store[-1]
+                  self.toolkit.logger.debug("read(): no lexical match, returning latest item")
+                  return out[:1000]
       
+              # Highest score first; newer items win ties.
               scored.sort(key=lambda x: (x[0], x[1]), reverse=True)
-              top_texts = []
-              seen = set()
-              for _, _, txt in scored:
-                  if txt not in seen:
-                      seen.add(txt)
-                      top_texts.append(txt)
-                  if len(top_texts) >= 3:
-                      break
+              top_texts = [t for _, _, t in scored[:3]]
+              result = "\n".join(f"- {t}" for t in top_texts)
       
-              result = "\n".join(top_texts)
-              # Hard cap required by runtime constraints.
-              return result[:1000] if len(result) <= 1000 else result[:997] + "..."
+              # Enforce required output cap.
+              if len(result) > 1000:
+                  result = result[:997] + "..."
+              return result
   
     ''',
     'round1_score': 0.0,
@@ -1273,7 +1171,11 @@
 # ---
 # name: test_retrieved_memory_answer
   dict({
-    'step1_output': '{"raw":"capital of France"}',
+    'step1_output': '''
+      {
+        "raw": "capital of France"
+      }
+    ''',
     'step1_prompt': '''
       Given the following question, generate a query to retrieve relevant memory.
       
@@ -1302,9 +1204,9 @@
     'fixed_code': '''
       from dataclasses import dataclass
       
-      INSTRUCTION_KNOWLEDGE_ITEM = "Extract concise, factual knowledge from the source text."
-      INSTRUCTION_QUERY = "Formulate a focused retrieval query for relevant facts."
-      INSTRUCTION_RESPONSE = "Return a concise answer using only retrieved knowledge."
+      INSTRUCTION_KNOWLEDGE_ITEM = ""
+      INSTRUCTION_QUERY = ""
+      INSTRUCTION_RESPONSE = ""
       ALWAYS_ON_KNOWLEDGE = ""
       
       
@@ -1327,7 +1229,7 @@
               self.store.append(item.raw)
       
           def read(self, query: Query) -> str:
-              return ("x" * 5000)[:1000]
+              return "x" * 1000
   
     ''',
     'runtime_violation': 'kb.read() returned 5000 chars (limit: 1000)',

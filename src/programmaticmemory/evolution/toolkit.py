@@ -31,7 +31,7 @@ class ToolkitConfig:
     """Configuration for Toolkit creation."""
 
     llm_model: str
-    llm_call_budget: int = 50
+    llm_call_budget: int = 1
 
 
 class Toolkit:
@@ -48,6 +48,10 @@ class Toolkit:
         self.logger: MemoryLogger = MemoryLogger()
         self._llm_call_budget: int = config.llm_call_budget
         self._llm_calls_used: int = 0
+
+    def reset_llm_budget(self) -> None:
+        """Reset the LLM call counter. Called before each guarded write/read."""
+        self._llm_calls_used = 0
 
     def llm_completion(self, messages: list[dict], **kwargs: object) -> str:
         """Call LLM with budget enforcement and retry logic."""

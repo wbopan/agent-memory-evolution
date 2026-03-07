@@ -1,0 +1,22 @@
+# serializer version: 1
+# name: test_experience_learner_end_to_end
+  dict({
+    'num_failed': 0,
+    'output': "Project Zephyr's access code is DELTA-7742.",
+    'score': 1.0,
+  })
+# ---
+# name: test_llm_summarizer_end_to_end
+  dict({
+    'num_failed': 0,
+    'output': "Project Zephyr's access code is DELTA-7742.",
+    'score': 1.0,
+  })
+# ---
+# name: test_vector_search_end_to_end
+  dict({
+    'num_failed': 0,
+    'output': 'The access code is DELTA-7742.',
+    'score': 1.0,
+  })
+# ---

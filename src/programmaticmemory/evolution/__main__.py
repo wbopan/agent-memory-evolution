@@ -57,7 +57,7 @@ def main() -> None:
     parser.add_argument("--val-size", type=int, default=None, help="Limit val set size")
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
     parser.add_argument("--reflect-model", default="openrouter/openai/gpt-5.3-codex", help="Model for reflection")
-    parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
+    parser.add_argument("--toolkit-model", default="openrouter/openai/gpt-oss-120b", help="Model for toolkit LLM")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")
@@ -83,11 +83,13 @@ def main() -> None:
         default=0.15,
         help="Softmax temperature for parent selection (default: 0.15, lower = more greedy)",
     )
+    # Default seed-dir: <repo>/seeds/
+    _default_seed_dir = Path(__file__).resolve().parents[3] / "seeds"
     parser.add_argument(
         "--seed-dir",
         type=Path,
-        default=None,
-        help="Directory of .py seed programs to use as initial population (default: built-in baseline)",
+        default=_default_seed_dir,
+        help=f"Directory of .py seed programs to use as initial population (default: {_default_seed_dir})",
     )
     args, extra = parser.parse_known_args()
 
@@ -144,27 +146,25 @@ def main() -> None:
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
     # Load seed programs
-    initial_programs = None
-    if args.seed_dir:
-        from programmaticmemory.evolution.sandbox import smoke_test
-        from programmaticmemory.evolution.types import KBProgram
+    from programmaticmemory.evolution.sandbox import smoke_test
+    from programmaticmemory.evolution.types import KBProgram
 
-        if not args.seed_dir.is_dir():
-            print(f"Error: --seed-dir is not a directory: {args.seed_dir}", file=sys.stderr)
+    if not args.seed_dir.is_dir():
+        print(f"Error: --seed-dir is not a directory: {args.seed_dir}", file=sys.stderr)
+        sys.exit(1)
+    seed_files = sorted(args.seed_dir.glob("*.py"))
+    if not seed_files:
+        print(f"Error: no .py files found in --seed-dir: {args.seed_dir}", file=sys.stderr)
+        sys.exit(1)
+    initial_programs = []
+    for f in seed_files:
+        source = f.read_text()
+        result = smoke_test(source)
+        if not result.success:
+            print(f"Error: invalid seed program {f.name}: {result.error}", file=sys.stderr)
             sys.exit(1)
-        seed_files = sorted(args.seed_dir.glob("*.py"))
-        if not seed_files:
-            print(f"Error: no .py files found in --seed-dir: {args.seed_dir}", file=sys.stderr)
-            sys.exit(1)
-        initial_programs = []
-        for f in seed_files:
-            source = f.read_text()
-            result = smoke_test(source)
-            if not result.success:
-                print(f"Error: invalid seed program {f.name}: {result.error}", file=sys.stderr)
-                sys.exit(1)
-            initial_programs.append(KBProgram(source_code=source))
-            logger.log(f"Loaded seed: {f.name}", header="CONFIG")
+        initial_programs.append(KBProgram(source_code=source))
+        logger.log(f"Loaded seed: {f.name}", header="CONFIG")
 
     # Run
     with tracker:

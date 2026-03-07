@@ -131,13 +131,13 @@ Population-based: maintains a `ProgramPool` of evaluated programs. Each iteratio
 
 - Python 3.12+, `from __future__ import annotations` in all modules
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q. S (bandit) rules are NOT enabled — do not add `# noqa: S...` directives (causes RUF100 errors)
-- Default models for evolution runs: `openrouter/deepseek/deepseek-v3.2` (task + toolkit), `openrouter/openai/gpt-5.3-codex` (reflection). LLM integration tests use `openrouter/openai/gpt-5.1-codex-mini` (task) and `openrouter/openai/gpt-5.3-codex` (reflection).
+- Default models: `openrouter/deepseek/deepseek-v3.2` (task), `openrouter/openai/gpt-oss-120b` (toolkit), `openrouter/openai/gpt-5.3-codex` (reflection). Same task/reflection models used in LLM integration tests. Never use `gpt-5.1-codex-mini` anywhere.
 - Import whitelist for Knowledge Base Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
 - A Knowledge Base Program is a **complete Python module**: four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE) + three class definitions (KnowledgeItem, Query, KnowledgeBase). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness
 - Prompt template changes in `prompts.py` cascade to snapshots in `test_prompts.ambr` AND `test_reflector.ambr` — always run `--snapshot-update` for both after editing prompts
 - LLM disk cache keys include all API parameters (model, messages, temperature, max_tokens, response_format). Changing any of these invalidates cached responses, requiring re-running LLM tests with an API key. Never delete `.llm_cache/cache.db` between individual test reruns — cache entries are shared across tests. Only delete as last resort, then run ALL LLM tests in one shot.
-- LLM integration tests use two model tiers: `MODEL` (gpt-5.1-codex-mini, cheap) for task agent calls only, `REFLECT_MODEL` (gpt-5.3-codex, stronger) for ALL code generation (reflection, compile-fix, runtime-fix). Never use `MODEL` for `Reflector` calls.
+- LLM integration tests use two model tiers: `MODEL` (deepseek-v3.2) for task agent calls, `REFLECT_MODEL` (gpt-5.3-codex) for ALL code generation (reflection, compile-fix, runtime-fix, patch generation). Never use `MODEL` for `Reflector` calls.
 - Inline test programs that use `write()` must include the `raw_text` parameter: `def write(self, item, raw_text=""):` — smoke_test passes `raw_text` to `kb.write()`.
 - `_batch_llm_call` supports `json_mode=True` for knowledge item/query generation (adds `response_format={"type": "json_object"}`). Answer generation calls leave it off.
 - Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.

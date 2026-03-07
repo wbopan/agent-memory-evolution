@@ -38,7 +38,7 @@ from programmaticmemory.evolution.types import (
 )
 from programmaticmemory.logging.logger import get_logger
 
-MEMORY_OP_TIMEOUT = 5.0
+MEMORY_OP_TIMEOUT = 60.0
 MEMORY_READ_MAX_CHARS = 1000
 
 
@@ -47,7 +47,9 @@ class RuntimeViolationError(Exception):
 
 
 def _guarded_write(kb: Any, item: Any, raw_text: str, timeout: float = MEMORY_OP_TIMEOUT) -> None:
-    """Wrap kb.write(item, raw_text) with timeout."""
+    """Wrap kb.write(item, raw_text) with timeout and per-call LLM budget reset."""
+    if hasattr(kb, "toolkit"):
+        kb.toolkit.reset_llm_budget()
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(kb.write, item, raw_text)
         try:
@@ -59,7 +61,9 @@ def _guarded_write(kb: Any, item: Any, raw_text: str, timeout: float = MEMORY_OP
 def _guarded_read(
     kb: Any, query: Any, timeout: float = MEMORY_OP_TIMEOUT, max_chars: int = MEMORY_READ_MAX_CHARS
 ) -> Any:
-    """Wrap kb.read(query) with timeout + output length check."""
+    """Wrap kb.read(query) with timeout, output length check, and per-call LLM budget reset."""
+    if hasattr(kb, "toolkit"):
+        kb.toolkit.reset_llm_budget()
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(kb.read, query)
         try:

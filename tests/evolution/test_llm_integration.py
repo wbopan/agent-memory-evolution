@@ -33,7 +33,7 @@ from programmaticmemory.evolution.sandbox import (
 from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
 from programmaticmemory.evolution.types import DataItem, KBProgram
 
-MODEL = "openrouter/openai/gpt-5.1-codex-mini"
+MODEL = "openrouter/deepseek/deepseek-v3.2"
 REFLECT_MODEL = "openrouter/openai/gpt-5.3-codex"
 
 
@@ -202,7 +202,7 @@ def test_reflection(snapshot: SnapshotAssertion):
     )
 
     output = _llm_call(
-        MODEL,
+        REFLECT_MODEL,
         [
             {"role": "user", "content": user_prompt},
         ],
@@ -657,7 +657,7 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
 # 3l. Patch Generation — reflection prompt → V4A patch → apply → compile
 # ---------------------------------------------------------------------------
 
-PATCH_MODEL = "openrouter/openai/gpt-5.1-codex-mini"
+PATCH_MODEL = REFLECT_MODEL
 
 
 @pytest.mark.llm
@@ -665,7 +665,7 @@ def test_patch_generation_reflection(snapshot: SnapshotAssertion):
     """Real model generates a valid V4A patch from the reflection prompt.
 
     Sends the reflection prompt (with INITIAL_KB_PROGRAM, a low score, and a
-    realistic failed case) to gpt-5.1-codex-mini, extracts the patch, applies
+    realistic failed case) to the reflection model, extracts the patch, applies
     it to INITIAL_KB_PROGRAM, and verifies the result compiles with all
     required classes and constants.
     """
@@ -761,7 +761,7 @@ class KnowledgeBase:
 def test_patch_generation_compile_fix(snapshot: SnapshotAssertion):
     """Real model fixes a broken program via a V4A patch from the compile-fix prompt.
 
-    Sends a program with a syntax error to gpt-5.1-codex-mini via the
+    Sends a program with a syntax error to the reflection model via the
     compile-fix prompt, extracts the patch, applies it, and verifies the
     result compiles successfully.
     """

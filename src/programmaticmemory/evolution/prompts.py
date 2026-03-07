@@ -48,8 +48,8 @@ Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, date
 These limits are enforced during evaluation. Violating them results in score = 0.
 
 - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
-- **`write()` / `read()` timeout**: Each call must complete within **5 seconds**. Avoid expensive computation in these methods.
-- **`toolkit.llm_completion()` budget**: At most **50 LLM calls** per evaluation run. Use LLM calls sparingly in write/read; prefer deterministic retrieval (SQL, text matching) over LLM-based filtering.
+- **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+- **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
 
 ## Instruction Constants (required)
 
