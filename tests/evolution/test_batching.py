@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from programmaticmemory.evolution.batching import _embed_texts
+from programmaticmemory.evolution.batching import _embed_texts, _kmeans
 
 
 class TestEmbedTexts:
@@ -54,3 +54,45 @@ class TestEmbedTexts:
 
         assert call_count == 2
         assert result.shape == (150, 2)
+
+
+class TestKMeans:
+    def test_two_clusters_on_obvious_data(self):
+        """Two well-separated groups should be cleanly split."""
+        vectors = np.array(
+            [
+                [1.0, 0.0],
+                [0.95, 0.05],
+                [0.9, 0.1],
+                [0.0, 1.0],
+                [0.05, 0.95],
+                [0.1, 0.9],
+            ]
+        )
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        labels = _kmeans(vectors, k=2, seed=42)
+        assert labels.shape == (6,)
+        assert labels[0] == labels[1] == labels[2]
+        assert labels[3] == labels[4] == labels[5]
+        assert labels[0] != labels[3]
+
+    def test_k_equals_n(self):
+        """Each point is its own cluster."""
+        vectors = np.eye(3)
+        labels = _kmeans(vectors, k=3, seed=42)
+        assert len(set(labels)) == 3
+
+    def test_single_cluster(self):
+        """k=1 puts everything in one cluster."""
+        vectors = np.array([[1.0, 0.0], [0.0, 1.0]])
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        labels = _kmeans(vectors, k=1, seed=42)
+        assert all(label == 0 for label in labels)
+
+    def test_deterministic_with_same_seed(self):
+        rng = np.random.RandomState(123)
+        vectors = rng.randn(20, 5)
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        labels1 = _kmeans(vectors, k=3, seed=42)
+        labels2 = _kmeans(vectors, k=3, seed=42)
+        np.testing.assert_array_equal(labels1, labels2)
