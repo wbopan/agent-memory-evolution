@@ -328,3 +328,66 @@ class TestBuildEvalBatches:
 
         assert len(batches) == 1
         assert sorted(batches[0].val_indices) == [0, 1, 2]
+
+
+class TestBuildEvalBatchesIntegration:
+    """Integration tests using realistic DataItem patterns."""
+
+    def test_offline_pipeline_text_extraction(self):
+        """Offline pipeline: train texts come from raw_text, val from question."""
+        train = [
+            DataItem(raw_text="The capital of France is Paris.", question="", expected_answer=""),
+            DataItem(raw_text="Water boils at 100 degrees Celsius.", question="", expected_answer=""),
+            DataItem(raw_text="Jupiter is the largest planet.", question="", expected_answer=""),
+            DataItem(raw_text="DNA stands for deoxyribonucleic acid.", question="", expected_answer=""),
+            DataItem(raw_text="Shakespeare was born in 1564.", question="", expected_answer=""),
+            DataItem(raw_text="The Nile is the longest river.", question="", expected_answer=""),
+        ]
+        val = [
+            DataItem(raw_text="", question="What is the capital of France?", expected_answer="Paris"),
+            DataItem(raw_text="", question="At what temperature does water boil?", expected_answer="100 degrees"),
+            DataItem(raw_text="", question="What is the largest planet?", expected_answer="Jupiter"),
+            DataItem(raw_text="", question="When was Shakespeare born?", expected_answer="1564"),
+        ]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm(dim=8)
+            batches = build_eval_batches(train, val, num_batches=2, train_budget_per_val=3)
+
+        assert len(batches) == 2
+        total_val = sum(len(b.val_indices) for b in batches)
+        assert total_val == 4
+        for b in batches:
+            assert len(b.train_indices) > 0
+            assert len(b.train_indices) <= 3 * len(b.val_indices)
+
+    def test_batch_slicing_produces_valid_subsets(self):
+        """Simulate what __main__.py does: slice dataset using batch indices."""
+        train = [DataItem(raw_text=f"fact_{i}", question="", expected_answer="") for i in range(10)]
+        val = [DataItem(raw_text="", question=f"q_{i}?", expected_answer=f"a_{i}") for i in range(6)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm()
+            batches = build_eval_batches(train, val, num_batches=2)
+
+        batch = batches[0]
+        train_subset = [train[i] for i in batch.train_indices]
+        val_subset = [val[i] for i in batch.val_indices]
+
+        assert len(val_subset) > 0
+        assert len(train_subset) > 0
+        assert all(isinstance(item, DataItem) for item in train_subset)
+        assert all(isinstance(item, DataItem) for item in val_subset)
+
+    def test_all_batches_have_nonempty_train(self):
+        """Every batch should select at least one train item."""
+        train = [DataItem(raw_text=f"fact {i}", question="", expected_answer="") for i in range(50)]
+        val = [DataItem(raw_text="", question=f"q{i}?", expected_answer=f"a{i}") for i in range(15)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm(dim=8)
+            batches = build_eval_batches(train, val, num_batches=3, train_budget_per_val=5)
+
+        for i, b in enumerate(batches):
+            assert len(b.train_indices) > 0, f"Batch {i} has no train items"
+            assert len(b.val_indices) > 0, f"Batch {i} has no val items"
