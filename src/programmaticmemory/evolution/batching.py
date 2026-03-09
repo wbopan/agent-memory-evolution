@@ -55,3 +55,43 @@ def _kmeans(vectors: np.ndarray, k: int, max_iter: int = 50, seed: int = 42) -> 
         centers = new_centers
 
     return labels
+
+
+def _select_train_subset(
+    val_embs: np.ndarray,
+    train_embs: np.ndarray,
+    budget: int,
+    threshold: float | None = None,
+) -> tuple[list[int], float]:
+    """Greedy facility location: select train items maximizing coverage of val items.
+
+    Args:
+        val_embs: (m, d) L2-normalized val embeddings.
+        train_embs: (N, d) L2-normalized train embeddings.
+        budget: Max number of train items to select.
+        threshold: Stop when marginal gain falls below this.
+
+    Returns:
+        (selected_indices, coverage) where coverage = mean max similarity.
+    """
+    if len(val_embs) == 0:
+        return [], 0.0
+
+    sim = val_embs @ train_embs.T  # (m, N)
+    current_max = np.full(len(val_embs), -np.inf)
+    selected: list[int] = []
+    mask = np.ones(sim.shape[1], dtype=bool)
+
+    for _ in range(min(budget, len(train_embs))):
+        gains = np.maximum(sim[:, mask] - current_max[:, None], 0).sum(axis=0)
+        if threshold is not None and gains.max() < threshold:
+            break
+        available_indices = np.where(mask)[0]
+        best_local = int(gains.argmax())
+        best = int(available_indices[best_local])
+        selected.append(best)
+        current_max = np.maximum(current_max, sim[:, best])
+        mask[best] = False
+
+    coverage = float(current_max.mean()) if selected else 0.0
+    return selected, coverage

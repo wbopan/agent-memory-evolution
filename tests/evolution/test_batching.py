@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from programmaticmemory.evolution.batching import _embed_texts, _kmeans
+from programmaticmemory.evolution.batching import _embed_texts, _kmeans, _select_train_subset
 
 
 class TestEmbedTexts:
@@ -96,3 +96,62 @@ class TestKMeans:
         labels1 = _kmeans(vectors, k=3, seed=42)
         labels2 = _kmeans(vectors, k=3, seed=42)
         np.testing.assert_array_equal(labels1, labels2)
+
+
+class TestFacilityLocation:
+    def test_selects_most_similar_first(self):
+        """First selected item should be the one with highest total similarity."""
+        val_embs = np.array([[1.0, 0.0], [0.0, 1.0]])
+        val_embs = val_embs / np.linalg.norm(val_embs, axis=1, keepdims=True)
+        train_embs = np.array(
+            [
+                [1.0, 0.0],
+                [0.0, 1.0],
+                [0.5, 0.5],
+            ]
+        )
+        train_embs = train_embs / np.linalg.norm(train_embs, axis=1, keepdims=True)
+
+        indices, coverage = _select_train_subset(val_embs, train_embs, budget=2)
+        assert len(indices) == 2
+        assert set(indices) == {0, 1}
+        assert coverage > 0.99
+
+    def test_budget_limits_selection(self):
+        """Selection stops at budget even if more items available."""
+        val_embs = np.array([[1.0, 0.0]])
+        val_embs = val_embs / np.linalg.norm(val_embs, axis=1, keepdims=True)
+        train_embs = np.random.RandomState(42).randn(10, 2)
+        train_embs = train_embs / np.linalg.norm(train_embs, axis=1, keepdims=True)
+
+        indices, _ = _select_train_subset(val_embs, train_embs, budget=3)
+        assert len(indices) == 3
+
+    def test_threshold_stops_early(self):
+        """With high threshold, stops before reaching budget."""
+        val_embs = np.array([[1.0, 0.0]])
+        val_embs = val_embs / np.linalg.norm(val_embs, axis=1, keepdims=True)
+        train_embs = np.array([[1.0, 0.0], [0.0, 1.0], [0.0, 1.0]])
+        train_embs = train_embs / np.linalg.norm(train_embs, axis=1, keepdims=True)
+
+        indices, _ = _select_train_subset(val_embs, train_embs, budget=3, threshold=0.5)
+        assert len(indices) == 1
+
+    def test_no_duplicates(self):
+        """Selected indices should have no duplicates."""
+        rng = np.random.RandomState(42)
+        val_embs = rng.randn(10, 8)
+        val_embs = val_embs / np.linalg.norm(val_embs, axis=1, keepdims=True)
+        train_embs = rng.randn(50, 8)
+        train_embs = train_embs / np.linalg.norm(train_embs, axis=1, keepdims=True)
+
+        indices, _ = _select_train_subset(val_embs, train_embs, budget=20)
+        assert len(indices) == len(set(indices))
+
+    def test_empty_val(self):
+        """Empty val set returns empty selection with 0 coverage."""
+        val_embs = np.zeros((0, 4))
+        train_embs = np.ones((5, 4))
+        indices, coverage = _select_train_subset(val_embs, train_embs, budget=3)
+        assert indices == []
+        assert coverage == 0.0
