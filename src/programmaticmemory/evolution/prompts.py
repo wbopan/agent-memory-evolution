@@ -2,9 +2,27 @@
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 
 from programmaticmemory.evolution.types import TrainExample
+
+
+def _sample_cases(cases: list[dict], k: int, seed: int) -> list[dict]:
+    """Weighted random sample of k cases, biased toward lower scores.
+
+    Uses Efraimidis-Spirakis algorithm: key_i = random()^(1/weight_i),
+    top-k by key. Weight = 1 - score, so lower scores are more likely.
+    """
+    if len(cases) <= k:
+        return cases
+    rng = random.Random(seed)
+    weights = [1.0 - case.get("score", 0.0) for case in cases]
+    # Efraimidis-Spirakis: key = u^(1/w), select top-k
+    keys = [rng.random() ** (1.0 / w) if w > 0 else 0.0 for w in weights]
+    indices = sorted(range(len(cases)), key=lambda i: keys[i], reverse=True)[:k]
+    # Preserve original order
+    return [cases[i] for i in sorted(indices)]
 
 
 @dataclass
@@ -187,8 +205,8 @@ def build_reflection_user_prompt(
     if config is None:
         config = ReflectionPromptConfig()
 
-    # Apply limits
-    limited_cases = failed_cases[: config.max_failed_cases]
+    # Apply limits — weighted random sample for failed cases (diversity)
+    limited_cases = _sample_cases(failed_cases, config.max_failed_cases, seed=iteration)
     limited_success = (success_cases or [])[: config.max_success_cases]
     limited_examples = (train_examples or [])[: config.max_train_examples]
 
@@ -276,7 +294,7 @@ Each case contains the full retrieval-and-answer conversation trajectory."""
 You are an expert Python programmer specializing in knowledge base system design.
 
 Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), \
-its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
 
 <interface_spec>
 {KB_INTERFACE_SPEC}
@@ -305,12 +323,12 @@ its evaluation score, and failed cases, identify the root cause of each failure 
 {train_section}{deduplicated_logs_section}{success_section}
 {failed_cases_header}
 
-<failed_cases>
+<underperforming_cases>
 {failed_section}
-</failed_cases>
+</underperforming_cases>
 
 <task>
-1. Diagnose why these cases fail.
+1. Diagnose why these cases scored low.
 2. Propose specific improvements to the Knowledge Base Program.
 3. Output your changes as a patch.
 </task>"""

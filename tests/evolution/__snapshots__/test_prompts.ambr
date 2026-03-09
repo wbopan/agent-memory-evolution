@@ -254,7 +254,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -356,7 +356,7 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   <case id="1">
   <question>q</question>
   <expected>a</expected>
@@ -364,140 +364,10 @@
   <score>0.0</score>
   </case>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
-  2. Propose specific improvements to the Knowledge Base Program.
-  3. Output your changes as a patch.
-  </task>
-  '''
-# ---
-# name: TestBuildReflectionUserPrompt.test_includes_all_cases
-  '''
-  You are an expert Python programmer specializing in knowledge base system design.
-  
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
-  
-  <interface_spec>
-  You are designing a Knowledge Base Program that implements three classes:
-  
-  1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
-     - Must be a @dataclass with typed fields
-     - An external LLM will populate instances by generating JSON matching your field definitions
-     - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
-     - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
-     - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
-  
-  2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
-     - Must be a @dataclass with typed fields
-     - An external LLM will populate instances by generating JSON matching your field definitions
-     - Same JSON-compatible type restriction and field description support as KnowledgeItem
-  
-  3. **KnowledgeBase** (class): The core knowledge base system.
-     - `__init__(self, toolkit)`: Receives a Toolkit with:
-       - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
-       - `toolkit.chroma`: chromadb ephemeral client
-       - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
-       - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
-     - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
-     - `read(self, query: Query) -> str`: Retrieve relevant information as a string
-  
-  Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
-  
-  ## Runtime Constraints
-  
-  These limits are enforced during evaluation. Violating them results in score = 0.
-  
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
-  - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
-  - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
-  
-  ## Instruction Constants (required)
-  
-  Four module-level string constants provide the natural-language instructions used in task agent prompts:
-  
-  - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
-  - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
-  - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
-  - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
-  
-  INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
-  
-  </interface_spec>
-  
-  <rules>
-  1. Output your diagnosis first, then your changes as a patch using the format below.
-  2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
-  3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
-  5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
-  </rules>
-  
-  <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
-  
-  Format:
-  ```
-  *** Begin Patch
-  *** Update File: program.py
-  @@ <optional context hint>
-   context line (1-2 lines before change)
-  -removed line
-  +added line
-   context line (1-2 lines after change)
-  *** End Patch
-  ```
-  
-  Rules:
-  - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
-  - Include 1-2 context lines before and after each change for anchoring.
-  - Multiple hunks are allowed within one `*** Update File` block.
-  
-  Example — replacing a return value:
-  ```
-  *** Begin Patch
-  *** Update File: program.py
-  @@ return statement
-   def read(self, query: Query) -> str:
-  -    return "\n".join(self.store)
-  +    return "\n".join(self.store[-5:])
-  *** End Patch
-  ```
-  </patch_format>
-  
-  <current_program iteration="1">
-  ```python
-  x
-  ```
-  </current_program>
-  
-  <evaluation_score>0.000</evaluation_score>
-  
-  
-  The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
-  
-  <failed_cases>
-  <case id="1">
-  <question>q0</question>
-  <expected>a0</expected>
-  <model_generation>wrong</model_generation>
-  <score>0.0</score>
-  </case>
-  
-  <case id="2">
-  <question>q1</question>
-  <expected>a1</expected>
-  <model_generation>wrong</model_generation>
-  <score>0.0</score>
-  </case>
-  
-  </failed_cases>
-  
-  <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -507,7 +377,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -609,12 +479,12 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -624,7 +494,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -726,7 +596,7 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   <case id="1">
   <question>What is X?</question>
   <expected>42</expected>
@@ -742,10 +612,10 @@
   </memory_logs>
   </case>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -755,7 +625,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -872,7 +742,7 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   <case id="1">
   <question>q_fail</question>
   <expected>a_fail</expected>
@@ -880,10 +750,10 @@
   <score>0.0</score>
   </case>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -893,7 +763,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1006,12 +876,12 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1021,7 +891,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1123,12 +993,142 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
+  2. Propose specific improvements to the Knowledge Base Program.
+  3. Output your changes as a patch.
+  </task>
+  '''
+# ---
+# name: TestBuildReflectionUserPrompt.test_samples_cases_when_exceeding_limit
+  '''
+  You are an expert Python programmer specializing in knowledge base system design.
+  
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  
+  <interface_spec>
+  You are designing a Knowledge Base Program that implements three classes:
+  
+  1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+     - Must be a @dataclass with typed fields
+     - An external LLM will populate instances by generating JSON matching your field definitions
+     - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+     - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+     - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+  
+  2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+     - Must be a @dataclass with typed fields
+     - An external LLM will populate instances by generating JSON matching your field definitions
+     - Same JSON-compatible type restriction and field description support as KnowledgeItem
+  
+  3. **KnowledgeBase** (class): The core knowledge base system.
+     - `__init__(self, toolkit)`: Receives a Toolkit with:
+       - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+       - `toolkit.chroma`: chromadb ephemeral client
+       - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+       - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+     - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+     - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+  
+  Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+  
+  ## Runtime Constraints
+  
+  These limits are enforced during evaluation. Violating them results in score = 0.
+  
+  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+  - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
+  
+  ## Instruction Constants (required)
+  
+  Four module-level string constants provide the natural-language instructions used in task agent prompts:
+  
+  - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+  - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+  - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+  - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+  
+  INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+  
+  </interface_spec>
+  
+  <rules>
+  1. Output your diagnosis first, then your changes as a patch using the format below.
+  2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+  3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
+  4. `read()` must return at most 1000 characters — do not return all stored text.
+  5. Keep it simple. Make minimal, targeted fixes.
+  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
+  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  </rules>
+  
+  <patch_format>
+  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  
+  Format:
+  ```
+  *** Begin Patch
+  *** Update File: program.py
+  @@ <optional context hint>
+   context line (1-2 lines before change)
+  -removed line
+  +added line
+   context line (1-2 lines after change)
+  *** End Patch
+  ```
+  
+  Rules:
+  - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+  - Include 1-2 context lines before and after each change for anchoring.
+  - Multiple hunks are allowed within one `*** Update File` block.
+  
+  Example — replacing a return value:
+  ```
+  *** Begin Patch
+  *** Update File: program.py
+  @@ return statement
+   def read(self, query: Query) -> str:
+  -    return "\n".join(self.store)
+  +    return "\n".join(self.store[-5:])
+  *** End Patch
+  ```
+  </patch_format>
+  
+  <current_program iteration="1">
+  ```python
+  x
+  ```
+  </current_program>
+  
+  <evaluation_score>0.000</evaluation_score>
+  
+  
+  The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
+  
+  <underperforming_cases>
+  <case id="1">
+  <question>q1</question>
+  <expected>a1</expected>
+  <model_generation>wrong</model_generation>
+  <score>0.0</score>
+  </case>
+  
+  <case id="2">
+  <question>q7</question>
+  <expected>a7</expected>
+  <model_generation>wrong</model_generation>
+  <score>0.0</score>
+  </case>
+  
+  </underperforming_cases>
+  
+  <task>
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1138,7 +1138,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1251,12 +1251,12 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1305,7 +1305,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1407,7 +1407,7 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   <case id="1">
   <question>q</question>
   <expected>a</expected>
@@ -1415,10 +1415,10 @@
   <score>0.0</score>
   </case>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1428,7 +1428,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1530,25 +1530,25 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   <case id="1">
-  <question>q0</question>
-  <expected>a0</expected>
-  <model_generation>wrong</model_generation>
-  <score>0.0</score>
-  </case>
-  
-  <case id="2">
   <question>q1</question>
   <expected>a1</expected>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
   
-  </failed_cases>
+  <case id="2">
+  <question>q7</question>
+  <expected>a7</expected>
+  <model_generation>wrong</model_generation>
+  <score>0.0</score>
+  </case>
+  
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1558,7 +1558,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1660,7 +1660,7 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   <case id="1">
   <question>q</question>
   <expected>a</expected>
@@ -1668,10 +1668,10 @@
   <score>0.0</score>
   </case>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1681,7 +1681,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1800,12 +1800,12 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>
@@ -1815,7 +1815,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1928,12 +1928,12 @@
   
   The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
   
-  <failed_cases>
+  <underperforming_cases>
   
-  </failed_cases>
+  </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases fail.
+  1. Diagnose why these cases scored low.
   2. Propose specific improvements to the Knowledge Base Program.
   3. Output your changes as a patch.
   </task>

@@ -6,6 +6,7 @@ from programmaticmemory.evolution.prompts import (
     INITIAL_KB_PROGRAM,
     KB_INTERFACE_SPEC,
     ReflectionPromptConfig,
+    _sample_cases,
     build_compile_fix_prompt,
     build_knowledge_item_generation_prompt,
     build_knowledge_item_with_feedback_prompt,
@@ -91,12 +92,12 @@ class TestBuildReflectionUserPrompt:
         assert "Query: What is X" in prompt
         assert prompt == snapshot
 
-    def test_includes_all_cases(self, snapshot: SnapshotAssertion):
+    def test_samples_cases_when_exceeding_limit(self, snapshot: SnapshotAssertion):
         cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
-        # Default max_failed_cases=2, so q0-q1 included, q2+ excluded
-        assert "q1" in prompt
-        assert "q2" not in prompt
+        # Default max_failed_cases=2 — weighted sampling selects exactly 2 from 10
+        case_count = prompt.count("<case id=")
+        assert case_count == 2
         assert prompt == snapshot
 
     def test_long_conversation_not_truncated(self):
@@ -208,9 +209,9 @@ class TestReflectionPromptConfig:
         cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         config = ReflectionPromptConfig(max_failed_cases=2)
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
-        assert "q0" in prompt
-        assert "q1" in prompt
-        assert "q2" not in prompt
+        # Weighted sampling selects exactly 2 from 10
+        case_count = prompt.count("<case id=")
+        assert case_count == 2
         assert prompt == snapshot
 
     def test_max_train_examples(self, snapshot: SnapshotAssertion):
@@ -346,6 +347,62 @@ class TestBuildKnowledgeItemWithFeedbackPrompt:
         assert "Ground truth" in prompt
         assert "42" in prompt
         assert prompt == snapshot
+
+
+class TestSampleCases:
+    def test_returns_all_when_fewer_than_k(self):
+        """When len(cases) <= k, return all cases unchanged."""
+        cases = [{"question": f"q{i}", "score": 0.0} for i in range(3)]
+        result = _sample_cases(cases, k=5, seed=42)
+        assert result == cases
+
+    def test_returns_k_cases(self):
+        """When len(cases) > k, return exactly k cases."""
+        cases = [{"question": f"q{i}", "score": 0.0} for i in range(10)]
+        result = _sample_cases(cases, k=3, seed=42)
+        assert len(result) == 3
+
+    def test_deterministic_with_same_seed(self):
+        """Same seed produces same selection."""
+        cases = [{"question": f"q{i}", "score": i / 10} for i in range(10)]
+        r1 = _sample_cases(cases, k=3, seed=42)
+        r2 = _sample_cases(cases, k=3, seed=42)
+        assert r1 == r2
+
+    def test_different_seeds_produce_different_selections(self):
+        """Different seeds can select different subsets from equal-weight pool."""
+        cases = [{"question": f"q{i}", "score": 0.0} for i in range(10)]
+        all_selected = set()
+        for seed in range(20):
+            result = _sample_cases(cases, k=2, seed=seed)
+            for case in result:
+                all_selected.add(case["question"])
+        # With 10 equal-weight cases and 20 different seeds, we should see diversity
+        assert len(all_selected) > 2
+
+    def test_low_scores_preferred(self):
+        """Over many seeds, score=0 cases appear more often than score=0.9 cases."""
+        cases = [{"question": f"hard_{i}", "score": 0.0} for i in range(5)]
+        cases += [{"question": f"easy_{i}", "score": 0.9} for i in range(5)]
+        hard_count = 0
+        easy_count = 0
+        for seed in range(200):
+            result = _sample_cases(cases, k=3, seed=seed)
+            for case in result:
+                if case["question"].startswith("hard"):
+                    hard_count += 1
+                else:
+                    easy_count += 1
+        # weight=1.0 vs weight=0.1 — hard cases should dominate
+        assert hard_count > easy_count * 3
+
+    def test_preserves_relative_order(self):
+        """Selected cases maintain their original order from the input list."""
+        cases = [{"question": f"q{i}", "score": 0.0} for i in range(10)]
+        result = _sample_cases(cases, k=3, seed=42)
+        # Extract indices of selected cases in the original list
+        indices = [cases.index(c) for c in result]
+        assert indices == sorted(indices)
 
 
 class TestBuildCompileFixPrompt:

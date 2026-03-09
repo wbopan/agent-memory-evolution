@@ -6,7 +6,7 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
@@ -108,25 +108,25 @@
           
           The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
           
-          <failed_cases>
+          <underperforming_cases>
           <case id="1">
-          <question>Question 1?</question>
-          <expected>right_1</expected>
-          <model_generation>wrong_1</model_generation>
-          <score>0.0</score>
-          </case>
-          
-          <case id="2">
           <question>Question 2?</question>
           <expected>right_2</expected>
           <model_generation>wrong_2</model_generation>
           <score>0.0</score>
           </case>
           
-          </failed_cases>
+          <case id="2">
+          <question>Question 3?</question>
+          <expected>right_3</expected>
+          <model_generation>wrong_3</model_generation>
+          <score>0.0</score>
+          </case>
+          
+          </underperforming_cases>
           
           <task>
-          1. Diagnose why these cases fail.
+          1. Diagnose why these cases scored low.
           2. Propose specific improvements to the Knowledge Base Program.
           3. Output your changes as a patch.
           </task>
@@ -142,7 +142,7 @@
       'content': '''
         You are an expert Python programmer specializing in knowledge base system design.
         
-        Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+        Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
         
         <interface_spec>
         You are designing a Knowledge Base Program that implements three classes:
@@ -244,12 +244,12 @@
         
         The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
         
-        <failed_cases>
+        <underperforming_cases>
         
-        </failed_cases>
+        </underperforming_cases>
         
         <task>
-        1. Diagnose why these cases fail.
+        1. Diagnose why these cases scored low.
         2. Propose specific improvements to the Knowledge Base Program.
         3. Output your changes as a patch.
         </task>
@@ -265,7 +265,7 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
@@ -367,7 +367,7 @@
           
           The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
           
-          <failed_cases>
+          <underperforming_cases>
           <case id="1">
           <question>What is X?</question>
           <expected>42</expected>
@@ -375,10 +375,10 @@
           <score>0.0</score>
           </case>
           
-          </failed_cases>
+          </underperforming_cases>
           
           <task>
-          1. Diagnose why these cases fail.
+          1. Diagnose why these cases scored low.
           2. Propose specific improvements to the Knowledge Base Program.
           3. Output your changes as a patch.
           </task>
@@ -395,7 +395,7 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
@@ -512,7 +512,7 @@
           
           The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
           
-          <failed_cases>
+          <underperforming_cases>
           <case id="1">
           <question>What is X?</question>
           <expected>42</expected>
@@ -520,10 +520,10 @@
           <score>0.0</score>
           </case>
           
-          </failed_cases>
+          </underperforming_cases>
           
           <task>
-          1. Diagnose why these cases fail.
+          1. Diagnose why these cases scored low.
           2. Propose specific improvements to the Knowledge Base Program.
           3. Output your changes as a patch.
           </task>
@@ -540,7 +540,7 @@
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
-          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+          Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
           
           <interface_spec>
           You are designing a Knowledge Base Program that implements three classes:
@@ -642,12 +642,12 @@
           
           The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
           
-          <failed_cases>
+          <underperforming_cases>
           
-          </failed_cases>
+          </underperforming_cases>
           
           <task>
-          1. Diagnose why these cases fail.
+          1. Diagnose why these cases scored low.
           2. Propose specific improvements to the Knowledge Base Program.
           3. Output your changes as a patch.
           </task>
@@ -663,7 +663,7 @@
       'content': '''
         You are an expert Python programmer specializing in knowledge base system design.
         
-        Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and failed cases, identify the root cause of each failure and improve the program.
+        Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
         
         <interface_spec>
         You are designing a Knowledge Base Program that implements three classes:
@@ -765,7 +765,7 @@
         
         The following cases show poor performance on the validation set after memory has been written (using the same write process shown in the write examples above). Each case contains the full retrieval-and-answer conversation trajectory.
         
-        <failed_cases>
+        <underperforming_cases>
         <case id="1">
         <question>q</question>
         <expected>right</expected>
@@ -773,10 +773,10 @@
         <score>0.0</score>
         </case>
         
-        </failed_cases>
+        </underperforming_cases>
         
         <task>
-        1. Diagnose why these cases fail.
+        1. Diagnose why these cases scored low.
         2. Propose specific improvements to the Knowledge Base Program.
         3. Output your changes as a patch.
         </task>

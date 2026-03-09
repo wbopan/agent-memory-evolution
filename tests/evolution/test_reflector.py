@@ -278,11 +278,9 @@ class KnowledgeBase:
         assert len(captured_messages) == 1
         messages = captured_messages[0]
         user_content = messages[0]["content"]
-        # Only 2 cases should appear (not 5 or 6)
-        assert "Question 1?" in user_content
-        assert "Question 2?" in user_content
-        assert "Question 3?" not in user_content
-        assert "Question 6?" not in user_content
+        # Weighted sampling selects exactly 2 from 6 (not all 6)
+        case_count = user_content.count("<case id=")
+        assert case_count == 2
         assert captured_messages == snapshot
 
     @patch("programmaticmemory.evolution.reflector.litellm")
