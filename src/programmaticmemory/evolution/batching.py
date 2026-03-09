@@ -95,3 +95,62 @@ def _select_train_subset(
 
     coverage = float(current_max.mean()) if selected else 0.0
     return selected, coverage
+
+
+def _balance_clusters(
+    labels: np.ndarray,
+    vectors: np.ndarray,
+    centers: np.ndarray,
+    target_size: int,
+) -> list[list[int]]:
+    """Balance K-means clusters to target_size items each.
+
+    Oversized clusters keep items closest to centroid.
+    Undersized clusters fill from unassigned pool (nearest to centroid).
+    Last cluster absorbs remainder when n % k != 0.
+
+    Returns:
+        List of K lists of original indices.
+    """
+    k = len(centers)
+
+    # Sort each cluster by similarity to centroid (highest first)
+    raw_clusters: list[list[int]] = [[] for _ in range(k)]
+    for idx, label in enumerate(labels):
+        raw_clusters[label].append(idx)
+
+    for i in range(k):
+        members = raw_clusters[i]
+        if len(members) > 1:
+            sims = vectors[members] @ centers[i]
+            order = np.argsort(-sims)
+            raw_clusters[i] = [members[j] for j in order]
+
+    # Phase 1: trim oversized, collect surplus
+    balanced: list[list[int]] = [[] for _ in range(k)]
+    pool: list[int] = []
+    for i in range(k):
+        if i == k - 1:
+            balanced[i] = raw_clusters[i]
+        elif len(raw_clusters[i]) > target_size:
+            balanced[i] = raw_clusters[i][:target_size]
+            pool.extend(raw_clusters[i][target_size:])
+        else:
+            balanced[i] = raw_clusters[i]
+
+    # Phase 2: fill undersized from pool
+    for i in range(k - 1):
+        deficit = target_size - len(balanced[i])
+        if deficit > 0 and pool:
+            pool_sims = vectors[pool] @ centers[i]
+            order = np.argsort(-pool_sims)
+            fill_count = min(deficit, len(pool))
+            fill_indices = [pool[order[j]] for j in range(fill_count)]
+            balanced[i].extend(fill_indices)
+            fill_set = set(fill_indices)
+            pool = [p for p in pool if p not in fill_set]
+
+    # Remaining pool to last cluster
+    balanced[k - 1] = balanced[k - 1] + pool
+
+    return balanced

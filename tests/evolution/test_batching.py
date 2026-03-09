@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from programmaticmemory.evolution.batching import _embed_texts, _kmeans, _select_train_subset
+from programmaticmemory.evolution.batching import _balance_clusters, _embed_texts, _kmeans, _select_train_subset
 
 
 class TestEmbedTexts:
@@ -155,3 +155,72 @@ class TestFacilityLocation:
         indices, coverage = _select_train_subset(val_embs, train_embs, budget=3)
         assert indices == []
         assert coverage == 0.0
+
+
+class TestBalanceClusters:
+    def test_already_balanced(self):
+        """Clusters already the right size are unchanged."""
+        labels = np.array([0, 0, 1, 1])
+        vectors = np.array([[1, 0], [0.9, 0.1], [0, 1], [0.1, 0.9]], dtype=np.float64)
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        centers = np.array([[1, 0], [0, 1]], dtype=np.float64)
+        centers = centers / np.linalg.norm(centers, axis=1, keepdims=True)
+
+        clusters = _balance_clusters(labels, vectors, centers, target_size=2)
+        assert len(clusters) == 2
+        assert all(len(c) == 2 for c in clusters)
+        all_indices = sorted(idx for c in clusters for idx in c)
+        assert all_indices == [0, 1, 2, 3]
+
+    def test_oversized_cluster_trimmed(self):
+        """Oversized cluster keeps items closest to centroid."""
+        labels = np.array([0, 0, 0, 1])
+        vectors = np.array(
+            [
+                [1.0, 0.0],
+                [0.95, 0.05],
+                [0.5, 0.5],
+                [0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        centers = np.array([[1, 0], [0, 1]], dtype=np.float64)
+        centers = centers / np.linalg.norm(centers, axis=1, keepdims=True)
+
+        clusters = _balance_clusters(labels, vectors, centers, target_size=2)
+        assert len(clusters[0]) == 2
+        assert 2 not in clusters[0]
+
+    def test_undersized_cluster_filled(self):
+        """Undersized cluster gets filled from unassigned items."""
+        labels = np.array([0, 0, 0, 1])
+        vectors = np.array(
+            [
+                [1.0, 0.0],
+                [0.95, 0.05],
+                [0.5, 0.5],
+                [0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        centers = np.array([[1, 0], [0, 1]], dtype=np.float64)
+        centers = centers / np.linalg.norm(centers, axis=1, keepdims=True)
+
+        clusters = _balance_clusters(labels, vectors, centers, target_size=2)
+        assert len(clusters[1]) == 2
+        all_indices = sorted(idx for c in clusters for idx in c)
+        assert all_indices == [0, 1, 2, 3]
+
+    def test_remainder_goes_to_last_batch(self):
+        """When n % k != 0, last cluster gets the remainder."""
+        labels = np.array([0, 0, 1, 1, 2])
+        vectors = np.random.RandomState(42).randn(5, 3)
+        vectors = vectors / np.linalg.norm(vectors, axis=1, keepdims=True)
+        centers = np.random.RandomState(42).randn(3, 3)
+        centers = centers / np.linalg.norm(centers, axis=1, keepdims=True)
+
+        clusters = _balance_clusters(labels, vectors, centers, target_size=2)
+        sizes = [len(c) for c in clusters]
+        assert sum(sizes) == 5
