@@ -6,7 +6,15 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 
-from programmaticmemory.evolution.batching import _balance_clusters, _embed_texts, _kmeans, _select_train_subset
+from programmaticmemory.evolution.batching import (
+    EvalBatch,
+    _balance_clusters,
+    _embed_texts,
+    _kmeans,
+    _select_train_subset,
+    build_eval_batches,
+)
+from programmaticmemory.evolution.types import DataItem
 
 
 class TestEmbedTexts:
@@ -224,3 +232,99 @@ class TestBalanceClusters:
         clusters = _balance_clusters(labels, vectors, centers, target_size=2)
         sizes = [len(c) for c in clusters]
         assert sum(sizes) == 5
+
+
+def _make_mock_litellm(dim: int = 4):
+    """Create a mock litellm that returns deterministic embeddings based on text hash."""
+
+    def fake_embedding(**kwargs):
+        resp = MagicMock()
+        embeddings = []
+        for text in kwargs["input"]:
+            rng = np.random.RandomState(hash(text) % (2**31))
+            vec = rng.randn(dim)
+            vec = vec / np.linalg.norm(vec)
+            embeddings.append({"embedding": vec.tolist()})
+        resp.data = embeddings
+        return resp
+
+    return fake_embedding
+
+
+class TestBuildEvalBatches:
+    def test_returns_correct_number_of_batches(self):
+        train = [DataItem(raw_text=f"fact {i}", question="", expected_answer="") for i in range(20)]
+        val = [DataItem(raw_text="", question=f"q{i}?", expected_answer=f"a{i}") for i in range(10)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm()
+            batches = build_eval_batches(train, val, num_batches=2)
+
+        assert len(batches) == 2
+        assert all(isinstance(b, EvalBatch) for b in batches)
+
+    def test_val_indices_cover_all_items(self):
+        """Every val item appears in exactly one batch."""
+        train = [DataItem(raw_text=f"fact {i}", question="", expected_answer="") for i in range(30)]
+        val = [DataItem(raw_text="", question=f"q{i}?", expected_answer=f"a{i}") for i in range(12)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm()
+            batches = build_eval_batches(train, val, num_batches=3)
+
+        all_val = sorted(idx for b in batches for idx in b.val_indices)
+        assert all_val == list(range(12))
+
+    def test_train_indices_within_bounds(self):
+        train = [DataItem(raw_text=f"fact {i}", question="", expected_answer="") for i in range(15)]
+        val = [DataItem(raw_text="", question=f"q{i}?", expected_answer=f"a{i}") for i in range(6)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm()
+            batches = build_eval_batches(train, val, num_batches=2)
+
+        for b in batches:
+            assert all(0 <= idx < 15 for idx in b.train_indices)
+
+    def test_coverage_is_positive(self):
+        train = [DataItem(raw_text=f"fact {i}", question="", expected_answer="") for i in range(20)]
+        val = [DataItem(raw_text="", question=f"q{i}?", expected_answer=f"a{i}") for i in range(10)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm()
+            batches = build_eval_batches(train, val, num_batches=2)
+
+        for b in batches:
+            assert b.coverage > 0.0
+
+    def test_online_pipeline_uses_question_for_train(self):
+        """When raw_text is empty, train embedding uses item.question."""
+        train = [DataItem(raw_text="", question=f"train_q{i}?", expected_answer=f"a{i}") for i in range(5)]
+        val = [DataItem(raw_text="", question=f"val_q{i}?", expected_answer=f"a{i}") for i in range(4)]
+
+        captured_inputs: list[list[str]] = []
+
+        def capturing_embedding(**kwargs):
+            captured_inputs.append(kwargs["input"])
+            resp = MagicMock()
+            resp.data = [{"embedding": [1.0, 0.0, 0.0, 0.0]} for _ in kwargs["input"]]
+            return resp
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = capturing_embedding
+            build_eval_batches(train, val, num_batches=2)
+
+        # First call should be train texts (questions since raw_text is empty)
+        assert all("train_q" in t for t in captured_inputs[0])
+
+    def test_single_batch(self):
+        """num_batches=1 returns one batch with all val items."""
+        train = [DataItem(raw_text=f"f{i}", question="", expected_answer="") for i in range(5)]
+        val = [DataItem(raw_text="", question=f"q{i}?", expected_answer=f"a{i}") for i in range(3)]
+
+        with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
+            mock_litellm.embedding.side_effect = _make_mock_litellm()
+            batches = build_eval_batches(train, val, num_batches=1)
+
+        assert len(batches) == 1
+        assert sorted(batches[0].val_indices) == [0, 1, 2]
