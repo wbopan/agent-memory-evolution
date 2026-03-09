@@ -93,6 +93,18 @@ def main() -> None:
         default=_default_seed_dir,
         help=f"Directory of .py seed programs to use as initial population (default: {_default_seed_dir})",
     )
+    parser.add_argument(
+        "--num-batches",
+        type=int,
+        default=0,
+        help="Number of co-selected eval batches (0 = disabled, default: 0)",
+    )
+    parser.add_argument(
+        "--batch-index",
+        type=int,
+        default=0,
+        help="Which batch to use (0-indexed, default: 0)",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -107,6 +119,33 @@ def main() -> None:
     dataset = load_dataset(
         args.dataset, category=args.category, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs
     )
+
+    # Apply co-selected batching if requested
+    _batch_info = None
+    if args.num_batches > 0:
+        if args.batch_index >= args.num_batches:
+            print(
+                f"Error: --batch-index {args.batch_index} must be < --num-batches {args.num_batches}",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        from programmaticmemory.evolution.batching import build_eval_batches
+
+        batches = build_eval_batches(
+            dataset.train,
+            dataset.val,
+            num_batches=args.num_batches,
+        )
+        batch = batches[args.batch_index]
+        _batch_info = {
+            "index": args.batch_index,
+            "total": args.num_batches,
+            "train_size": len(batch.train_indices),
+            "val_size": len(batch.val_indices),
+            "coverage": batch.coverage,
+        }
+        dataset.train = [dataset.train[i] for i in batch.train_indices]
+        dataset.val = [dataset.val[i] for i in batch.val_indices]
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
 
@@ -127,6 +166,13 @@ def main() -> None:
         logger.log(f"Category: {args.category}", header="CONFIG")
     elif dataset.available_categories:
         logger.log(f"Available categories: {', '.join(dataset.available_categories)}", header="CONFIG")
+    if _batch_info:
+        logger.log(
+            f"Using batch {_batch_info['index']}/{_batch_info['total']}: "
+            f"train={_batch_info['train_size']}, val={_batch_info['val_size']}, "
+            f"coverage={_batch_info['coverage']:.4f}",
+            header="CONFIG",
+        )
     if output_manager:
         logger.log(f"Output directory: {output_manager.run_dir}", header="CONFIG")
 
