@@ -17,7 +17,7 @@ _EVIDENCE_RE = re.compile(r"^D(\d+):(\d+)$")
 @register_dataset("mini_locomo")
 def load_mini_locomo(
     *,
-    num_val: int = 10,
+    num_val: int | None = None,
     categories: tuple[int, ...] = (1, 2, 3, 4),
     seed: int = 42,
     data_dir: str | Path | None = None,
@@ -81,6 +81,6 @@ def load_mini_locomo(
 
     rng2 = random.Random(seed)
     rng2.shuffle(eligible)
-    val = eligible[:num_val]
+    val = eligible[:num_val] if num_val is not None else eligible
 
     return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer())

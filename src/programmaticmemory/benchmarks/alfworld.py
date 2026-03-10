@@ -462,7 +462,7 @@ class ALFWorldValScorer:
 @register_dataset("alfworld")
 def load_alfworld(
     *,
-    num_train: int = 50,
+    num_train: int | None = None,
     num_val: int | None = None,
     category: str | None = None,
     seed: int = 42,
@@ -516,7 +516,7 @@ def load_alfworld(
     rng.shuffle(train_items)
     rng.shuffle(val_items)
 
-    train = train_items[:num_train]
+    train = train_items[:num_train] if num_train is not None else train_items
     val = val_items[:num_val] if num_val is not None else val_items
 
     # Only use env scorer if alfworld is available
