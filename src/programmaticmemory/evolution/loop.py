@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import weave
 
+from programmaticmemory.evolution.batching import EvalBatch
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.types import (
+    DataItem,
     Dataset,
     EvolutionRecord,
     EvolutionState,
@@ -50,6 +52,7 @@ class EvolutionLoop:
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
         output_manager: RunOutputManager | None = None,
+        batches: list[EvalBatch] | None = None,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -60,7 +63,18 @@ class EvolutionLoop:
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
+        self.batches = batches
         self.logger = get_logger()
+
+    def _select_batch(self, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
+        """Select (train, val) subset for the given iteration."""
+        ds = self.dataset
+        if self.batches is None:
+            return ds.train, ds.val
+        batch = self.batches[iteration % len(self.batches)]
+        train = [ds.train[i] for i in batch.train_indices]
+        val = [ds.val[i] for i in batch.val_indices]
+        return train, val
 
     @weave.op()
     def run(self) -> EvolutionState:
@@ -68,13 +82,15 @@ class EvolutionLoop:
         ds = self.dataset
         pool = ProgramPool(strategy=self.strategy)
 
+        batch_info = f", batches={len(self.batches)}" if self.batches else ""
         self.logger.log(
             f"Starting evolution: max_iter={self.max_iterations}, seeds={len(self.initial_programs)}, "
-            f"train={len(ds.train)}, val={len(ds.val)}, strategy={pool.strategy!r}",
+            f"train={len(ds.train)}, val={len(ds.val)}, strategy={pool.strategy!r}{batch_info}",
             header="EVOLUTION",
         )
 
         # Evaluate all seed programs
+        train, val = self._select_batch(0)
         seed_eval_results = []
         for idx, seed in enumerate(self.initial_programs):
             seed_name = f"seed_{idx}"
@@ -84,7 +100,7 @@ class EvolutionLoop:
                 f"Evaluating seed {idx + 1}/{len(self.initial_programs)} (hash={seed.hash})",
                 header="EVOLUTION",
             )
-            eval_result = self.evaluator.evaluate(seed, ds.train, ds.val)
+            eval_result = self.evaluator.evaluate(seed, train, val)
             pool.add(seed, eval_result, name=seed_name)
             seed_eval_results.append(eval_result)
             self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
@@ -141,13 +157,19 @@ class EvolutionLoop:
                 continue
 
             # Evaluate child
+            train, val = self._select_batch(i)
+            if self.batches is not None:
+                self.logger.log(
+                    f"Using batch {i % len(self.batches)}/{len(self.batches)} (train={len(train)}, val={len(val)})",
+                    header="EVOLUTION",
+                )
             if self.output_manager:
                 self.output_manager.set_phase(i, "train")
             self.logger.log(
                 f"Evaluating child program (gen={child.generation}, hash={child.hash})",
                 header="EVOLUTION",
             )
-            child_result = self.evaluator.evaluate(child, ds.train, ds.val)
+            child_result = self.evaluator.evaluate(child, train, val)
 
             # Runtime violation fix loop
             for _fix_attempt in range(self.reflector.max_fix_attempts):
@@ -166,7 +188,7 @@ class EvolutionLoop:
                     generation=parent.generation + 1,
                     parent_hash=parent.hash,
                 )
-                child_result = self.evaluator.evaluate(child, ds.train, ds.val)
+                child_result = self.evaluator.evaluate(child, train, val)
 
             child_score = child_result.score
 
