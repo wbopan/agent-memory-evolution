@@ -148,6 +148,24 @@ class SoftmaxSelection:
         return f"SoftmaxSelection(T={self.temperature})"
 
 
+class RecencyDecaySelection:
+    """Roughly uniform selection with exponential decay on older generations."""
+
+    def __init__(self, decay_rate: float = 0.8) -> None:
+        if not 0 < decay_rate <= 1:
+            raise ValueError(f"decay_rate must be in (0, 1], got {decay_rate}")
+        self.decay_rate = decay_rate
+
+    def weights(self, entries: list[PoolEntry]) -> list[float]:
+        return [self.decay_rate**e.program.generation for e in entries]
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry:
+        return random.choices(entries, weights=self.weights(entries), k=1)[0]
+
+    def __repr__(self) -> str:
+        return f"RecencyDecaySelection(decay={self.decay_rate})"
+
+
 class ProgramPool:
     """Unbounded pool of evaluated programs with softmax parent selection."""
 

@@ -325,3 +325,57 @@ class TestSoftmaxSelection:
 
         strategy = SoftmaxSelection(temperature=0.15)
         assert repr(strategy) == "SoftmaxSelection(T=0.15)"
+
+
+class TestRecencyDecaySelection:
+    def test_weights_decay_by_generation(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        strategy = RecencyDecaySelection(decay_rate=0.8)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="old", generation=5), eval_result=EvalResult(score=0.9)),
+            PoolEntry(program=KBProgram(source_code="new", generation=0), eval_result=EvalResult(score=0.1)),
+        ]
+        weights = strategy.weights(entries)
+        assert weights[1] > weights[0]  # newer has higher weight despite lower score
+
+    def test_weights_ignore_score(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        strategy = RecencyDecaySelection(decay_rate=0.8)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a", generation=2), eval_result=EvalResult(score=0.9)),
+            PoolEntry(program=KBProgram(source_code="b", generation=2), eval_result=EvalResult(score=0.1)),
+        ]
+        weights = strategy.weights(entries)
+        assert weights[0] == weights[1]
+
+    def test_weights_values(self):
+        import math
+
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        strategy = RecencyDecaySelection(decay_rate=0.8)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a", generation=0), eval_result=EvalResult(score=0.5)),
+            PoolEntry(program=KBProgram(source_code="b", generation=3), eval_result=EvalResult(score=0.5)),
+        ]
+        weights = strategy.weights(entries)
+        assert math.isclose(weights[0], 1.0)
+        assert math.isclose(weights[1], 0.8**3)
+
+    def test_sample_returns_pool_entry(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        strategy = RecencyDecaySelection(decay_rate=0.8)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a", generation=0), eval_result=EvalResult(score=0.5)),
+        ]
+        result = strategy.sample(entries)
+        assert isinstance(result, PoolEntry)
+
+    def test_repr(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        strategy = RecencyDecaySelection(decay_rate=0.8)
+        assert repr(strategy) == "RecencyDecaySelection(decay=0.8)"
