@@ -111,6 +111,12 @@ def main() -> None:
         default=0,
         help="Number of co-selected eval batches (0 = disabled, default: 0)",
     )
+    parser.add_argument(
+        "--batch-train-val-ratio",
+        type=int,
+        default=5,
+        help="Train budget per val item in each eval batch (default: 5)",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -136,6 +142,7 @@ def main() -> None:
             dataset.train,
             dataset.val,
             num_batches=args.num_batches,
+            batch_train_val_ratio=args.batch_train_val_ratio,
         )
         _batches = batches_list
         _batch_info = {

@@ -174,7 +174,7 @@ def build_eval_batches(
     train_data: list[DataItem],
     val_data: list[DataItem],
     num_batches: int = 10,
-    train_budget_per_val: int = 5,
+    batch_train_val_ratio: int = 5,
     coverage_threshold: float | None = None,
     embedding_model: str = "openrouter/baai/bge-m3",
 ) -> list[EvalBatch]:
@@ -189,7 +189,7 @@ def build_eval_batches(
 
     logger.log(
         f"Building {k} eval batches: train={len(train_data)}, val={len(val_data)}, "
-        f"target_val_per_batch={target_m}, train_budget_per_val={train_budget_per_val}, "
+        f"target_val_per_batch={target_m}, batch_train_val_ratio={batch_train_val_ratio}, "
         f"model={embedding_model}",
         header="BATCH",
     )
@@ -227,7 +227,7 @@ def build_eval_batches(
     # Step 3: Facility location for each cluster
     batches: list[EvalBatch] = []
     for i, val_indices in enumerate(clusters):
-        budget = train_budget_per_val * len(val_indices)
+        budget = batch_train_val_ratio * len(val_indices)
         cluster_val_embs = val_embs[val_indices]
         train_indices, coverage = _select_train_subset(
             cluster_val_embs, train_embs, budget=budget, threshold=coverage_threshold
