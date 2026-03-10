@@ -1,5 +1,6 @@
 """Tests for benchmark datasets."""
 
+import importlib.util
 import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -546,6 +547,10 @@ class TestALFWorldValScorer:
     level to avoid spawning real processes.
     """
 
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("textworld"),
+        reason="textworld not installed (Linux only)",
+    )
     def test_run_episode_success(self):
         """_run_episode returns score 1.0 when episode completes with reward."""
         from programmaticmemory.benchmarks.alfworld import _run_episode
@@ -561,20 +566,31 @@ class TestALFWorldValScorer:
                 self.step_count += 1
                 if self.step_count >= 2:
                     return ("Task complete.",), (1.0,), (True,), ({"admissible_commands": [[]]},)
-                return ("You see a desk.",), (0.0,), (False,), ({"admissible_commands": [["take lamp", "go to shelf 1"]]},)
+                return (
+                    ("You see a desk.",),
+                    (0.0,),
+                    (False,),
+                    ({"admissible_commands": [["take lamp", "go to shelf 1"]]},),
+                )
 
             def close(self):
                 pass
 
         mock_env = MockEnv()
-        with patch("textworld.gym.register_games", return_value="fake-env-id"), \
-             patch("textworld.gym.make", return_value=mock_env), \
-             patch("programmaticmemory.benchmarks.alfworld._select_action", side_effect=["go to desk 1", "take lamp"]):
+        with (
+            patch("textworld.gym.register_games", return_value="fake-env-id"),
+            patch("textworld.gym.make", return_value=mock_env),
+            patch("programmaticmemory.benchmarks.alfworld._select_action", side_effect=["go to desk 1", "take lamp"]),
+        ):
             transcript, score = _run_episode("/fake/game.tw-pddl", "Find lamp", "tips", "mock/model", 50)
 
         assert score == 1.0
         assert "ACTION: go to desk 1" in transcript
 
+    @pytest.mark.skipif(
+        not importlib.util.find_spec("textworld"),
+        reason="textworld not installed (Linux only)",
+    )
     def test_run_episode_failure_returns_zero(self):
         """_run_episode returns score 0.0 when max_steps exhausted."""
         from programmaticmemory.benchmarks.alfworld import _run_episode
@@ -589,9 +605,11 @@ class TestALFWorldValScorer:
             def close(self):
                 pass
 
-        with patch("textworld.gym.register_games", return_value="fake-env-id"), \
-             patch("textworld.gym.make", return_value=NeverDoneEnv()), \
-             patch("programmaticmemory.benchmarks.alfworld._select_action", return_value="look"):
+        with (
+            patch("textworld.gym.register_games", return_value="fake-env-id"),
+            patch("textworld.gym.make", return_value=NeverDoneEnv()),
+            patch("programmaticmemory.benchmarks.alfworld._select_action", return_value="look"),
+        ):
             _transcript, score = _run_episode("/fake/game.tw-pddl", "Do something", "tips", "mock/model", 3)
 
         assert score == 0.0
@@ -662,9 +680,10 @@ class TestALFWorldValScorer:
         # Use ThreadPoolExecutor so the _run_episode mock is visible in the same process.
         import concurrent.futures
 
-        with patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor), \
-             patch("programmaticmemory.benchmarks.alfworld._run_episode",
-                   return_value=("transcript", 1.0)) as mock_run:
+        with (
+            patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor),
+            patch("programmaticmemory.benchmarks.alfworld._run_episode", return_value=("transcript", 1.0)) as mock_run,
+        ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 
         assert len(results) == 2
@@ -683,9 +702,10 @@ class TestALFWorldValScorer:
 
         import concurrent.futures
 
-        with patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor), \
-             patch("programmaticmemory.benchmarks.alfworld._run_episode",
-                   side_effect=RuntimeError("env crashed")):
+        with (
+            patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor),
+            patch("programmaticmemory.benchmarks.alfworld._run_episode", side_effect=RuntimeError("env crashed")),
+        ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 
         assert len(results) == 1
