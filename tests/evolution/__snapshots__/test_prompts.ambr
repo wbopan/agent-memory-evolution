@@ -254,7 +254,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -309,8 +309,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -367,8 +368,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -377,7 +380,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -432,8 +435,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -484,8 +488,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -494,7 +500,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -549,8 +555,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -615,8 +622,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -625,7 +634,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -680,8 +689,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -753,8 +763,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -763,7 +775,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -818,8 +830,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -881,8 +894,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -891,7 +906,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -946,8 +961,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -998,8 +1014,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1008,7 +1026,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1063,8 +1081,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1128,8 +1147,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1138,7 +1159,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1193,8 +1214,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1256,8 +1278,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1305,7 +1329,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1360,8 +1384,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1418,8 +1443,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1428,7 +1455,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1483,8 +1510,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1548,8 +1576,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1558,7 +1588,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1613,8 +1643,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1671,8 +1702,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1681,7 +1714,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1736,8 +1769,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1805,8 +1839,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
@@ -1815,7 +1851,7 @@
   '''
   You are an expert Python programmer specializing in knowledge base system design.
   
-  Your task: Given a Knowledge Base Program (Python code defining KnowledgeItem, Query, and KnowledgeBase classes), its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program.
+  Your task: Given a Knowledge Base Program, its evaluation score, and underperforming cases, identify the root cause of each low score and improve the program. Improvements are two-fold: (A) **Prompt Optimization** — tune the four instruction constants (especially ALWAYS_ON_KNOWLEDGE) to steer the task agent's behavior, and (B) **Memory Design** — improve the KnowledgeItem/Query schemas and KnowledgeBase storage/retrieval logic. Both dimensions matter and should be considered together.
   
   <interface_spec>
   You are designing a Knowledge Base Program that implements three classes:
@@ -1870,8 +1906,9 @@
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
   4. `read()` must return at most 1000 characters — do not return all stored text.
   5. Keep it simple. Make minimal, targeted fixes.
-  6. Update INSTRUCTION_* to steer task LLM output format. Update ALWAYS_ON_KNOWLEDGE with persistent knowledge the task agent should always have.
-  7. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
+  6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
+  7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
+  8. Add clear comments explaining WHY each part of the code works the way it does — this helps future iterations understand and preserve your design decisions.
   </rules>
   
   <patch_format>
@@ -1933,8 +1970,10 @@
   </underperforming_cases>
   
   <task>
-  1. Diagnose why these cases scored low.
-  2. Propose specific improvements to the Knowledge Base Program.
+  1. Diagnose why these cases scored low — examine both the retrieval conversation AND the <model_generation> transcript for agent behavioral issues.
+  2. Propose improvements along two dimensions:
+     (A) **Prompt Optimization**: How should INSTRUCTION_* and ALWAYS_ON_KNOWLEDGE change to steer the task agent better?
+     (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
   3. Output your changes as a patch.
   </task>
   '''
