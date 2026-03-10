@@ -26,6 +26,7 @@ from programmaticmemory.evolution.types import (
     EvolutionState,
     FailedCase,
     KBProgram,
+    MaxSelection,
     PoolEntry,
     ProgramPool,
     RecencyDecaySelection,

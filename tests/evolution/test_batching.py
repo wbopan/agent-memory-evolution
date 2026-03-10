@@ -352,7 +352,7 @@ class TestBuildEvalBatchesIntegration:
 
         with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
             mock_litellm.embedding.side_effect = _make_mock_litellm(dim=8)
-            batches = build_eval_batches(train, val, num_batches=2, train_budget_per_val=3)
+            batches = build_eval_batches(train, val, num_batches=2, batch_train_val_ratio=3)
 
         assert len(batches) == 2
         total_val = sum(len(b.val_indices) for b in batches)
@@ -386,7 +386,7 @@ class TestBuildEvalBatchesIntegration:
 
         with patch("programmaticmemory.evolution.batching.litellm") as mock_litellm:
             mock_litellm.embedding.side_effect = _make_mock_litellm(dim=8)
-            batches = build_eval_batches(train, val, num_batches=3, train_budget_per_val=5)
+            batches = build_eval_batches(train, val, num_batches=3, batch_train_val_ratio=5)
 
         for i, b in enumerate(batches):
             assert len(b.train_indices) > 0, f"Batch {i} has no train items"

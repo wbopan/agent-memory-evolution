@@ -18,7 +18,7 @@ from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.sandbox import smoke_test
 from programmaticmemory.evolution.toolkit import ToolkitConfig
-from programmaticmemory.evolution.types import KBProgram, RecencyDecaySelection, SoftmaxSelection
+from programmaticmemory.evolution.types import KBProgram, MaxSelection, RecencyDecaySelection, SoftmaxSelection
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.run_output import RunOutputManager
 
@@ -81,7 +81,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--selection-strategy",
-        choices=["softmax", "recency_decay"],
+        choices=["softmax", "recency_decay", "max"],
         default="softmax",
         help="Parent selection strategy (default: softmax)",
     )
@@ -215,6 +215,8 @@ def main() -> None:
     # Build selection strategy
     if args.selection_strategy == "recency_decay":
         strategy = RecencyDecaySelection(decay_rate=args.selection_recency_decay_rate)
+    elif args.selection_strategy == "max":
+        strategy = MaxSelection()
     else:
         strategy = SoftmaxSelection(temperature=args.selection_softmax_temperature)
 

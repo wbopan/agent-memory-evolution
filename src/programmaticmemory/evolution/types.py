@@ -166,6 +166,22 @@ class RecencyDecaySelection:
         return f"RecencyDecaySelection(decay={self.decay_rate})"
 
 
+class MaxSelection:
+    """Always select the highest-scoring entry."""
+
+    def weights(self, entries: list[PoolEntry]) -> list[float]:
+        max_score = max(e.score for e in entries)
+        return [1.0 if e.score == max_score else 0.0 for e in entries]
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry:
+        max_score = max(e.score for e in entries)
+        best = [e for e in entries if e.score == max_score]
+        return random.choice(best)
+
+    def __repr__(self) -> str:
+        return "MaxSelection()"
+
+
 class ProgramPool:
     """Unbounded pool of evaluated programs with pluggable parent selection."""
 

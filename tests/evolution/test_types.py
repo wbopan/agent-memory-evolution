@@ -292,6 +292,52 @@ class TestSoftmaxSelection:
         assert repr(strategy) == "SoftmaxSelection(T=0.15)"
 
 
+class TestMaxSelection:
+    def test_always_selects_highest_score(self):
+        from programmaticmemory.evolution.types import MaxSelection
+
+        strategy = MaxSelection()
+        entries = [
+            PoolEntry(program=KBProgram(source_code="weak"), eval_result=EvalResult(score=0.2)),
+            PoolEntry(program=KBProgram(source_code="best"), eval_result=EvalResult(score=0.8)),
+            PoolEntry(program=KBProgram(source_code="mid"), eval_result=EvalResult(score=0.5)),
+        ]
+        # Should always return the best, every time
+        for _ in range(10):
+            result = strategy.sample(entries)
+            assert result.program.source_code == "best"
+
+    def test_weights_are_zero_except_max(self):
+        from programmaticmemory.evolution.types import MaxSelection
+
+        strategy = MaxSelection()
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a"), eval_result=EvalResult(score=0.3)),
+            PoolEntry(program=KBProgram(source_code="b"), eval_result=EvalResult(score=0.9)),
+            PoolEntry(program=KBProgram(source_code="c"), eval_result=EvalResult(score=0.5)),
+        ]
+        weights = strategy.weights(entries)
+        assert weights == [0.0, 1.0, 0.0]
+
+    def test_ties_give_equal_weight(self):
+        from programmaticmemory.evolution.types import MaxSelection
+
+        strategy = MaxSelection()
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a"), eval_result=EvalResult(score=0.8)),
+            PoolEntry(program=KBProgram(source_code="b"), eval_result=EvalResult(score=0.8)),
+            PoolEntry(program=KBProgram(source_code="c"), eval_result=EvalResult(score=0.3)),
+        ]
+        weights = strategy.weights(entries)
+        assert weights == [1.0, 1.0, 0.0]
+
+    def test_repr(self):
+        from programmaticmemory.evolution.types import MaxSelection
+
+        strategy = MaxSelection()
+        assert repr(strategy) == "MaxSelection()"
+
+
 class TestRecencyDecaySelection:
     def test_weights_decay_by_generation(self):
         from programmaticmemory.evolution.types import RecencyDecaySelection
