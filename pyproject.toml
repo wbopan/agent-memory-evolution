@@ -18,6 +18,7 @@ dependencies = [
     "redis>=7.1.0",
     "chromadb>=1.0.0",
     "codex-apply-patch>=0.4.0",
+    "chardet<6",
 ]
 
 [project.optional-dependencies]
