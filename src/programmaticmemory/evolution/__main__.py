@@ -59,7 +59,7 @@ def main() -> None:
     parser.add_argument("--val-size", type=int, default=None, help="Limit val set size")
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
     parser.add_argument("--reflect-model", default="openrouter/openai/gpt-5.3-codex", help="Model for reflection")
-    parser.add_argument("--toolkit-model", default="openrouter/openai/gpt-oss-120b", help="Model for toolkit LLM")
+    parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")

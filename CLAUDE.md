@@ -131,7 +131,7 @@ Population-based: maintains a `ProgramPool` of evaluated programs. Each iteratio
 
 - Python 3.12+, `from __future__ import annotations` in all modules
 - Ruff: line-length 120, rules E/W/F/I/C/B/UP/N/RUF/Q. S (bandit) rules are NOT enabled — do not add `# noqa: S...` directives (causes RUF100 errors)
-- Default models: `openrouter/deepseek/deepseek-v3.2` (task), `openrouter/openai/gpt-oss-120b` (toolkit), `openrouter/openai/gpt-5.3-codex` (reflection). Same task/reflection models used in LLM integration tests. Never use `gpt-5.1-codex-mini` anywhere.
+- Default models: `openrouter/deepseek/deepseek-v3.2` (task), `openrouter/deepseek/deepseek-v3.2` (toolkit, max_tokens=512), `openrouter/openai/gpt-5.3-codex` (reflection). Same task/reflection models used in LLM integration tests. Never use `gpt-5.1-codex-mini` anywhere.
 - Import whitelist for Knowledge Base Programs: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
 - A Knowledge Base Program is a **complete Python module**: four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE) + three class definitions (KnowledgeItem, Query, KnowledgeBase). LLM outputs the full module source.
 - All tests that produce prompts (LLM calls, prompt construction, etc.) must use syrupy snapshots to capture the prompt content, so that prompt changes can be human-reviewed for semantic correctness

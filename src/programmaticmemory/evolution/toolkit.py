@@ -66,6 +66,7 @@ class Toolkit:
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     def _llm_call_with_retry(self, messages: list[dict], **kwargs: object) -> str:
         """Internal LLM call with tenacity retry (only retries API errors, not budget)."""
+        kwargs.setdefault("max_tokens", 512)
         response = litellm.completion(model=self.llm_model, messages=messages, caching=True, **kwargs)
         return response.choices[0].message.content
 
