@@ -122,6 +122,32 @@ class PoolEntry:
         return self.eval_result.score
 
 
+class SelectionStrategy(Protocol):
+    """Strategy for selecting a parent from the program pool."""
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry: ...
+    def weights(self, entries: list[PoolEntry]) -> list[float]: ...
+
+
+class SoftmaxSelection:
+    """Score-proportional selection using softmax weighting."""
+
+    def __init__(self, temperature: float = 0.15) -> None:
+        if temperature <= 0:
+            raise ValueError(f"temperature must be positive, got {temperature}")
+        self.temperature = temperature
+
+    def weights(self, entries: list[PoolEntry]) -> list[float]:
+        max_score = max(e.score for e in entries)
+        return [math.exp((e.score - max_score) / self.temperature) for e in entries]
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry:
+        return random.choices(entries, weights=self.weights(entries), k=1)[0]
+
+    def __repr__(self) -> str:
+        return f"SoftmaxSelection(T={self.temperature})"
+
+
 class ProgramPool:
     """Unbounded pool of evaluated programs with softmax parent selection."""
 

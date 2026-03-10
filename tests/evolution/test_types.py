@@ -243,9 +243,7 @@ class TestProgramPool:
         labels = ["best", "mid1", "mid2", "weak"]
         for label, exp_p in zip(labels, expected, strict=True):
             empirical_p = counts[label] / n
-            assert abs(empirical_p - exp_p) < 0.05, (
-                f"{label}: expected {exp_p:.3f}, got {empirical_p:.3f}"
-            )
+            assert abs(empirical_p - exp_p) < 0.05, f"{label}: expected {exp_p:.3f}, got {empirical_p:.3f}"
 
     def test_sample_parent_single_entry_always_returns_it(self):
         pool = ProgramPool(temperature=0.15)
@@ -264,3 +262,66 @@ class TestProgramPool:
         pool = ProgramPool(temperature=0.15)
         pool.add(KBProgram(source_code="a"), EvalResult(score=0.5))
         assert len(pool.entries) == 1
+
+
+class TestSoftmaxSelection:
+    def test_weights_favor_higher_scores(self):
+        from programmaticmemory.evolution.types import SoftmaxSelection
+
+        strategy = SoftmaxSelection(temperature=0.15)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a"), eval_result=EvalResult(score=0.8)),
+            PoolEntry(program=KBProgram(source_code="b"), eval_result=EvalResult(score=0.2)),
+        ]
+        weights = strategy.weights(entries)
+        assert weights[0] > weights[1]
+
+    def test_sample_returns_pool_entry(self):
+        from programmaticmemory.evolution.types import SoftmaxSelection
+
+        strategy = SoftmaxSelection(temperature=0.15)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="a"), eval_result=EvalResult(score=0.5)),
+        ]
+        result = strategy.sample(entries)
+        assert isinstance(result, PoolEntry)
+
+    def test_distribution_matches_softmax(self):
+        """Verify softmax selection matches expected probabilities."""
+        import math
+        import random as _random
+        from collections import Counter
+
+        from programmaticmemory.evolution.types import SoftmaxSelection
+
+        _random.seed(42)
+        strategy = SoftmaxSelection(temperature=0.15)
+        entries = [
+            PoolEntry(program=KBProgram(source_code="best"), eval_result=EvalResult(score=0.6)),
+            PoolEntry(program=KBProgram(source_code="mid1"), eval_result=EvalResult(score=0.4)),
+            PoolEntry(program=KBProgram(source_code="mid2"), eval_result=EvalResult(score=0.4)),
+            PoolEntry(program=KBProgram(source_code="weak"), eval_result=EvalResult(score=0.2)),
+        ]
+
+        n = 10000
+        counts = Counter()
+        for _ in range(n):
+            entry = strategy.sample(entries)
+            counts[entry.program.source_code] += 1
+
+        scores = [0.6, 0.4, 0.4, 0.2]
+        max_s = max(scores)
+        weights = [math.exp((s - max_s) / 0.15) for s in scores]
+        z = sum(weights)
+        expected = [w / z for w in weights]
+
+        labels = ["best", "mid1", "mid2", "weak"]
+        for label, exp_p in zip(labels, expected, strict=True):
+            empirical_p = counts[label] / n
+            assert abs(empirical_p - exp_p) < 0.05, f"{label}: expected {exp_p:.3f}, got {empirical_p:.3f}"
+
+    def test_repr(self):
+        from programmaticmemory.evolution.types import SoftmaxSelection
+
+        strategy = SoftmaxSelection(temperature=0.15)
+        assert repr(strategy) == "SoftmaxSelection(T=0.15)"
