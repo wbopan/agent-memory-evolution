@@ -79,17 +79,14 @@ def vibe_check(dataset_name: str, num_batches: int = 5, **kwargs):
 if __name__ == "__main__":
     configure_cache("disk")
 
-    # LoCoMo: single conversation for faster check
-    vibe_check("mini_locomo", num_batches=3)
-
-    # ALFWorld (if data available)
+    # LoCoMo: 1:1 train/val ratio, 10 batches
     try:
-        vibe_check("alfworld", num_batches=3, category="pick_and_place_simple")
+        vibe_check("locomo", num_batches=10, val_size=272)
+    except Exception as e:
+        print(f"\nLoCoMo skipped: {e}")
+
+    # ALFWorld: 1:1 train/val ratio, 7 batches
+    try:
+        vibe_check("alfworld", num_batches=7, val_size=50)
     except Exception as e:
         print(f"\nALFWorld skipped: {e}")
-
-    # Also try locomo with more conversations
-    try:
-        vibe_check("locomo", num_batches=5, train_size=30, val_size=50)
-    except Exception as e:
-        print(f"\nLoCoMo full skipped: {e}")
