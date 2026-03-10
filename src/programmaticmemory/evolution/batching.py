@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 import litellm
@@ -10,7 +11,8 @@ import numpy as np
 from programmaticmemory.evolution.types import DataItem
 from programmaticmemory.logging.logger import get_logger
 
-_EMBED_BATCH_SIZE = 2048
+_EMBED_BATCH_SIZE = 64
+_EMBED_MAX_RETRIES = 3
 
 
 def _embed_texts(texts: list[str], model: str) -> np.ndarray:
@@ -18,7 +20,14 @@ def _embed_texts(texts: list[str], model: str) -> np.ndarray:
     all_embeddings: list[list[float]] = []
     for start in range(0, len(texts), _EMBED_BATCH_SIZE):
         chunk = texts[start : start + _EMBED_BATCH_SIZE]
-        response = litellm.embedding(model=model, input=chunk, caching=True)
+        for attempt in range(_EMBED_MAX_RETRIES):
+            try:
+                response = litellm.embedding(model=model, input=chunk, caching=True)
+                break
+            except Exception:
+                if attempt == _EMBED_MAX_RETRIES - 1:
+                    raise
+                time.sleep(2**attempt)
         all_embeddings.extend(d["embedding"] for d in response.data)
     vectors = np.array(all_embeddings, dtype=np.float64)
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
