@@ -167,28 +167,20 @@ class RecencyDecaySelection:
 
 
 class ProgramPool:
-    """Unbounded pool of evaluated programs with softmax parent selection."""
+    """Unbounded pool of evaluated programs with pluggable parent selection."""
 
-    def __init__(self, temperature: float = 0.15) -> None:
-        if temperature <= 0:
-            raise ValueError(f"temperature must be positive, got {temperature}")
+    def __init__(self, strategy: SelectionStrategy) -> None:
         self.entries: list[PoolEntry] = []
-        self.temperature = temperature
+        self.strategy = strategy
 
     def add(self, program: KBProgram, eval_result: EvalResult, name: str = "seed_0") -> None:
         self.entries.append(PoolEntry(program=program, eval_result=eval_result, name=name))
 
-    def _softmax_weights(self, entries: list[PoolEntry]) -> list[float]:
-        """Compute softmax weights for the given entries."""
-        max_score = max(e.score for e in entries)
-        return [math.exp((e.score - max_score) / self.temperature) for e in entries]
-
     def sample_parent(self) -> PoolEntry:
-        """Sample a parent using softmax-weighted selection."""
+        """Sample a parent using the configured selection strategy."""
         if len(self.entries) == 1:
             return self.entries[0]
-        weights = self._softmax_weights(self.entries)
-        return random.choices(self.entries, weights=weights, k=1)[0]
+        return self.strategy.sample(self.entries)
 
     @property
     def best(self) -> PoolEntry:
@@ -202,9 +194,9 @@ class ProgramPool:
         if not self.entries:
             return "Pool: empty"
         sorted_entries = sorted(self.entries, key=lambda e: e.score, reverse=True)
-        weights = self._softmax_weights(sorted_entries)
+        weights = self.strategy.weights(sorted_entries)
         total = sum(weights)
-        lines = [f"Pool ({len(self.entries)} programs, T={self.temperature}):"]
+        lines = [f"Pool ({len(self.entries)} programs, {self.strategy!r}):"]
         for entry, w in zip(sorted_entries, weights, strict=True):
             prob = w / total
             lines.append(

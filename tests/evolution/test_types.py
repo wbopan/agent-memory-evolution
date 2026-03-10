@@ -10,6 +10,7 @@ from programmaticmemory.evolution.types import (
     KBProgram,
     PoolEntry,
     ProgramPool,
+    SoftmaxSelection,
 )
 
 
@@ -105,7 +106,7 @@ class TestEvalResult:
 
 class TestEvolutionState:
     def test_construction(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         p = KBProgram(source_code="x")
         pool.add(p, EvalResult(score=0.8))
         state = EvolutionState(pool=pool, best_score=0.8)
@@ -114,7 +115,7 @@ class TestEvolutionState:
         assert state.best_program == p
 
     def test_with_history(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         p = KBProgram(source_code="x")
         pool.add(p, EvalResult(score=0.9))
         record = EvolutionRecord(iteration=1, program=p, score=0.9, parent_hash=None)
@@ -187,7 +188,7 @@ class TestPoolEntry:
 
 class TestProgramPool:
     def test_add_and_best(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         p1 = KBProgram(source_code="a")
         p2 = KBProgram(source_code="b")
         pool.add(p1, EvalResult(score=0.3))
@@ -196,70 +197,34 @@ class TestProgramPool:
         assert pool.best.program == p2
 
     def test_best_with_single_entry(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         p = KBProgram(source_code="x")
         pool.add(p, EvalResult(score=0.5))
         assert pool.best.score == 0.5
 
     def test_sample_parent_returns_pool_entry(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         p = KBProgram(source_code="x")
         pool.add(p, EvalResult(score=0.5))
         entry = pool.sample_parent()
         assert isinstance(entry, PoolEntry)
         assert entry.program == p
 
-    def test_sample_parent_softmax_distribution(self):
-        """Verify softmax selection matches expected probabilities.
-
-        Scores [0.6, 0.4, 0.4, 0.2] at T=0.15:
-        P(0.6) ≈ 63%, P(0.4) ≈ 16.5% each, P(0.2) ≈ 4.3%
-        """
-        import math
-        import random as _random
-        from collections import Counter
-
-        _random.seed(42)
-        pool = ProgramPool(temperature=0.15)
-        pool.add(KBProgram(source_code="best"), EvalResult(score=0.6))
-        pool.add(KBProgram(source_code="mid1"), EvalResult(score=0.4))
-        pool.add(KBProgram(source_code="mid2"), EvalResult(score=0.4))
-        pool.add(KBProgram(source_code="weak"), EvalResult(score=0.2))
-
-        n = 10000
-        counts = Counter()
-        for _ in range(n):
-            entry = pool.sample_parent()
-            counts[entry.program.source_code] += 1
-
-        # Compute expected softmax probabilities
-        scores = [0.6, 0.4, 0.4, 0.2]
-        max_s = max(scores)
-        weights = [math.exp((s - max_s) / 0.15) for s in scores]
-        z = sum(weights)
-        expected = [w / z for w in weights]  # [0.626, 0.165, 0.165, 0.043]
-
-        # Verify empirical frequencies are within ±5% absolute of expected
-        labels = ["best", "mid1", "mid2", "weak"]
-        for label, exp_p in zip(labels, expected, strict=True):
-            empirical_p = counts[label] / n
-            assert abs(empirical_p - exp_p) < 0.05, f"{label}: expected {exp_p:.3f}, got {empirical_p:.3f}"
-
     def test_sample_parent_single_entry_always_returns_it(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         p = KBProgram(source_code="only")
         pool.add(p, EvalResult(score=0.5))
         for _ in range(10):
             assert pool.sample_parent().program == p
 
     def test_len(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         assert len(pool) == 0
         pool.add(KBProgram(source_code="a"), EvalResult(score=0.5))
         assert len(pool) == 1
 
     def test_entries_accessible(self):
-        pool = ProgramPool(temperature=0.15)
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
         pool.add(KBProgram(source_code="a"), EvalResult(score=0.5))
         assert len(pool.entries) == 1
 
