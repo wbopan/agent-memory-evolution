@@ -99,12 +99,6 @@ def main() -> None:
         default=0,
         help="Number of co-selected eval batches (0 = disabled, default: 0)",
     )
-    parser.add_argument(
-        "--batch-index",
-        type=int,
-        default=0,
-        help="Which batch to use (0-indexed, default: 0)",
-    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -121,31 +115,21 @@ def main() -> None:
     )
 
     # Apply co-selected batching if requested
+    _batches = None
     _batch_info = None
     if args.num_batches > 0:
-        if args.batch_index >= args.num_batches:
-            print(
-                f"Error: --batch-index {args.batch_index} must be < --num-batches {args.num_batches}",
-                file=sys.stderr,
-            )
-            sys.exit(1)
         from programmaticmemory.evolution.batching import build_eval_batches
 
-        batches = build_eval_batches(
+        batches_list = build_eval_batches(
             dataset.train,
             dataset.val,
             num_batches=args.num_batches,
         )
-        batch = batches[args.batch_index]
+        _batches = batches_list
         _batch_info = {
-            "index": args.batch_index,
-            "total": args.num_batches,
-            "train_size": len(batch.train_indices),
-            "val_size": len(batch.val_indices),
-            "coverage": batch.coverage,
+            "num_batches": args.num_batches,
+            "batch_sizes": [(len(b.train_indices), len(b.val_indices)) for b in batches_list],
         }
-        dataset.train = [dataset.train[i] for i in batch.train_indices]
-        dataset.val = [dataset.val[i] for i in batch.val_indices]
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
 
@@ -168,9 +152,7 @@ def main() -> None:
         logger.log(f"Available categories: {', '.join(dataset.available_categories)}", header="CONFIG")
     if _batch_info:
         logger.log(
-            f"Using batch {_batch_info['index']}/{_batch_info['total']}: "
-            f"train={_batch_info['train_size']}, val={_batch_info['val_size']}, "
-            f"coverage={_batch_info['coverage']:.4f}",
+            f"Batch rotation: {_batch_info['num_batches']} batches, sizes(train,val)={_batch_info['batch_sizes']}",
             header="CONFIG",
         )
     if output_manager:
@@ -222,6 +204,7 @@ def main() -> None:
             temperature=args.temperature,
             tracker=tracker,
             output_manager=output_manager,
+            batches=_batches,
         )
         state = loop.run()
 
