@@ -18,7 +18,7 @@ from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.sandbox import smoke_test
 from programmaticmemory.evolution.toolkit import ToolkitConfig
-from programmaticmemory.evolution.types import KBProgram
+from programmaticmemory.evolution.types import KBProgram, RecencyDecaySelection, SoftmaxSelection
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.run_output import RunOutputManager
 
@@ -80,10 +80,22 @@ def main() -> None:
         help="Max chars for memory logs in reflection prompt, 0 to exclude (default: 0)",
     )
     parser.add_argument(
-        "--temperature",
+        "--selection-strategy",
+        choices=["softmax", "recency_decay"],
+        default="softmax",
+        help="Parent selection strategy (default: softmax)",
+    )
+    parser.add_argument(
+        "--selection-softmax-temperature",
         type=float,
         default=0.15,
         help="Softmax temperature for parent selection (default: 0.15, lower = more greedy)",
+    )
+    parser.add_argument(
+        "--selection-recency-decay-rate",
+        type=float,
+        default=0.8,
+        help="Decay rate per generation for recency_decay selection (default: 0.8)",
     )
     # Default seed-dir: <repo>/seeds/
     _default_seed_dir = Path(__file__).resolve().parents[3] / "seeds"
@@ -211,6 +223,12 @@ def main() -> None:
         initial_programs.append(KBProgram(source_code=source))
         logger.log(f"Loaded seed: {f.name}", header="CONFIG")
 
+    # Build selection strategy
+    if args.selection_strategy == "recency_decay":
+        strategy = RecencyDecaySelection(decay_rate=args.selection_recency_decay_rate)
+    else:
+        strategy = SoftmaxSelection(temperature=args.selection_softmax_temperature)
+
     # Run
     with tracker:
         loop = EvolutionLoop(
@@ -219,7 +237,7 @@ def main() -> None:
             dataset=dataset,
             initial_programs=initial_programs,
             max_iterations=args.iterations,
-            temperature=args.temperature,
+            strategy=strategy,
             tracker=tracker,
             output_manager=output_manager,
         )

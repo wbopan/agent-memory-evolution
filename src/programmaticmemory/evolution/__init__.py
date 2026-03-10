@@ -28,5 +28,8 @@ from programmaticmemory.evolution.types import (
     KBProgram,
     PoolEntry,
     ProgramPool,
+    RecencyDecaySelection,
     Scorer,
+    SelectionStrategy,
+    SoftmaxSelection,
 )

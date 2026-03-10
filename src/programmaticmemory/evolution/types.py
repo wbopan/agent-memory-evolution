@@ -122,29 +122,65 @@ class PoolEntry:
         return self.eval_result.score
 
 
-class ProgramPool:
-    """Unbounded pool of evaluated programs with softmax parent selection."""
+class SelectionStrategy(Protocol):
+    """Strategy for selecting a parent from the program pool."""
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry: ...
+    def weights(self, entries: list[PoolEntry]) -> list[float]: ...
+
+
+class SoftmaxSelection:
+    """Score-proportional selection using softmax weighting."""
 
     def __init__(self, temperature: float = 0.15) -> None:
         if temperature <= 0:
             raise ValueError(f"temperature must be positive, got {temperature}")
-        self.entries: list[PoolEntry] = []
         self.temperature = temperature
+
+    def weights(self, entries: list[PoolEntry]) -> list[float]:
+        max_score = max(e.score for e in entries)
+        return [math.exp((e.score - max_score) / self.temperature) for e in entries]
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry:
+        return random.choices(entries, weights=self.weights(entries), k=1)[0]
+
+    def __repr__(self) -> str:
+        return f"SoftmaxSelection(T={self.temperature})"
+
+
+class RecencyDecaySelection:
+    """Roughly uniform selection with exponential decay on older generations."""
+
+    def __init__(self, decay_rate: float = 0.8) -> None:
+        if not 0 < decay_rate <= 1:
+            raise ValueError(f"decay_rate must be in (0, 1], got {decay_rate}")
+        self.decay_rate = decay_rate
+
+    def weights(self, entries: list[PoolEntry]) -> list[float]:
+        return [self.decay_rate**e.program.generation for e in entries]
+
+    def sample(self, entries: list[PoolEntry]) -> PoolEntry:
+        return random.choices(entries, weights=self.weights(entries), k=1)[0]
+
+    def __repr__(self) -> str:
+        return f"RecencyDecaySelection(decay={self.decay_rate})"
+
+
+class ProgramPool:
+    """Unbounded pool of evaluated programs with pluggable parent selection."""
+
+    def __init__(self, strategy: SelectionStrategy) -> None:
+        self.entries: list[PoolEntry] = []
+        self.strategy = strategy
 
     def add(self, program: KBProgram, eval_result: EvalResult, name: str = "seed_0") -> None:
         self.entries.append(PoolEntry(program=program, eval_result=eval_result, name=name))
 
-    def _softmax_weights(self, entries: list[PoolEntry]) -> list[float]:
-        """Compute softmax weights for the given entries."""
-        max_score = max(e.score for e in entries)
-        return [math.exp((e.score - max_score) / self.temperature) for e in entries]
-
     def sample_parent(self) -> PoolEntry:
-        """Sample a parent using softmax-weighted selection."""
+        """Sample a parent using the configured selection strategy."""
         if len(self.entries) == 1:
             return self.entries[0]
-        weights = self._softmax_weights(self.entries)
-        return random.choices(self.entries, weights=weights, k=1)[0]
+        return self.strategy.sample(self.entries)
 
     @property
     def best(self) -> PoolEntry:
@@ -158,9 +194,9 @@ class ProgramPool:
         if not self.entries:
             return "Pool: empty"
         sorted_entries = sorted(self.entries, key=lambda e: e.score, reverse=True)
-        weights = self._softmax_weights(sorted_entries)
+        weights = self.strategy.weights(sorted_entries)
         total = sum(weights)
-        lines = [f"Pool ({len(self.entries)} programs, T={self.temperature}):"]
+        lines = [f"Pool ({len(self.entries)} programs, {self.strategy!r}):"]
         for entry, w in zip(sorted_entries, weights, strict=True):
             prob = w / total
             lines.append(
