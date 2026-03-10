@@ -14,6 +14,7 @@ from programmaticmemory.evolution.types import (
     FailedCase,
     KBProgram,
     ProgramPool,
+    SelectionStrategy,
     SoftmaxSelection,
 )
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
@@ -45,7 +46,7 @@ class EvolutionLoop:
         dataset: Dataset,
         initial_programs: list[KBProgram] | None = None,
         max_iterations: int = 20,
-        temperature: float = 0.15,
+        strategy: SelectionStrategy | None = None,
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
         output_manager: RunOutputManager | None = None,
@@ -55,7 +56,7 @@ class EvolutionLoop:
         self.dataset = dataset
         self.initial_programs = initial_programs or [KBProgram(source_code=INITIAL_KB_PROGRAM)]
         self.max_iterations = max_iterations
-        self._temperature = temperature
+        self.strategy = strategy or SoftmaxSelection()
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
@@ -65,7 +66,7 @@ class EvolutionLoop:
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
         ds = self.dataset
-        pool = ProgramPool(strategy=SoftmaxSelection(temperature=self._temperature))
+        pool = ProgramPool(strategy=self.strategy)
 
         self.logger.log(
             f"Starting evolution: max_iter={self.max_iterations}, seeds={len(self.initial_programs)}, "
