@@ -10,8 +10,11 @@ Val items: task objectives with game_file metadata for env interaction via ALFWo
 from __future__ import annotations
 
 import json
+import multiprocessing
 import random
 import re
+import subprocess
+import sys
 import threading
 import uuid
 from pathlib import Path
@@ -349,6 +352,28 @@ def _probe_game(game_file: str) -> bool:
     return valid
 
 
+def _probe_game_isolated(game_file: str) -> bool:
+    """Probe a game in a fully isolated subprocess.
+
+    Fast Downward's C library can call exit()/abort() on certain game files,
+    killing the host process. subprocess.run() gives true process isolation.
+    """
+    script = (
+        "from programmaticmemory.benchmarks.alfworld import _probe_game; "
+        "import sys; "
+        f"sys.exit(0 if _probe_game({game_file!r}) else 1)"
+    )
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            timeout=60,
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
+
+
 def _run_episode(
     game_file: str, objective: str, tips: str, task_model: str, max_steps: int, always_on_knowledge: str = ""
 ) -> tuple[str, float]:
@@ -496,7 +521,7 @@ class ALFWorldValScorer:
     (TextWorld's tatsu-based parsers use global singletons that are not thread-safe).
     """
 
-    def __init__(self, max_steps: int = 50, max_workers: int = 20, episode_timeout: float = 300.0) -> None:
+    def __init__(self, max_steps: int = 50, max_workers: int = 4, episode_timeout: float = 300.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
         self.episode_timeout = episode_timeout
@@ -513,25 +538,33 @@ class ALFWorldValScorer:
         import concurrent.futures
 
         workers = min(self.max_workers, len(items)) if items else 1
-        with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
-            futures = [
-                pool.submit(
-                    _run_episode,
-                    item.metadata["game_file"],
-                    item.question,
-                    tips,
-                    task_model,
-                    self.max_steps,
-                    always_on_knowledge,
-                )
-                for item, tips in zip(items, retrieved, strict=True)
-            ]
-            results: list[tuple[str, float]] = []
-            for f in futures:
-                try:
-                    results.append(f.result(timeout=self.episode_timeout))
-                except Exception as exc:
-                    results.append((f"Episode failed: {exc}", 0.0))
+        # Use 'spawn' context: TextWorld's C library crashes (exit/abort) in
+        # forked workers can break the pool. 'spawn' fully isolates each episode.
+        ctx = multiprocessing.get_context("spawn")
+        results: list[tuple[str, float]] = []
+        try:
+            with concurrent.futures.ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
+                futures = [
+                    pool.submit(
+                        _run_episode,
+                        item.metadata["game_file"],
+                        item.question,
+                        tips,
+                        task_model,
+                        self.max_steps,
+                        always_on_knowledge,
+                    )
+                    for item, tips in zip(items, retrieved, strict=True)
+                ]
+                for f in futures:
+                    try:
+                        results.append(f.result(timeout=self.episode_timeout))
+                    except Exception as exc:
+                        results.append((f"Episode failed: {exc}", 0.0))
+        except Exception:
+            # Pool broke — fill remaining items with 0.0
+            while len(results) < len(items):
+                results.append(("Episode failed: broken process pool", 0.0))
         return results
 
 
@@ -620,13 +653,17 @@ def load_alfworld(
             from programmaticmemory.logging.logger import get_logger
 
             get_logger().log(f"Validating {len(uncached)} game files (first run only)...", header="ALFWORLD")
-            workers = min(20, len(uncached))
-            with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
-                futures = {pool.submit(_probe_game, gf): gf for gf in uncached}
+            # Use ThreadPoolExecutor + subprocess.run for each probe.
+            # Fast Downward's C library can call exit()/abort() on corrupt
+            # games; subprocess.run gives true process isolation.
+            # Low worker count (4) avoids TextWorld temp-file contention.
+            workers = min(4, len(uncached))
+            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
+                futures = {pool.submit(_probe_game_isolated, gf): gf for gf in uncached}
                 for future in concurrent.futures.as_completed(futures):
                     gf = futures[future]
                     try:
-                        _VALID_GAME_CACHE[gf] = future.result(timeout=30)
+                        _VALID_GAME_CACHE[gf] = future.result(timeout=90)
                     except Exception:
                         _VALID_GAME_CACHE[gf] = False
             # Persist to disk
