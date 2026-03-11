@@ -46,6 +46,9 @@ _GH_RELEASE = "https://github.com/alfworld/alfworld/releases/download/0.2.2"
 _JSON_URL = f"{_GH_RELEASE}/json_2.1.1_json.zip"
 _TWPDDL_URL = f"{_GH_RELEASE}/json_2.1.1_tw-pddl.zip"
 
+# Cache of validated game files: game_file_path -> True (has admissible commands) / False
+_VALID_GAME_CACHE: dict[str, bool] = {}
+
 
 def ensure_data(data_dir: str | Path | None = None) -> Path:
     """Download and extract ALFRED json + tw-pddl data (both train and valid_unseen splits)."""
@@ -293,6 +296,48 @@ def _reset_with_timeout(env: Any, timeout_s: float) -> tuple[Any, Any]:
     return reset_result.get("value", ("", {}))
 
 
+def _probe_game(game_file: str) -> bool:
+    """Check if a game file produces admissible commands after env.reset().
+
+    Returns True if the game is valid (has admissible commands), False otherwise.
+    Results are cached in _VALID_GAME_CACHE.
+    """
+    if game_file in _VALID_GAME_CACHE:
+        return _VALID_GAME_CACHE[game_file]
+
+    try:
+        import textworld
+        import textworld.gym
+        from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
+
+        request_infos = textworld.EnvInfos(
+            feedback=True, description=True, inventory=True,
+            admissible_commands=True, objective=True, extras=["gamefile"],
+        )
+        wrappers = [AlfredDemangler(), AlfredInfos]
+        env_id = textworld.gym.register_games(
+            [game_file], request_infos, batch_size=1, auto_reset=False,
+            max_episode_steps=5, asynchronous=False,
+            name=f"probe-{uuid.uuid4().hex}", wrappers=wrappers,
+        )
+        env = textworld.gym.make(env_id)
+        try:
+            _, info_batch = env.reset()
+            raw_cmds = info_batch.get("admissible_commands", [])
+            flat = raw_cmds[0] if raw_cmds and isinstance(raw_cmds[0], list) else raw_cmds
+            valid = len(flat) > 0
+        finally:
+            try:
+                env.close()
+            except Exception:
+                pass
+    except Exception:
+        valid = False
+
+    _VALID_GAME_CACHE[game_file] = valid
+    return valid
+
+
 def _run_episode(
     game_file: str, objective: str, tips: str, task_model: str, max_steps: int, always_on_knowledge: str = ""
 ) -> tuple[str, float]:
@@ -332,6 +377,8 @@ def _run_episode(
         info = _unwrap_single(info_batch, {})
 
         admissible = _extract_admissible(info if isinstance(info, dict) else {})
+        if not admissible:
+            return "Game has no admissible commands (corrupt PDDL state)", 0.0
         trajectory_lines: list[str] = [str(obs).strip()] if obs else []
         total_reward = 0.0
         done = False
@@ -541,6 +588,18 @@ def load_alfworld(
     val_scorer = None
     try:
         import alfworld  # noqa: F401
+
+        # Filter val items with broken PDDL state (0 admissible commands after env.reset).
+        # Some game files have Fast Downward dummy atoms that corrupt the game state.
+        pre_filter = len(val)
+        val = [item for item in val if _probe_game(item.metadata["game_file"])]
+        if len(val) < pre_filter:
+            from programmaticmemory.logging.logger import get_logger
+
+            get_logger().log(
+                f"Filtered {pre_filter - len(val)}/{pre_filter} broken val games (no admissible commands)",
+                header="ALFWORLD",
+            )
 
         val_scorer = ALFWorldValScorer(max_steps=50)
     except ImportError:
