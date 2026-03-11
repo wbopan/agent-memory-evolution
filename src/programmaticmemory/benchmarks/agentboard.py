@@ -57,10 +57,10 @@ def _load_scienceworld(num_train: int | None, num_val: int | None, seed: int) ->
         train_items: list[DataItem] = []
         val_items: list[DataItem] = []
         for task_name in task_names:
+            env.load(task_name, variationIdx=0, simplificationStr="")
+            task_desc = env.get_task_description()
             train_vars = env.get_variations_train()
             dev_vars = env.get_variations_dev()
-            env.load(task_name, variationIdx=train_vars[0] if train_vars else 0)
-            task_desc = env.get_task_description()
             for var in train_vars:
                 train_items.append(
                     DataItem(
