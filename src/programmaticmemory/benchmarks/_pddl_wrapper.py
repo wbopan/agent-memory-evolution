@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+try:
+    import pddlgym
+except ImportError:
+    pddlgym = None  # type: ignore[assignment]
+
 
 def _state_to_text(state: object) -> str:
     """Convert a pddlgym State to text description."""
@@ -31,8 +36,6 @@ class PDDLWrapper:
     """Text-based wrapper for PDDLGym environments."""
 
     def __init__(self, env_id: str, problem_idx: int) -> None:
-        import pddlgym
-
         self._env = pddlgym.make(env_id)
         self._problem_idx = problem_idx
         self._state: object | None = None

@@ -10,6 +10,13 @@ from collections import defaultdict
 
 import numpy as np
 
+try:
+    import gymnasium as gym
+    import minigrid
+except ImportError:
+    gym = None  # type: ignore[assignment]
+    minigrid = None  # type: ignore[assignment]
+
 # Minigrid object type indices
 OBJECT_NAMES = {
     0: "unseen",
@@ -129,9 +136,6 @@ class BabyAIWrapper:
     """Text-based wrapper for BabyAI gymnasium environments."""
 
     def __init__(self, env_id: str, seed: int = 42, max_steps: int = 64) -> None:
-        import gymnasium as gym
-        import minigrid  # noqa: F401 — registers environments
-
         self._env = gym.make(env_id, max_steps=max_steps)
         self._seed = seed
         self._obs: dict | None = None
