@@ -55,8 +55,6 @@ def main() -> None:
         default=None,
         help="Filter dataset to a specific category/domain (locomo: conversation index, alfworld: task type)",
     )
-    parser.add_argument("--train-size", type=int, default=None, help="Limit train set size")
-    parser.add_argument("--val-size", type=int, default=None, help="Limit val set size")
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
     parser.add_argument("--reflect-model", default="openrouter/openai/gpt-5.3-codex", help="Model for reflection")
     parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
@@ -97,6 +95,31 @@ def main() -> None:
         default=0.8,
         help="Decay rate per generation for recency_decay selection (default: 0.8)",
     )
+    parser.add_argument(
+        "--eval-strategy",
+        choices=["full", "representative", "rotating"],
+        default="representative",
+        help="Evaluation strategy: full (every iter uses full data), "
+        "representative (clustering-based fixed subset), rotating (batch rotation) (default: representative)",
+    )
+    parser.add_argument(
+        "--eval-val-size",
+        type=int,
+        default=30,
+        help="Val subset size for representative/rotating strategies (default: 30)",
+    )
+    parser.add_argument(
+        "--eval-train-ratio",
+        type=int,
+        default=5,
+        help="Train items per val item for representative/rotating strategies (default: 5)",
+    )
+    parser.add_argument(
+        "--eval-top-k",
+        type=int,
+        default=3,
+        help="Number of candidates for final revalidation in rotating strategy (default: 3)",
+    )
     # Default seed-dir: <repo>/seeds/
     _default_seed_dir = Path(__file__).resolve().parents[3] / "seeds"
     parser.add_argument(
@@ -104,18 +127,6 @@ def main() -> None:
         type=Path,
         default=_default_seed_dir,
         help=f"Directory of .py seed programs to use as initial population (default: {_default_seed_dir})",
-    )
-    parser.add_argument(
-        "--num-batches",
-        type=int,
-        default=0,
-        help="Number of co-selected eval batches (0 = disabled, default: 0)",
-    )
-    parser.add_argument(
-        "--batch-train-val-ratio",
-        type=int,
-        default=5,
-        help="Train budget per val item in each eval batch (default: 5)",
     )
     parser.add_argument(
         "--baseline",
@@ -135,9 +146,7 @@ def main() -> None:
     if args.baseline is not None:
         # Single-pass baseline evaluation
         dataset_kwargs = _parse_extra_kwargs(extra)
-        dataset = load_dataset(
-            args.dataset, category=args.category, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs
-        )
+        dataset = load_dataset(args.dataset, category=args.category, **dataset_kwargs)
 
         from programmaticmemory.logging.logger import get_logger
 
@@ -181,27 +190,25 @@ def main() -> None:
 
     # Load dataset (includes scorer, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
-    dataset = load_dataset(
-        args.dataset, category=args.category, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs
-    )
+    dataset = load_dataset(args.dataset, category=args.category, **dataset_kwargs)
 
-    # Apply co-selected batching if requested
-    _batches = None
-    _batch_info = None
-    if args.num_batches > 0:
+    # Build eval strategy
+    from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
+
+    if args.eval_strategy == "full":
+        eval_strat = FullDataset()
+    elif args.eval_strategy == "representative":
+        eval_strat = FixedRepresentative(dataset, val_size=args.eval_val_size, train_val_ratio=args.eval_train_ratio)
+    elif args.eval_strategy == "rotating":
         from programmaticmemory.evolution.batching import build_eval_batches
 
         batches_list = build_eval_batches(
             dataset.train,
             dataset.val,
-            num_batches=args.num_batches,
-            batch_train_val_ratio=args.batch_train_val_ratio,
+            num_batches=max(1, len(dataset.val) // args.eval_val_size),
+            batch_train_val_ratio=args.eval_train_ratio,
         )
-        _batches = batches_list
-        _batch_info = {
-            "num_batches": args.num_batches,
-            "batch_sizes": [(len(b.train_indices), len(b.val_indices)) for b in batches_list],
-        }
+        eval_strat = RotatingBatch(batches_list, top_k=args.eval_top_k)
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
 
@@ -222,11 +229,7 @@ def main() -> None:
         logger.log(f"Category: {args.category}", header="CONFIG")
     elif dataset.available_categories:
         logger.log(f"Available categories: {', '.join(dataset.available_categories)}", header="CONFIG")
-    if _batch_info:
-        logger.log(
-            f"Batch rotation: {_batch_info['num_batches']} batches, sizes(train,val)={_batch_info['batch_sizes']}",
-            header="CONFIG",
-        )
+    logger.log(f"Eval strategy: {eval_strat.__class__.__name__}", header="CONFIG")
     if output_manager:
         logger.log(f"Output directory: {output_manager.run_dir}", header="CONFIG")
 
@@ -284,9 +287,14 @@ def main() -> None:
             strategy=strategy,
             tracker=tracker,
             output_manager=output_manager,
-            batches=_batches,
+            eval_strategy=eval_strat,
         )
         state = loop.run()
+
+    if state.final_scores:
+        print("\nFinal evaluation (full dataset):")
+        for prog_hash, score in state.final_scores.items():
+            print(f"  {prog_hash}: {score:.3f}")
 
     if output_manager:
         output_manager.close()
