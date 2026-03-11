@@ -115,3 +115,64 @@ class TestRotatingBatch:
         assert result is not None
         assert len(result[0]) == 4
         assert len(result[1]) == 4
+
+
+from unittest.mock import patch
+
+from programmaticmemory.evolution.strategies import FixedRepresentative
+
+
+class TestFixedRepresentative:
+    def test_select_returns_subset(self):
+        ds = _make_dataset(n_train=20, n_val=10)
+        with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
+            mock_sel.return_value = ([0, 1, 2], [0, 1])
+            strategy = FixedRepresentative(ds, val_size=2, train_val_ratio=2)
+
+        train, val = strategy.select(ds, iteration=0)
+        assert len(train) == 3
+        assert len(val) == 2
+        assert train[0].raw_text == "train_0"
+        assert val[1].question == "vq1?"
+
+    def test_select_returns_same_every_iteration(self):
+        ds = _make_dataset(n_train=20, n_val=10)
+        with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
+            mock_sel.return_value = ([0, 5], [3, 7])
+            strategy = FixedRepresentative(ds, val_size=2)
+
+        t0, v0 = strategy.select(ds, 0)
+        t5, v5 = strategy.select(ds, 5)
+        assert t0 == t5
+        assert v0 == v5
+
+    def test_constructor_calls_select_representative_subset_once(self):
+        ds = _make_dataset(n_train=20, n_val=10)
+        with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
+            mock_sel.return_value = ([0], [0])
+            FixedRepresentative(ds, val_size=3, train_val_ratio=4)
+            mock_sel.assert_called_once_with(ds.train, ds.val, val_size=3, train_val_ratio=4)
+
+    def test_final_candidates_returns_best(self):
+        ds = _make_dataset()
+        with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
+            mock_sel.return_value = ([0], [0])
+            strategy = FixedRepresentative(ds, val_size=1)
+
+        pool = ProgramPool(strategy=SoftmaxSelection())
+        pool.add(KBProgram(source_code="a"), EvalResult(score=0.3))
+        pool.add(KBProgram(source_code="b"), EvalResult(score=0.9))
+        candidates = strategy.final_candidates(pool)
+        assert len(candidates) == 1
+        assert candidates[0].score == 0.9
+
+    def test_final_eval_data_returns_full_dataset(self):
+        ds = _make_dataset(n_train=20, n_val=10)
+        with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
+            mock_sel.return_value = ([0], [0])
+            strategy = FixedRepresentative(ds, val_size=1)
+
+        result = strategy.final_eval_data(ds)
+        assert result is not None
+        assert len(result[0]) == 20
+        assert len(result[1]) == 10

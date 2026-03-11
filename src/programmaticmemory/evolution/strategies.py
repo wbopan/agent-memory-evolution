@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from programmaticmemory.evolution.batching import EvalBatch
+from programmaticmemory.evolution.batching import EvalBatch, select_representative_subset
 from programmaticmemory.evolution.types import DataItem, Dataset, PoolEntry, ProgramPool
 
 
@@ -39,6 +39,33 @@ class RotatingBatch:
     def final_candidates(self, pool: ProgramPool) -> list[PoolEntry]:
         sorted_entries = sorted(pool.entries, key=lambda e: e.score, reverse=True)
         return sorted_entries[: self._top_k]
+
+    def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        return dataset.train, dataset.val
+
+
+class FixedRepresentative:
+    """Representative subset selection via clustering. Scores are comparable across programs.
+
+    Constructor computes the subset once. All iterations use the same data.
+    Final revalidation evaluates the top-1 on the full dataset.
+    """
+
+    def __init__(self, dataset: Dataset, val_size: int, train_val_ratio: int = 5) -> None:
+        self._train_indices, self._val_indices = select_representative_subset(
+            dataset.train,
+            dataset.val,
+            val_size=val_size,
+            train_val_ratio=train_val_ratio,
+        )
+
+    def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
+        train = [dataset.train[i] for i in self._train_indices]
+        val = [dataset.val[i] for i in self._val_indices]
+        return train, val
+
+    def final_candidates(self, pool: ProgramPool) -> list[PoolEntry]:
+        return [pool.best]
 
     def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
         return dataset.train, dataset.val
