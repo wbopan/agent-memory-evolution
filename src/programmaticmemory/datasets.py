@@ -35,8 +35,6 @@ def load_dataset(
     name: str,
     *,
     category: str | None = None,
-    train_size: int | None = None,
-    val_size: int | None = None,
     **kwargs: Any,
 ) -> Dataset:
     """Load a dataset by name."""
@@ -44,21 +42,7 @@ def load_dataset(
     if name not in _CUSTOM_REGISTRY:
         available = sorted(_CUSTOM_REGISTRY)
         raise ValueError(f"Unknown dataset: {name!r}. Available: {available}")
-
-    # Pass size hints to loader so it can optimize (e.g., ALFWorld only probes needed games)
-    loader_kwargs = dict(kwargs)
-    if train_size is not None:
-        loader_kwargs.setdefault("num_train", train_size)
-    if val_size is not None:
-        loader_kwargs.setdefault("num_val", val_size)
-
-    dataset = _CUSTOM_REGISTRY[name](category=category, **loader_kwargs)
-
-    if train_size is not None:
-        dataset.train = dataset.train[:train_size]
-    if val_size is not None:
-        dataset.val = dataset.val[:val_size]
-    return dataset
+    return _CUSTOM_REGISTRY[name](category=category, **kwargs)
 
 
 def list_datasets() -> list[str]:
