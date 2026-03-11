@@ -16,3 +16,8 @@ class TestBaselineSmokeTests:
         source = (BASELINES_DIR / "vanilla_rag.py").read_text()
         result = smoke_test(source)
         assert result.success, f"vanilla_rag.py smoke test failed: {result.error}"
+
+    def test_awm_smoke(self):
+        source = (BASELINES_DIR / "awm.py").read_text()
+        result = smoke_test(source)
+        assert result.success, f"awm.py smoke test failed: {result.error}"
