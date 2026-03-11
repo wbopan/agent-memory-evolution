@@ -64,3 +64,54 @@ class TestFullDataset:
         ds = _make_dataset()
         strategy = FullDataset()
         assert strategy.final_eval_data(ds) is None
+
+
+from programmaticmemory.evolution.batching import EvalBatch
+from programmaticmemory.evolution.strategies import RotatingBatch
+
+
+class TestRotatingBatch:
+    def _make_batches(self):
+        return [
+            EvalBatch(val_indices=[0, 1], train_indices=[0, 1], coverage=0.9),
+            EvalBatch(val_indices=[2, 3], train_indices=[2, 3], coverage=0.8),
+        ]
+
+    def test_select_rotates_through_batches(self):
+        ds = _make_dataset(n_train=4, n_val=4)
+        strategy = RotatingBatch(self._make_batches())
+        t0, v0 = strategy.select(ds, 0)
+        t1, v1 = strategy.select(ds, 1)
+        assert [d.raw_text for d in t0] == ["train_0", "train_1"]
+        assert [d.question for d in v1] == ["vq2?", "vq3?"]
+
+    def test_select_wraps_around(self):
+        ds = _make_dataset(n_train=4, n_val=4)
+        strategy = RotatingBatch(self._make_batches())
+        t2, v2 = strategy.select(ds, 2)
+        assert [d.raw_text for d in t2] == ["train_0", "train_1"]
+
+    def test_final_candidates_returns_top_k(self):
+        pool = ProgramPool(strategy=SoftmaxSelection())
+        for i, score in enumerate([0.3, 0.9, 0.7, 0.5]):
+            pool.add(KBProgram(source_code=f"p{i}"), EvalResult(score=score))
+        strategy = RotatingBatch(self._make_batches(), top_k=2)
+        candidates = strategy.final_candidates(pool)
+        assert len(candidates) == 2
+        assert candidates[0].score == 0.9
+        assert candidates[1].score == 0.7
+
+    def test_final_candidates_top_k_exceeds_pool(self):
+        pool = ProgramPool(strategy=SoftmaxSelection())
+        pool.add(KBProgram(source_code="only"), EvalResult(score=0.5))
+        strategy = RotatingBatch(self._make_batches(), top_k=5)
+        candidates = strategy.final_candidates(pool)
+        assert len(candidates) == 1
+
+    def test_final_eval_data_returns_full_dataset(self):
+        ds = _make_dataset()
+        strategy = RotatingBatch(self._make_batches())
+        result = strategy.final_eval_data(ds)
+        assert result is not None
+        assert len(result[0]) == 4
+        assert len(result[1]) == 4
