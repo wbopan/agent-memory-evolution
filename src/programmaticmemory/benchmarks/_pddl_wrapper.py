@@ -8,10 +8,20 @@ except ImportError:
     pddlgym = None  # type: ignore[assignment]
 
 
+def _get_goal_literals(goal: object) -> list:
+    """Extract goal literals from a pddlgym goal (handles LiteralConjunction)."""
+    if hasattr(goal, "literals"):
+        return goal.literals
+    if hasattr(goal, "__iter__"):
+        return list(goal)
+    return [goal]
+
+
 def _state_to_text(state: object) -> str:
     """Convert a pddlgym State to text description."""
     literals = sorted(str(lit) for lit in state.literals)
-    goals = sorted(str(g) for g in state.goal)
+    goal_lits = _get_goal_literals(state.goal)
+    goals = sorted(str(g) for g in goal_lits)
     lines = ["Current state:"]
     for lit in literals:
         lines.append(f"  {lit}")
@@ -24,7 +34,7 @@ def _state_to_text(state: object) -> str:
 
 def _compute_progress(state: object) -> float:
     """Compute goal completion rate: satisfied / total goal literals."""
-    goal_lits = {str(g) for g in state.goal}
+    goal_lits = {str(g) for g in _get_goal_literals(state.goal)}
     current_lits = {str(lit) for lit in state.literals}
     if not goal_lits:
         return 1.0
@@ -68,7 +78,12 @@ class PDDLWrapper:
         if matched is None:
             return "No valid actions available.", self._max_progress, True
 
-        self._state, _reward, done, _info = self._env.step(matched)
+        step_result = self._env.step(matched)
+        # pddlgym may return 4-tuple (old gym) or 5-tuple (new gymnasium)
+        self._state = step_result[0]
+        done = bool(step_result[2])
+        if len(step_result) == 5:
+            done = done or bool(step_result[3])  # terminated or truncated
         progress = _compute_progress(self._state)
         self._max_progress = max(self._max_progress, progress)
         obs = _state_to_text(self._state)

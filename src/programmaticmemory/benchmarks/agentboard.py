@@ -26,7 +26,7 @@ AVAILABLE_CATEGORIES = ["scienceworld", "babyai", "pddl"]
 BABYAI_LEVELS = [
     "BabyAI-GoToRedBallGrey-v0",
     "BabyAI-GoToRedBall-v0",
-    "BabyAI-GoToObjS6-v0",
+    "BabyAI-GoToObjS6-v1",
     "BabyAI-GoToLocalS8N7-v0",
     "BabyAI-GoToDoor-v0",
     "BabyAI-Open-v0",
