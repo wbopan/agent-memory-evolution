@@ -86,6 +86,7 @@ Population-based: maintains a `ProgramPool` of evaluated programs with pluggable
 - **benchmarks/locomo.py** — LoCoMo multi-session conversation QA (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/mini_locomo.py** — Single-conversation LoCoMo subset for fast iteration (`TokenF1Scorer`). Train has `raw_text`.
 - **benchmarks/tau_bench.py** — tau-bench retail/airline task completion (`ExactMatchScorer`). Train is QA-only.
+- **benchmarks/agentboard.py** — AgentBoard interactive environments (ScienceWorld, BabyAI, PDDL). Unified benchmark with `--category` selection. Train has `raw_text` (task descriptions). Val uses `AgentBoardValScorer` for real env interaction (progress rate). Requires `pip install -e ".[agentboard]"` for env interaction. Per-env wrappers: `_scienceworld_wrapper.py`, `_babyai_wrapper.py`, `_pddl_wrapper.py`.
 - **benchmarks/alfworld.py** — ALFWorld embodied task completion. Train has `raw_text` (structured trajectory metadata). Val uses `ALFWorldValScorer` for real TextWorld env interaction (binary success); falls back to `ExactMatchScorer` if `alfworld` package not installed. Requires `pip install -e ".[alfworld]"` for env interaction.
 - **benchmarks/nyt_connections.py** — NYT Connections word-grouping puzzles (`ConnectionsScorer`, partial credit 0.25/group). Train is QA-only. Data from HuggingFace (652 puzzles).
 - **benchmarks/_download.py** — Shared download utilities (stdlib only: urllib, tarfile, zipfile).

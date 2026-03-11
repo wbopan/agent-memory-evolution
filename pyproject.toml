@@ -28,6 +28,11 @@ full = [
     "tqdm>=4.66.1",
     "tiktoken>=0.12.0",
 ]
+agentboard = [
+    "scienceworld",
+    "minigrid>=2.3.0",
+    "pddlgym",
+]
 alfworld = [
     "alfworld>=0.2.2",
 ]
@@ -50,6 +55,7 @@ testpaths = ["tests"]
 markers = [
     "uses_chroma: test requires a real ChromaDB EphemeralClient",
     "llm: tests that call real LLM APIs (use disk cache for replay)",
+    "agentboard: tests that require agentboard environment packages (scienceworld, minigrid, pddlgym)",
     "alfworld: tests that require alfworld package",
 ]
 
