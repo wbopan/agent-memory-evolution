@@ -391,3 +391,71 @@ class TestBuildEvalBatchesIntegration:
         for i, b in enumerate(batches):
             assert len(b.train_indices) > 0, f"Batch {i} has no train items"
             assert len(b.val_indices) > 0, f"Batch {i} has no val items"
+
+
+from programmaticmemory.evolution.batching import select_representative_subset
+
+
+class TestSelectRepresentativeSubset:
+    def _make_data(self, n):
+        return [DataItem(raw_text=f"text_{i}", question=f"q{i}?", expected_answer=f"a{i}") for i in range(n)]
+
+    def _mock_embed(self, n, dim=4):
+        """Create deterministic embeddings that form distinct clusters."""
+        rng = np.random.RandomState(42)
+        return rng.randn(n, dim).astype(np.float64)
+
+    def test_returns_correct_number_of_indices(self):
+        train = self._make_data(50)
+        val = self._make_data(20)
+        val_size = 5
+        train_ratio = 3
+
+        with patch("programmaticmemory.evolution.batching._embed_texts") as mock_embed:
+            mock_embed.side_effect = [
+                self._mock_embed(20),  # val embeddings
+                self._mock_embed(50),  # train embeddings
+            ]
+            train_idx, val_idx = select_representative_subset(
+                train,
+                val,
+                val_size=val_size,
+                train_val_ratio=train_ratio,
+            )
+
+        assert len(val_idx) == val_size
+        assert len(train_idx) <= train_ratio * val_size
+        assert len(set(val_idx)) == val_size  # no duplicates
+
+    def test_val_indices_are_valid(self):
+        train = self._make_data(20)
+        val = self._make_data(10)
+
+        with patch("programmaticmemory.evolution.batching._embed_texts") as mock_embed:
+            mock_embed.side_effect = [self._mock_embed(10), self._mock_embed(20)]
+            _, val_idx = select_representative_subset(train, val, val_size=3, train_val_ratio=2)
+
+        for idx in val_idx:
+            assert 0 <= idx < 10
+
+    def test_train_indices_are_valid(self):
+        train = self._make_data(20)
+        val = self._make_data(10)
+
+        with patch("programmaticmemory.evolution.batching._embed_texts") as mock_embed:
+            mock_embed.side_effect = [self._mock_embed(10), self._mock_embed(20)]
+            train_idx, _ = select_representative_subset(train, val, val_size=3, train_val_ratio=2)
+
+        for idx in train_idx:
+            assert 0 <= idx < 20
+
+    def test_val_size_exceeds_data_returns_all(self):
+        """When val_size >= len(val_data), return all val indices."""
+        train = self._make_data(10)
+        val = self._make_data(5)
+
+        with patch("programmaticmemory.evolution.batching._embed_texts") as mock_embed:
+            mock_embed.side_effect = [self._mock_embed(5), self._mock_embed(10)]
+            train_idx, val_idx = select_representative_subset(train, val, val_size=10, train_val_ratio=2)
+
+        assert sorted(val_idx) == list(range(5))

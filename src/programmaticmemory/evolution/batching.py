@@ -260,3 +260,69 @@ def build_eval_batches(
             logger.log(f"WARNING: Batch {i} coverage {b.coverage:.4f} is >2 std below mean", header="BATCH")
 
     return batches
+
+
+def select_representative_subset(
+    train_data: list[DataItem],
+    val_data: list[DataItem],
+    val_size: int,
+    train_val_ratio: int = 5,
+    embedding_model: str = "openrouter/baai/bge-m3",
+) -> tuple[list[int], list[int]]:
+    """Select a representative (train, val) subset covering all val clusters.
+
+    Uses k-means to cluster val items, picks the closest item to each centroid,
+    then uses facility location to select train items that cover the selected val items.
+
+    If val_size >= len(val_data), returns all indices (degrades to FullDataset).
+
+    Returns:
+        (train_indices, val_indices)
+    """
+    logger = get_logger()
+
+    if val_size >= len(val_data):
+        logger.log(
+            f"val_size ({val_size}) >= val data ({len(val_data)}), using all items",
+            header="SUBSET",
+        )
+        val_indices = list(range(len(val_data)))
+    else:
+        val_texts = [item.question for item in val_data]
+        logger.log(f"Embedding {len(val_texts)} val texts for representative selection...", header="SUBSET")
+        val_embs = _embed_texts(val_texts, model=embedding_model)
+
+        labels = _kmeans(val_embs, k=val_size)
+        val_indices = []
+        for c in range(val_size):
+            members = [i for i, label in enumerate(labels) if label == c]
+            if not members:
+                continue
+            centroid = val_embs[members].mean(axis=0)
+            norm = np.linalg.norm(centroid)
+            if norm > 1e-10:
+                centroid /= norm
+            sims = val_embs[members] @ centroid
+            val_indices.append(members[int(sims.argmax())])
+
+        logger.log(f"Selected {len(val_indices)} representative val items from {val_size} clusters", header="SUBSET")
+
+    train_texts = [item.raw_text if item.raw_text else item.question for item in train_data]
+    logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
+    train_embs = _embed_texts(train_texts, model=embedding_model)
+
+    val_texts_for_embed = [item.question for item in val_data]
+    if val_size < len(val_data):
+        subset_val_embs = val_embs[val_indices]
+    else:
+        val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
+        subset_val_embs = val_embs_full[val_indices]
+
+    budget = train_val_ratio * len(val_indices)
+    train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
+    logger.log(
+        f"Selected {len(train_indices)} train items (budget={budget}, coverage={coverage:.4f})",
+        header="SUBSET",
+    )
+
+    return train_indices, val_indices
