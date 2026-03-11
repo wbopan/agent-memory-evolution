@@ -49,6 +49,8 @@ PDDL_ENVS = {
 
 
 def _load_scienceworld(num_train: int | None, num_val: int | None, seed: int) -> tuple[list[DataItem], list[DataItem]]:
+    if ScienceWorldEnv is None:
+        raise ImportError("scienceworld package required. Install with: pip install -e '.[agentboard]'")
     env = ScienceWorldEnv("", envStepLimit=100)
     try:
         task_names = env.get_task_names()
