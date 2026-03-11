@@ -14,10 +14,28 @@ import random
 import re
 import threading
 import uuid
+from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
 import litellm
+
+# Monkey-patch TextWorld PDDL parser to handle Fast Downward internal variables.
+# Fast Downward's SAS translation creates dummy atoms (e.g. "Atom dummy(val1)")
+# whose arguments aren't in the PDDL :objects section, causing KeyError in
+# textworld.envs.pddl.logic.Atom.get_fact(). Defaulting unknown names to "object"
+# type fixes this without affecting gameplay.
+try:
+    import textworld.envs.pddl.logic as _pddl_logic
+
+    _orig_get_fact = _pddl_logic.Atom.get_fact
+
+    def _safe_get_fact(self, name2type={}):  # noqa: B006
+        return _orig_get_fact(self, defaultdict(lambda: "object", name2type))
+
+    _pddl_logic.Atom.get_fact = _safe_get_fact
+except (ImportError, AttributeError):
+    pass  # textworld not installed or API changed
 
 from programmaticmemory.benchmarks._download import download_and_extract_zip, get_data_dir
 from programmaticmemory.datasets import register_dataset
