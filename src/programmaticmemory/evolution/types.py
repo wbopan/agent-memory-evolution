@@ -32,6 +32,22 @@ class ValScorer(Protocol):
     ) -> list[tuple[str, float]]: ...
 
 
+class EvalStrategy(Protocol):
+    """Controls data selection during evolution and final evaluation."""
+
+    def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
+        """Return (train, val) for a given evolution iteration."""
+        ...
+
+    def final_candidates(self, pool: ProgramPool) -> list[PoolEntry]:
+        """Select which programs to revalidate on full dataset after evolution."""
+        ...
+
+    def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        """Return (train, val) for final evaluation, or None to skip."""
+        ...
+
+
 @dataclass(frozen=True)
 class KBProgram:
     """A candidate knowledge base program — the unit of evolution.
@@ -240,6 +256,7 @@ class EvolutionState:
     best_score: float
     history: list[EvolutionRecord] = field(default_factory=list)
     total_iterations: int = 0
+    final_scores: dict[str, float] = field(default_factory=dict)
 
     @property
     def best_program(self) -> KBProgram:
