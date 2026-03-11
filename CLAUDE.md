@@ -35,13 +35,14 @@ uv run python -m programmaticmemory.evolution --iterations 3 num_items=10
 # Run on mini_locomo (fast, single conversation, TokenF1Scorer)
 uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations 3 --no-weave
 # Benchmark-specific kwargs passed as positional key=value args
-# --train-size / --val-size to limit dataset size
+# --eval-strategy full|representative|rotating (default: representative)
+# --eval-val-size N val subset size for representative/rotating (default: 30)
+# --eval-train-ratio N train items per val item (default: 5)
+# --eval-top-k N candidates for final revalidation in rotating (default: 3)
 # Weave/wandb tracing is ON by default; disable with --no-weave
 # --seed 42 (default), --weave-project programmaticmemory (default)
 # --dataset locomo/tau_bench/alfworld/mini_locomo for other benchmarks
 # --selection-strategy softmax/recency_decay/max (default: softmax)
-# --num-batches N for mini-batch rotation (0 = disabled, default)
-# --batch-train-val-ratio N train items per val item per batch (default: 5)
 # Local output directory (default: outputs/YYYY-MM-DD-HH-mm-SS/)
 # Contains config.json, run.log, summary.json, llm_calls/ with per-call JSON
 # Disable with --no-output
@@ -72,11 +73,11 @@ Seed: append everything, return everything
 Pool of seeds → sample parent (pluggable strategy) → Reflect(code, failures) → Evaluate child → add to pool → repeat
 ```
 
-Population-based: maintains a `ProgramPool` of evaluated programs with pluggable `SelectionStrategy` (default: `SoftmaxSelection(T=0.15)`). Each iteration samples a parent, reflects to produce a child, evaluates it, and adds it to the pool unconditionally. Accepts multiple seed programs via `initial_programs: list[KBProgram]`. Supports mini-batch rotation via `batches: list[EvalBatch]` — each iteration evaluates on `batches[i % len(batches)]` instead of the full dataset. Reflector handles compile/smoke-test validation internally; loop.py does not call `smoke_test`.
+Population-based: maintains a `ProgramPool` of evaluated programs with pluggable `SelectionStrategy` (default: `SoftmaxSelection(T=0.15)`). Each iteration samples a parent, reflects to produce a child, evaluates it, and adds it to the pool unconditionally. Accepts multiple seed programs via `initial_programs: list[KBProgram]`. Supports pluggable `EvalStrategy` (FullDataset, FixedRepresentative, RotatingBatch) for data selection during evolution and automatic final revalidation on full data. Reflector handles compile/smoke-test validation internally; loop.py does not call `smoke_test`.
 
 ### Key Modules (all under `src/programmaticmemory/evolution/`)
 
-- **types.py** — Core types: `Scorer` protocol, `ValScorer` protocol (pluggable val scoring), `Dataset` (bundles train/val/test/scorer/val_scorer/available_categories), `KBProgram`, `DataItem` (includes `metadata: dict` for benchmark-specific data), `EvalResult` (includes `runtime_violation`, `failed_cases`, `success_cases` fields), `FailedCase` (reused for both failed and success cases), `TrainExample`, `PoolEntry` (program + eval_result + name), `SelectionStrategy` protocol (`sample`/`weights`), `SoftmaxSelection` (score-proportional, default T=0.15), `RecencyDecaySelection` (generation-based decay), `MaxSelection` (always pick best), `ProgramPool` (pluggable parent selection via `SelectionStrategy`, `add`/`sample_parent`/`best`/`summary`), `EvolutionState` (wraps `ProgramPool`, `best_program` as property), `EvolutionRecord` (includes `parent_hash`)
+- **types.py** — Core types: `Scorer` protocol, `ValScorer` protocol (pluggable val scoring), `Dataset` (bundles train/val/test/scorer/val_scorer/available_categories), `KBProgram`, `DataItem` (includes `metadata: dict` for benchmark-specific data), `EvalResult` (includes `runtime_violation`, `failed_cases`, `success_cases` fields), `FailedCase` (reused for both failed and success cases), `TrainExample`, `PoolEntry` (program + eval_result + name), `SelectionStrategy` protocol (`sample`/`weights`), `SoftmaxSelection` (score-proportional, default T=0.15), `RecencyDecaySelection` (generation-based decay), `MaxSelection` (always pick best), `ProgramPool` (pluggable parent selection via `SelectionStrategy`, `add`/`sample_parent`/`best`/`summary`), `EvalStrategy` protocol (`select`/`final_candidates`/`final_eval_data`), `EvolutionState` (wraps `ProgramPool`, `best_program` as property, `final_scores` dict), `EvolutionRecord` (includes `parent_hash`)
 - **evaluator.py** — Two training pipelines, inferred from data (no explicit mode enum). Train items with `raw_text` → batch knowledge item ingestion (1 round). Train items without `raw_text` (QA only) → interactive training (3 rounds: query → answer → feedback-driven KnowledgeItem). Val has two phases: (1) shared KB retrieval (`_retrieve_for_val`), (2) pluggable scoring — either `_default_answer_and_score` (LLM answer + string scorer) or custom `ValScorer.score_batch` via `_val_scorer_path`. Both paths capture `train_examples` for reflection. Uses `ExactMatchScorer`, `TokenF1Scorer`, or `LLMJudgeScorer`. Runtime guards: `_guarded_write(kb, item, raw_text)`/`_guarded_read` wrap memory ops with timeout + output-size limits, raising `RuntimeViolationError` on violation. `raw_text` is a required positional parameter.
 - **reflector.py** — Calls LLM with current code + failed cases + success cases, extracts last `` ```python ``` `` block as the improved program. Includes compile-fix loop: validates code via `compile_kb_program` + `smoke_test`, retries with a dedicated fix prompt up to `max_fix_attempts` (default 3). Returned `KBProgram` is guaranteed valid.
 - **sandbox.py** — `compile_kb_program()`: AST parse → check 3 required classes (KnowledgeItem, Query, KnowledgeBase) → validate import whitelist → exec → check 4 required constants. Returns `CompiledProgram` (ki_cls, query_cls, kb_cls, instruction_knowledge_item, instruction_query, instruction_response, always_on_knowledge) on success, `CompileError` on failure. Also: `extract_dataclass_schema()` (outputs commented JSON example, includes `field(metadata={"description": ...})` if present), `smoke_test()`.
@@ -91,13 +92,14 @@ Population-based: maintains a `ProgramPool` of evaluated programs with pluggable
 - **benchmarks/nyt_connections.py** — NYT Connections word-grouping puzzles (`ConnectionsScorer`, partial credit 0.25/group). Train is QA-only. Data from HuggingFace (652 puzzles).
 - **benchmarks/_download.py** — Shared download utilities (stdlib only: urllib, tarfile, zipfile).
 - **benchmarks/__init__.py** — Imports all benchmark modules to trigger `@register_dataset` decorators. Must be updated when adding new benchmarks.
-- **batching.py** — Co-selected evaluation batching: `EvalBatch` (val_indices + train_indices + coverage), `build_eval_batches()` clusters val items via k-means on embeddings, then greedy facility location selects train items per cluster. Uses `litellm.embedding` (model: `openrouter/baai/bge-m3`). Depends on `numpy`.
+- **batching.py** — Co-selected evaluation batching: `EvalBatch` (val_indices + train_indices + coverage), `build_eval_batches()` clusters val items via k-means on embeddings, then greedy facility location selects train items per cluster. `select_representative_subset()` picks a representative val subset via clustering + facility location for train coverage. Uses `litellm.embedding` (model: `openrouter/baai/bge-m3`). Depends on `numpy`.
+- **strategies.py** — `EvalStrategy` implementations: `FullDataset` (full data every iteration, no final revalidation), `FixedRepresentative` (clustering-based fixed subset, comparable scores, final revalidation of top-1), `RotatingBatch` (round-robin batches, final revalidation of top-K).
 - **patcher.py** — `apply_patch()`: thin wrapper around `codex-apply-patch` for applying diffs to Knowledge Base Program source code.
 
 ### Other Modules (under `src/programmaticmemory/`)
 
 - **cache.py** — `configure_cache("disk"|"redis"|"r2"|"s3")` / `disable_cache()` for litellm caching.
-- **datasets.py** — `register_dataset(name)` decorator stores dataset loader functions. `load_dataset(name, ...)` calls the loader and applies train/val size limits. Auto-imports benchmarks package on first use.
+- **datasets.py** — `register_dataset(name)` decorator stores dataset loader functions. `load_dataset(name, ...)` calls the loader and returns the full dataset. Subset selection is handled by `EvalStrategy`. Auto-imports benchmarks package on first use.
 - **logging/experiment_tracker.py** — Experiment tracking via wandb/weave.
 - **logging/run_output.py** — `RunOutputManager` + `LLMCallLogger` (litellm `CustomLogger` callback). Creates timestamped `outputs/` dir with config, logs, summary, and per-call LLM JSON. Zero-invasive via litellm callback; thread-safe.
 - **logging/logger.py** — `RichLogger` (global singleton via `get_logger()`), `set_logger()` for file-tee replacement, `LoggerProtocol`. User-facing progress output with log-level headers (`EVOLUTION`, `EVAL`, `REFLECT`, `CONFIG`, `OUTPUT`).
