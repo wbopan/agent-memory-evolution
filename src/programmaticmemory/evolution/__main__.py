@@ -117,6 +117,12 @@ def main() -> None:
         default=5,
         help="Train budget per val item in each eval batch (default: 5)",
     )
+    parser.add_argument(
+        "--baseline",
+        type=Path,
+        default=None,
+        help="Evaluate a single KBProgram file (no evolution). When set, --iterations is ignored.",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -125,6 +131,53 @@ def main() -> None:
     from programmaticmemory.cache import configure_cache
 
     configure_cache("disk")
+
+    if args.baseline is not None:
+        # Single-pass baseline evaluation
+        dataset_kwargs = _parse_extra_kwargs(extra)
+        dataset = load_dataset(
+            args.dataset, category=args.category, train_size=args.train_size, val_size=args.val_size, **dataset_kwargs
+        )
+
+        from programmaticmemory.logging.logger import get_logger
+
+        logger = get_logger()
+
+        baseline_path = args.baseline
+        if not baseline_path.exists():
+            print(f"Error: baseline file not found: {baseline_path}", file=sys.stderr)
+            sys.exit(1)
+        source = baseline_path.read_text()
+        result = smoke_test(source)
+        if not result.success:
+            print(f"Error: invalid baseline program {baseline_path.name}: {result.error}", file=sys.stderr)
+            sys.exit(1)
+
+        program = KBProgram(source_code=source)
+        scorer = dataset.scorer or ExactMatchScorer()
+        toolkit_config = ToolkitConfig(llm_model=args.toolkit_model)
+        evaluator = MemoryEvaluator(
+            scorer=scorer,
+            task_model=args.task_model,
+            toolkit_config=toolkit_config,
+            val_scorer=dataset.val_scorer,
+        )
+
+        logger.log(
+            f"Baseline: {baseline_path.name}, dataset={args.dataset}, "
+            f"train={len(dataset.train)}, val={len(dataset.val)}",
+            header="CONFIG",
+        )
+        eval_result = evaluator.evaluate(program, dataset.train, dataset.val)
+
+        print(f"\n{'=' * 60}")
+        print(f"Baseline: {baseline_path.name}")
+        print(f"Score: {eval_result.score:.3f}")
+        print(f"Cases: {len(eval_result.per_case_scores)}")
+        if eval_result.failed_cases:
+            print(f"Failed: {len(eval_result.failed_cases)}")
+        print(f"{'=' * 60}")
+        sys.exit(0)
 
     # Load dataset (includes scorer, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
