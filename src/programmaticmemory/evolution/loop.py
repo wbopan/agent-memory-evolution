@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import weave
 
-from programmaticmemory.evolution.batching import EvalBatch
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
+from programmaticmemory.evolution.strategies import FullDataset
 from programmaticmemory.evolution.types import (
-    DataItem,
     Dataset,
+    EvalStrategy,
     EvolutionRecord,
     EvolutionState,
     FailedCase,
@@ -52,7 +52,7 @@ class EvolutionLoop:
         stop_condition: StopperProtocol | None = None,
         tracker: ExperimentTracker | None = None,
         output_manager: RunOutputManager | None = None,
-        batches: list[EvalBatch] | None = None,
+        eval_strategy: EvalStrategy | None = None,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -63,18 +63,8 @@ class EvolutionLoop:
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
-        self.batches = batches
+        self.eval_strategy = eval_strategy or FullDataset()
         self.logger = get_logger()
-
-    def _select_batch(self, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
-        """Select (train, val) subset for the given iteration."""
-        ds = self.dataset
-        if self.batches is None:
-            return ds.train, ds.val
-        batch = self.batches[iteration % len(self.batches)]
-        train = [ds.train[i] for i in batch.train_indices]
-        val = [ds.val[i] for i in batch.val_indices]
-        return train, val
 
     @weave.op()
     def run(self) -> EvolutionState:
@@ -82,15 +72,15 @@ class EvolutionLoop:
         ds = self.dataset
         pool = ProgramPool(strategy=self.strategy)
 
-        batch_info = f", batches={len(self.batches)}" if self.batches else ""
         self.logger.log(
             f"Starting evolution: max_iter={self.max_iterations}, seeds={len(self.initial_programs)}, "
-            f"train={len(ds.train)}, val={len(ds.val)}, strategy={pool.strategy!r}{batch_info}",
+            f"train={len(ds.train)}, val={len(ds.val)}, strategy={pool.strategy!r}, "
+            f"eval_strategy={self.eval_strategy.__class__.__name__}",
             header="EVOLUTION",
         )
 
         # Evaluate all seed programs
-        train, val = self._select_batch(0)
+        train, val = self.eval_strategy.select(self.dataset, 0)
         seed_eval_results = []
         for idx, seed in enumerate(self.initial_programs):
             seed_name = f"seed_{idx}"
@@ -157,12 +147,7 @@ class EvolutionLoop:
                 continue
 
             # Evaluate child
-            train, val = self._select_batch(i)
-            if self.batches is not None:
-                self.logger.log(
-                    f"Using batch {i % len(self.batches)}/{len(self.batches)} (train={len(train)}, val={len(val)})",
-                    header="EVOLUTION",
-                )
+            train, val = self.eval_strategy.select(self.dataset, i)
             if self.output_manager:
                 self.output_manager.set_phase(i, "train")
             self.logger.log(
@@ -228,6 +213,24 @@ class EvolutionLoop:
             f"Evolution complete: {state.total_iterations} iterations, best score: {state.best_score:.3f}",
             header="EVOLUTION",
         )
+
+        # Final evaluation
+        final_data = self.eval_strategy.final_eval_data(self.dataset)
+        if final_data is not None:
+            candidates = self.eval_strategy.final_candidates(pool)
+            self.logger.log(
+                f"Final evaluation: {len(candidates)} candidate(s) on full dataset "
+                f"(train={len(final_data[0])}, val={len(final_data[1])})",
+                header="EVOLUTION",
+            )
+            for entry in candidates:
+                final_result = self.evaluator.evaluate(entry.program, *final_data)
+                state.final_scores[entry.program.hash] = final_result.score
+                self.logger.log(
+                    f"Final score for {entry.program.hash}: {final_result.score:.3f} (evolution: {entry.score:.3f})",
+                    header="EVOLUTION",
+                )
+
         best = state.best_program
         summary = {
             "best_score": state.best_score,
@@ -239,6 +242,12 @@ class EvolutionLoop:
                 {"iteration": r.iteration, "score": r.score, "parent_hash": r.parent_hash} for r in state.history
             ],
             "best_program_source": best.source_code,
+            "final_evaluation": {
+                "strategy": self.eval_strategy.__class__.__name__,
+                "candidates": [{"hash": h, "final_score": s} for h, s in state.final_scores.items()],
+            }
+            if state.final_scores
+            else None,
         }
         if self.tracker:
             self.tracker.log_summary(summary)

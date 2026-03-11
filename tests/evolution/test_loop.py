@@ -9,6 +9,7 @@ from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
+from programmaticmemory.evolution.strategies import FullDataset, RotatingBatch
 from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, KBProgram
 
 
@@ -339,11 +340,12 @@ class TestBatchRotation:
             reflector=reflector,
             dataset=ds,
             max_iterations=0,
-            batches=batches,
+            eval_strategy=RotatingBatch(batches),
         )
         loop.run()
 
-        call_args = evaluator.evaluate.call_args
+        # First call is seed eval on batch 0; final eval follows on full dataset
+        call_args = evaluator.evaluate.call_args_list[0]
         train_arg = call_args[0][1]
         val_arg = call_args[0][2]
         assert len(train_arg) == 2
@@ -363,6 +365,9 @@ class TestBatchRotation:
             EvalResult(score=0.5, failed_cases=[]),  # seed on batch 0
             EvalResult(score=0.6),  # iter 1 on batch 1
             EvalResult(score=0.7),  # iter 2 on batch 0 (wrap)
+            EvalResult(score=0.7),  # final eval candidate 1
+            EvalResult(score=0.6),  # final eval candidate 2
+            EvalResult(score=0.5),  # final eval candidate 3
         ]
         reflector = MagicMock(spec=Reflector)
         reflector.reflect_and_mutate.return_value = child
@@ -373,7 +378,7 @@ class TestBatchRotation:
             reflector=reflector,
             dataset=ds,
             max_iterations=2,
-            batches=batches,
+            eval_strategy=RotatingBatch(batches),
         )
         loop.run()
 
@@ -397,6 +402,8 @@ class TestBatchRotation:
             EvalResult(score=0.5),  # seed on batch 0
             EvalResult(score=0.0, runtime_violation="timeout"),  # iter 1 on batch 1
             EvalResult(score=0.8),  # re-eval on batch 1
+            EvalResult(score=0.8),  # final eval candidate 1
+            EvalResult(score=0.5),  # final eval candidate 2
         ]
         reflector = MagicMock(spec=Reflector)
         reflector.reflect_and_mutate.return_value = child
@@ -408,7 +415,7 @@ class TestBatchRotation:
             reflector=reflector,
             dataset=ds,
             max_iterations=1,
-            batches=batches,
+            eval_strategy=RotatingBatch(batches),
         )
         loop.run()
 
@@ -436,3 +443,58 @@ class TestBatchRotation:
         call_args = evaluator.evaluate.call_args
         assert len(call_args[0][1]) == 4  # full train
         assert len(call_args[0][2]) == 4  # full val
+
+
+class TestFinalEvaluation:
+    def test_final_eval_runs_when_strategy_provides_data(self):
+        """FixedRepresentative-like strategy triggers final evaluation."""
+        dataset = _make_dataset()
+
+        class MockStrategy:
+            def select(self, ds, iteration):
+                return ds.train[:1], ds.val[:1]
+
+            def final_candidates(self, pool):
+                return [pool.best]
+
+            def final_eval_data(self, ds):
+                return ds.train, ds.val
+
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.5),  # seed on subset
+            EvalResult(score=0.8),  # final eval on full
+        ]
+        reflector = MagicMock(spec=Reflector)
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=0,
+            eval_strategy=MockStrategy(),
+        )
+        state = loop.run()
+
+        assert evaluator.evaluate.call_count == 2
+        assert len(state.final_scores) == 1
+        assert list(state.final_scores.values())[0] == 0.8
+
+    def test_final_eval_skipped_when_strategy_returns_none(self):
+        """FullDataset-like strategy skips final evaluation."""
+        dataset = _make_dataset()
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.return_value = EvalResult(score=0.5)
+        reflector = MagicMock(spec=Reflector)
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=0,
+            eval_strategy=FullDataset(),
+        )
+        state = loop.run()
+
+        assert evaluator.evaluate.call_count == 1  # only seed
+        assert state.final_scores == {}
