@@ -11,3 +11,8 @@ class TestBaselineSmokeTests:
         source = (BASELINES_DIR / "no_memory.py").read_text()
         result = smoke_test(source)
         assert result.success, f"no_memory.py smoke test failed: {result.error}"
+
+    def test_vanilla_rag_smoke(self):
+        source = (BASELINES_DIR / "vanilla_rag.py").read_text()
+        result = smoke_test(source)
+        assert result.success, f"vanilla_rag.py smoke test failed: {result.error}"
