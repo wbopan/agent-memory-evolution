@@ -14,7 +14,6 @@ import random
 import re
 import threading
 import uuid
-from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -23,15 +22,26 @@ import litellm
 # Monkey-patch TextWorld PDDL parser to handle Fast Downward internal variables.
 # Fast Downward's SAS translation creates dummy atoms (e.g. "Atom dummy(val1)")
 # whose arguments aren't in the PDDL :objects section, causing KeyError in
-# textworld.envs.pddl.logic.Atom.get_fact(). Defaulting unknown names to "object"
-# type fixes this without affecting gameplay.
+# textworld.envs.pddl.logic.Atom.get_fact().
+#
+# Fix: return a sentinel with is_negation=True for atoms with unknown variables.
+# The caller (PddlState.__init__ line 214) already filters `not fact.is_negation`,
+# so these dummy atoms are silently dropped without corrupting the game state.
 try:
     import textworld.envs.pddl.logic as _pddl_logic
+
+    class _SkipFact:
+        is_negation = True
 
     _orig_get_fact = _pddl_logic.Atom.get_fact
 
     def _safe_get_fact(self, name2type={}):  # noqa: B006
-        return _orig_get_fact(self, defaultdict(lambda: "object", name2type))
+        _, rest = self.name.split(" ", 1)
+        _, args_str = rest.split("(", 1)
+        for arg in args_str[:-1].split(", "):
+            if arg and arg not in name2type:
+                return _SkipFact()
+        return _orig_get_fact(self, name2type)
 
     _pddl_logic.Atom.get_fact = _safe_get_fact
 except (ImportError, AttributeError):
@@ -48,6 +58,7 @@ _TWPDDL_URL = f"{_GH_RELEASE}/json_2.1.1_tw-pddl.zip"
 
 # Cache of validated game files: game_file_path -> True (has admissible commands) / False
 _VALID_GAME_CACHE: dict[str, bool] = {}
+_CACHE_FILE_NAME = ".alfworld_valid_games.json"
 
 
 def ensure_data(data_dir: str | Path | None = None) -> Path:
@@ -590,9 +601,41 @@ def load_alfworld(
         import alfworld  # noqa: F401
 
         # Filter val items with broken PDDL state (0 admissible commands after env.reset).
-        # Some game files have Fast Downward dummy atoms that corrupt the game state.
+        # Some game files trigger Fast Downward C-library crashes, so each probe runs
+        # in a separate process. Results are cached to disk for subsequent runs.
         pre_filter = len(val)
-        val = [item for item in val if _probe_game(item.metadata["game_file"])]
+        import concurrent.futures
+
+        # Load disk cache
+        cache_path = dest_dir / _CACHE_FILE_NAME
+        if not _VALID_GAME_CACHE and cache_path.exists():
+            try:
+                _VALID_GAME_CACHE.update(json.loads(cache_path.read_text()))
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        game_files = [item.metadata["game_file"] for item in val]
+        uncached = [gf for gf in game_files if gf not in _VALID_GAME_CACHE]
+        if uncached:
+            from programmaticmemory.logging.logger import get_logger
+
+            get_logger().log(f"Validating {len(uncached)} game files (first run only)...", header="ALFWORLD")
+            workers = min(20, len(uncached))
+            with concurrent.futures.ProcessPoolExecutor(max_workers=workers) as pool:
+                futures = {pool.submit(_probe_game, gf): gf for gf in uncached}
+                for future in concurrent.futures.as_completed(futures):
+                    gf = futures[future]
+                    try:
+                        _VALID_GAME_CACHE[gf] = future.result(timeout=30)
+                    except Exception:
+                        _VALID_GAME_CACHE[gf] = False
+            # Persist to disk
+            try:
+                cache_path.write_text(json.dumps(_VALID_GAME_CACHE))
+            except OSError:
+                pass
+
+        val = [item for item in val if _VALID_GAME_CACHE.get(item.metadata["game_file"], False)]
         if len(val) < pre_filter:
             from programmaticmemory.logging.logger import get_logger
 
