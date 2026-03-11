@@ -38,10 +38,10 @@ BABYAI_LEVELS = [
 
 # PDDL domains from AgentBoard
 PDDL_ENVS = {
-    "blocks": ("PDDLEnvBlocks-v0", 20),
-    "gripper": ("PDDLEnvGripper-v0", 20),
-    "barman": ("PDDLEnvBarman-v0", 20),
-    "tyreworld": ("PDDLEnvTyreworld-v0", 10),
+    "blocks": ("PDDLEnvBlocks-v0", 5),
+    "gripper": ("PDDLEnvGripper-v0", 10),
+    "tireworld": ("PDDLEnvTireworld-v0", 6),
+    "hanoi": ("PDDLEnvHanoi-v0", 4),
 }
 
 
