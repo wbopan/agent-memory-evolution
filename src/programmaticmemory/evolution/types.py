@@ -95,6 +95,7 @@ class Dataset:
     val_scorer: ValScorer | None = None
     available_categories: list[str] | None = None
     extra_scorers: dict[str, Scorer] = field(default_factory=dict)
+    category_key: str | None = None
 
 
 @dataclass
@@ -265,6 +266,8 @@ class EvolutionState:
     test_scores: dict[str, float] = field(default_factory=dict)
     final_extra_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
     test_extra_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    final_category_scores: dict[str, dict[str, float]] = field(default_factory=dict)
+    test_category_scores: dict[str, dict[str, float]] = field(default_factory=dict)
 
     @property
     def best_program(self) -> KBProgram:

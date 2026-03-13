@@ -930,3 +930,29 @@ class TestLoadDatasetCategory:
             mock_loader.assert_called_once_with(category=None)
         finally:
             del _CUSTOM_REGISTRY["_test_cat2"]
+
+
+# ── Category metadata ─────────────────────────────────────────────────────────
+
+
+class TestCategoryMetadata:
+    @pytest.fixture()
+    def locomo_data_dir(self, tmp_path):
+        dest = tmp_path / "locomo"
+        dest.mkdir()
+        (dest / "locomo10.json").write_text(json.dumps(_LOCOMO_FIXTURE))
+        return tmp_path
+
+    def test_locomo_val_items_have_qa_category(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        ds = load_locomo(num_conversations=1, data_dir=locomo_data_dir)
+        for item in ds.val:
+            assert "qa_category" in item.metadata
+            assert item.metadata["qa_category"] in {1, 2, 3, 4}
+
+    def test_dataset_category_key(self, locomo_data_dir):
+        from programmaticmemory.benchmarks.locomo import load_locomo
+
+        ds = load_locomo(data_dir=locomo_data_dir)
+        assert ds.category_key == "qa_category"

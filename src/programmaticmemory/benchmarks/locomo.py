@@ -105,7 +105,11 @@ def load_locomo(
             cat = qa.get("category")
             if cat not in categories:
                 continue
-            val.append(DataItem(raw_text="", question=qa["question"], expected_answer=qa["answer"]))
+            val.append(
+                DataItem(
+                    raw_text="", question=qa["question"], expected_answer=qa["answer"], metadata={"qa_category": cat}
+                )
+            )
 
     return Dataset(
         train=train,
@@ -114,4 +118,5 @@ def load_locomo(
         scorer=TokenF1Scorer(),
         available_categories=all_categories,
         extra_scorers={"em": ExactMatchScorer()},
+        category_key="qa_category",
     )

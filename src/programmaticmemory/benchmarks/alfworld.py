@@ -325,14 +325,23 @@ def _probe_game(game_file: str) -> bool:
         from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
 
         request_infos = textworld.EnvInfos(
-            feedback=True, description=True, inventory=True,
-            admissible_commands=True, objective=True, extras=["gamefile"],
+            feedback=True,
+            description=True,
+            inventory=True,
+            admissible_commands=True,
+            objective=True,
+            extras=["gamefile"],
         )
         wrappers = [AlfredDemangler(), AlfredInfos]
         env_id = textworld.gym.register_games(
-            [game_file], request_infos, batch_size=1, auto_reset=False,
-            max_episode_steps=5, asynchronous=False,
-            name=f"probe-{uuid.uuid4().hex}", wrappers=wrappers,
+            [game_file],
+            request_infos,
+            batch_size=1,
+            auto_reset=False,
+            max_episode_steps=5,
+            asynchronous=False,
+            name=f"probe-{uuid.uuid4().hex}",
+            wrappers=wrappers,
         )
         env = textworld.gym.make(env_id)
         try:
@@ -692,4 +701,5 @@ def load_alfworld(
         scorer=ExactMatchScorer(),
         val_scorer=val_scorer,
         available_categories=all_categories,
+        category_key="task_type",
     )
