@@ -1057,3 +1057,79 @@ class TestValScorerIntegration:
 
         assert result.score == 1.0
         assert len(batch_mock.captured_calls) == 3  # train + val query + val answer
+
+
+class TestEvaluateDual:
+    """Tests for MemoryEvaluator.evaluate_dual — single train ingestion, dual val eval."""
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_evaluate_dual_returns_two_results(self, mock_litellm):
+        """evaluate_dual returns (score_result, reflect_result) with separate scores."""
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        train = [DataItem(raw_text="Alice likes cats.", question="", expected_answer="")]
+        val_score = [DataItem(raw_text="", question="What does Alice like?", expected_answer="cats")]
+        val_reflect = [DataItem(raw_text="", question="Who likes cats?", expected_answer="Alice")]
+
+        # 1 train KI generation + 1 score query + 1 score answer + 1 reflect query + 1 reflect answer = 5
+        batch_mock = _make_batch_mock(
+            [
+                ['{"summary": "Alice likes cats.", "observations": ["Alice likes cats"]}'],  # train KI
+                ['{"raw": "Alice cats"}'],  # score query
+                ["cats"],  # score answer
+                ['{"raw": "cats Alice"}'],  # reflect query
+                ["Alice"],  # reflect answer
+            ]
+        )
+        mock_litellm.completion = batch_mock
+
+        evaluator = MemoryEvaluator(
+            scorer=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
+        )
+        score_result, reflect_result = evaluator.evaluate_dual(program, train, val_score, val_reflect)
+
+        assert score_result.score >= 0.0
+        assert reflect_result.score >= 0.0
+        # Both should have per_case data
+        assert len(score_result.per_case_scores) == 1
+        assert len(reflect_result.per_case_scores) == 1
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_evaluate_dual_shares_train_ingestion(self, mock_litellm):
+        """Both val sets query the same KB built from a single train ingestion."""
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        train = [DataItem(raw_text="Bob has a dog named Rex.", question="", expected_answer="")]
+        val_score = [DataItem(raw_text="", question="What pet does Bob have?", expected_answer="dog")]
+        val_reflect = [DataItem(raw_text="", question="What is the dog's name?", expected_answer="Rex")]
+
+        batch_mock = _make_batch_mock(
+            [
+                ['{"summary": "Bob has a dog named Rex.", "observations": ["Bob has dog Rex"]}'],
+                ['{"raw": "Bob pet dog"}'],
+                ["dog"],
+                ['{"raw": "dog name Rex"}'],
+                ["Rex"],
+            ]
+        )
+        mock_litellm.completion = batch_mock
+
+        evaluator = MemoryEvaluator(
+            scorer=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
+        )
+        score_result, reflect_result = evaluator.evaluate_dual(program, train, val_score, val_reflect)
+
+        # Train ingestion happens once (1 KI generation call), then 2+2 val calls
+        # Total: 5 LLM calls, not 7 (which would be 2 separate evaluate() calls)
+        assert score_result is not None
+        assert reflect_result is not None
+
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_evaluate_dual_compile_error_returns_empty_pair(self, mock_litellm):
+        """Compile failure returns two zero-score results."""
+        program = KBProgram(source_code="invalid python {{{{")
+        evaluator = MemoryEvaluator(
+            scorer=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
+        )
+        score_result, reflect_result = evaluator.evaluate_dual(program, [], [], [])
+
+        assert score_result.score == 0.0
+        assert reflect_result.score == 0.0

@@ -99,7 +99,7 @@ class ExactMatchScorer:
 
     @staticmethod
     def _normalize(text: str) -> str:
-        text = text.lower().strip()
+        text = str(text).lower().strip()
         text = re.sub(r"[^\w\s]", "", text)
         text = re.sub(r"\s+", " ", text)
         return text
@@ -122,7 +122,7 @@ class TokenF1Scorer:
 
     @staticmethod
     def _normalize_and_tokenize(text: str) -> list[str]:
-        text = text.lower()
+        text = str(text).lower()
         text = re.sub(r"\b(a|an|the)\b", " ", text)
         text = re.sub(r"[^\w\s]", "", text)
         return text.split()
@@ -271,28 +271,126 @@ class MemoryEvaluator:
         finally:
             toolkit.close()
 
+    @weave.op()
+    def evaluate_dual(
+        self,
+        program: KBProgram,
+        train_data: list[DataItem],
+        val_score: list[DataItem],
+        val_reflect: list[DataItem],
+    ) -> tuple[EvalResult, EvalResult]:
+        """Single train ingestion, dual val evaluation.
+
+        Returns (score_result, reflect_result) — score_result is for pool selection,
+        reflect_result provides failed_cases for future reflection.
+        """
+        compile_result = compile_kb_program(program.source_code)
+        if isinstance(compile_result, CompileError):
+            self.logger.log(f"Compile failed: {compile_result.message}", header="EVAL")
+            empty = EvalResult(
+                score=0.0,
+                logs=[f"Compile error: {compile_result.message} — {compile_result.details}"],
+            )
+            return empty, EvalResult(score=0.0)
+
+        compiled = compile_result
+        ki_schema = extract_dataclass_schema(compiled.ki_cls)
+        query_schema = extract_dataclass_schema(compiled.query_cls)
+
+        toolkit = Toolkit(self.toolkit_config)
+        try:
+            kb = compiled.kb_cls(toolkit)
+        except Exception as e:
+            empty = EvalResult(score=0.0, logs=[f"KnowledgeBase instantiation failed: {e}"])
+            return empty, EvalResult(score=0.0)
+
+        try:
+            # Train ingestion (once)
+            if train_data and train_data[0].raw_text:
+                self.logger.log(
+                    f"Pipeline: offline dual (train={len(train_data)}, "
+                    f"val_score={len(val_score)}, val_reflect={len(val_reflect)})",
+                    header="EVAL",
+                )
+                train_examples, train_logs = self._ingest_offline(
+                    kb,
+                    compiled.ki_cls,
+                    ki_schema,
+                    train_data,
+                    instruction_knowledge_item=compiled.instruction_knowledge_item,
+                )
+            else:
+                self.logger.log(
+                    f"Pipeline: online dual (train={len(train_data)}, "
+                    f"val_score={len(val_score)}, val_reflect={len(val_reflect)})",
+                    header="EVAL",
+                )
+                train_logs: list[str] = []
+                train_examples = self._online_train_batched(
+                    kb,
+                    compiled.ki_cls,
+                    compiled.query_cls,
+                    ki_schema,
+                    query_schema,
+                    train_data,
+                    train_logs,
+                    instruction_knowledge_item=compiled.instruction_knowledge_item,
+                    instruction_query=compiled.instruction_query,
+                    instruction_response=compiled.instruction_response,
+                    always_on_knowledge=compiled.always_on_knowledge,
+                )
+
+            # Score val
+            self.logger.log(f"Val (score): evaluating on {len(val_score)} items", header="EVAL")
+            score_result = self._evaluate_val(
+                kb,
+                compiled.query_cls,
+                query_schema,
+                val_score,
+                list(train_logs),
+                toolkit,
+                instruction_query=compiled.instruction_query,
+                instruction_response=compiled.instruction_response,
+                always_on_knowledge=compiled.always_on_knowledge,
+            )
+            score_result.train_examples = train_examples
+
+            # Reflect val
+            self.logger.log(f"Val (reflect): evaluating on {len(val_reflect)} items", header="EVAL")
+            reflect_result = self._evaluate_val(
+                kb,
+                compiled.query_cls,
+                query_schema,
+                val_reflect,
+                list(train_logs),
+                toolkit,
+                instruction_query=compiled.instruction_query,
+                instruction_response=compiled.instruction_response,
+                always_on_knowledge=compiled.always_on_knowledge,
+            )
+            reflect_result.train_examples = train_examples
+
+            return score_result, reflect_result
+        except RuntimeViolationError as e:
+            self.logger.log(f"Runtime violation: {e}", header="EVAL")
+            empty = EvalResult(score=0.0, logs=[f"Runtime violation: {e}"], runtime_violation=str(e))
+            return empty, EvalResult(score=0.0, runtime_violation=str(e))
+        finally:
+            toolkit.close()
+
     # ── Offline ─────────────────────────────────────────────────────────────
 
-    def _evaluate_offline(
+    def _ingest_offline(
         self,
         kb: Any,
         ki_cls: type,
-        query_cls: type,
         ki_schema: str,
-        query_schema: str,
         train_data: list[DataItem],
-        val_data: list[DataItem],
-        toolkit: Toolkit,
         *,
         instruction_knowledge_item: str = "",
-        instruction_query: str = "",
-        instruction_response: str = "",
-        always_on_knowledge: str = "",
-    ) -> EvalResult:
-        """Offline: Batch ingest train (LLM generates knowledge items), then evaluate val."""
+    ) -> tuple[list[TrainExample], list[str]]:
+        """Batch ingest train data into KB. Returns (train_examples, logs)."""
         logs: list[str] = []
-
-        # Batch all knowledge item generation prompts in one call
         self.logger.log(f"Train: generating knowledge items for {len(train_data)} items", header="EVAL")
         all_messages = [
             [
@@ -328,6 +426,28 @@ class MemoryEvaluator:
                 fail_count += 1
 
         self.logger.log(f"Train: write phase complete — {write_count} written, {fail_count} failed", header="EVAL")
+        return train_examples, logs
+
+    def _evaluate_offline(
+        self,
+        kb: Any,
+        ki_cls: type,
+        query_cls: type,
+        ki_schema: str,
+        query_schema: str,
+        train_data: list[DataItem],
+        val_data: list[DataItem],
+        toolkit: Toolkit,
+        *,
+        instruction_knowledge_item: str = "",
+        instruction_query: str = "",
+        instruction_response: str = "",
+        always_on_knowledge: str = "",
+    ) -> EvalResult:
+        """Offline: Batch ingest train (LLM generates knowledge items), then evaluate val."""
+        train_examples, logs = self._ingest_offline(
+            kb, ki_cls, ki_schema, train_data, instruction_knowledge_item=instruction_knowledge_item
+        )
 
         # Val: multi-turn query → read → answer → score
         self.logger.log(f"Val: starting evaluation on {len(val_data)} items", header="EVAL")
