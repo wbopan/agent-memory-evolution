@@ -180,6 +180,12 @@ def main() -> None:
         default=-1,
         help="Train items per test item for final/test evaluation: -1 = all train (default), N > 0 = facility location subset",
     )
+    parser.add_argument(
+        "--max-fix-attempts",
+        type=int,
+        default=3,
+        help="Max compile-fix attempts per reflection (default: 3). Set to 0 to disable fix loop.",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -256,7 +262,7 @@ def main() -> None:
         max_train_examples=args.reflection_max_train_examples,
         max_memory_log_chars=args.reflection_max_memory_log_chars,
     )
-    reflector = Reflector(model=args.reflect_model, prompt_config=prompt_config)
+    reflector = Reflector(model=args.reflect_model, prompt_config=prompt_config, max_fix_attempts=args.max_fix_attempts)
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
     # Load seed programs (--seed-program accepts a directory or a single .py file)
