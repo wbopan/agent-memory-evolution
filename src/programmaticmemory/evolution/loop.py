@@ -286,6 +286,22 @@ class EvolutionLoop:
                         self.logger.log(
                             f"Final extra metric '{name}' for {entry.program.hash}: {avg:.3f}", header="EVOLUTION"
                         )
+                # Per-category breakdown
+                if self.dataset.category_key:
+                    cat_key = self.dataset.category_key
+                    final_items = final_data[1]
+                    cat_scores: dict[str, list[float]] = {}
+                    for score_val, item in zip(final_result.per_case_scores, final_items, strict=False):
+                        cat = str(item.metadata.get(cat_key, "unknown"))
+                        cat_scores.setdefault(cat, []).append(score_val)
+                    state.final_category_scores[entry.program.hash] = {
+                        cat: sum(s) / len(s) for cat, s in cat_scores.items()
+                    }
+                    for cat, avg in state.final_category_scores[entry.program.hash].items():
+                        self.logger.log(
+                            f"Final category '{cat}' for {entry.program.hash}: {avg:.3f}",
+                            header="EVOLUTION",
+                        )
                 if self.output_manager and final_result.failed_cases:
                     self.output_manager.write_eval_cases(
                         f"final_{entry.program.hash[:8]}",
@@ -318,6 +334,22 @@ class EvolutionLoop:
                     avg = sum(scores) / len(scores) if scores else 0.0
                     state.test_extra_metrics[best_entry.program.hash][name] = avg
                     self.logger.log(f"Test extra metric '{name}': {avg:.3f}", header="EVOLUTION")
+            # Per-category breakdown
+            if self.dataset.category_key:
+                cat_key = self.dataset.category_key
+                test_items = test_data[1]
+                test_cat_scores: dict[str, list[float]] = {}
+                for score_val, item in zip(test_result.per_case_scores, test_items, strict=False):
+                    cat = str(item.metadata.get(cat_key, "unknown"))
+                    test_cat_scores.setdefault(cat, []).append(score_val)
+                state.test_category_scores[best_entry.program.hash] = {
+                    cat: sum(s) / len(s) for cat, s in test_cat_scores.items()
+                }
+                for cat, avg in state.test_category_scores[best_entry.program.hash].items():
+                    self.logger.log(
+                        f"Test category '{cat}' for {best_entry.program.hash}: {avg:.3f}",
+                        header="EVOLUTION",
+                    )
             if self.output_manager and test_result.failed_cases:
                 self.output_manager.write_eval_cases("test", _serialize_failed_cases(test_result.failed_cases))
 
@@ -336,12 +368,14 @@ class EvolutionLoop:
                 "strategy": self.eval_strategy.__class__.__name__,
                 "candidates": [{"hash": h, "final_score": s} for h, s in state.final_scores.items()],
                 "extra_metrics": dict(state.final_extra_metrics),
+                "category_scores": dict(state.final_category_scores),
             }
             if state.final_scores
             else None,
             "test_evaluation": {
                 "scores": dict(state.test_scores.items()),
                 "extra_metrics": dict(state.test_extra_metrics),
+                "category_scores": dict(state.test_category_scores),
             }
             if state.test_scores
             else None,

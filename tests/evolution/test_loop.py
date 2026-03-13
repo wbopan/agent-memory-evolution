@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, Mock
 
+import pytest
+
 from programmaticmemory.evolution.batching import EvalBatch
 from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
@@ -588,3 +590,99 @@ class TestExtraScorers:
         assert len(state.test_extra_metrics) == 1
         program_hash = list(state.test_extra_metrics.keys())[0]
         assert state.test_extra_metrics[program_hash]["em"] == 0.5
+
+
+class TestPerCategoryScores:
+    def test_final_category_scores_computed(self):
+        """Per-category scores are computed in final eval when category_key is set."""
+        val_items = [
+            DataItem(raw_text="", question="q1", expected_answer="a1", metadata={"cat": "A"}),
+            DataItem(raw_text="", question="q2", expected_answer="a2", metadata={"cat": "B"}),
+            DataItem(raw_text="", question="q3", expected_answer="a3", metadata={"cat": "A"}),
+        ]
+        dataset = Dataset(
+            train=[],
+            val=val_items,
+            test=[],
+            scorer=None,
+            category_key="cat",
+        )
+
+        mock_evaluator = Mock()
+        # seed eval returns score=0.5; final eval returns per_case_scores=[1.0, 0.0, 0.5]
+        seed_eval = EvalResult(score=0.5)
+        final_eval = EvalResult(score=0.5, per_case_scores=[1.0, 0.0, 0.5])
+        mock_evaluator.evaluate.side_effect = [seed_eval, final_eval]
+
+        mock_strategy = Mock()
+        mock_strategy.select.return_value = ([], val_items)
+        mock_strategy.final_eval_data.return_value = ([], val_items)
+        mock_strategy.final_candidates.side_effect = lambda pool: [pool.best]
+        mock_strategy.test_eval_data.return_value = None
+
+        mock_reflector = Mock()
+        mock_reflector.max_fix_attempts = 3
+
+        parent = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        loop = EvolutionLoop(
+            evaluator=mock_evaluator,
+            reflector=mock_reflector,
+            dataset=dataset,
+            initial_programs=[parent],
+            max_iterations=0,
+            eval_strategy=mock_strategy,
+        )
+        state = loop.run()
+
+        assert len(state.final_category_scores) == 1
+        program_hash = list(state.final_category_scores.keys())[0]
+        cat_scores = state.final_category_scores[program_hash]
+        # Category A: items 0 and 2 → scores [1.0, 0.5] → avg 0.75
+        assert cat_scores["A"] == pytest.approx(0.75)
+        # Category B: item 1 → score [0.0] → avg 0.0
+        assert cat_scores["B"] == pytest.approx(0.0)
+
+    def test_test_category_scores_computed(self):
+        """Per-category scores are computed in test eval when category_key is set."""
+        test_items = [
+            DataItem(raw_text="", question="q1", expected_answer="a1", metadata={"cat": "X"}),
+            DataItem(raw_text="", question="q2", expected_answer="a2", metadata={"cat": "Y"}),
+        ]
+        dataset = Dataset(
+            train=[],
+            val=[],
+            test=test_items,
+            scorer=None,
+            category_key="cat",
+        )
+
+        mock_evaluator = Mock()
+        seed_eval = EvalResult(score=0.5)
+        test_eval = EvalResult(score=0.6, per_case_scores=[0.8, 0.4])
+        mock_evaluator.evaluate.side_effect = [seed_eval, test_eval]
+
+        mock_strategy = Mock()
+        mock_strategy.select.return_value = ([], [])
+        mock_strategy.final_eval_data.return_value = None
+        mock_strategy.test_eval_data.return_value = ([], test_items)
+        mock_strategy.final_candidates.return_value = []
+
+        mock_reflector = Mock()
+        mock_reflector.max_fix_attempts = 3
+
+        parent = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        loop = EvolutionLoop(
+            evaluator=mock_evaluator,
+            reflector=mock_reflector,
+            dataset=dataset,
+            initial_programs=[parent],
+            max_iterations=0,
+            eval_strategy=mock_strategy,
+        )
+        state = loop.run()
+
+        assert len(state.test_category_scores) == 1
+        program_hash = list(state.test_category_scores.keys())[0]
+        cat_scores = state.test_category_scores[program_hash]
+        assert cat_scores["X"] == pytest.approx(0.8)
+        assert cat_scores["Y"] == pytest.approx(0.4)
