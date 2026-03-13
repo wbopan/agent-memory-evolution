@@ -286,6 +286,11 @@ class EvolutionLoop:
                         self.logger.log(
                             f"Final extra metric '{name}' for {entry.program.hash}: {avg:.3f}", header="EVOLUTION"
                         )
+                if self.output_manager and final_result.failed_cases:
+                    self.output_manager.write_eval_cases(
+                        f"final_{entry.program.hash[:8]}",
+                        _serialize_failed_cases(final_result.failed_cases),
+                    )
 
         # Test evaluation (held-out test set)
         test_data = self.eval_strategy.test_eval_data(self.dataset)
@@ -313,6 +318,8 @@ class EvolutionLoop:
                     avg = sum(scores) / len(scores) if scores else 0.0
                     state.test_extra_metrics[best_entry.program.hash][name] = avg
                     self.logger.log(f"Test extra metric '{name}': {avg:.3f}", header="EVOLUTION")
+            if self.output_manager and test_result.failed_cases:
+                self.output_manager.write_eval_cases("test", _serialize_failed_cases(test_result.failed_cases))
 
         best = state.best_program
         summary = {

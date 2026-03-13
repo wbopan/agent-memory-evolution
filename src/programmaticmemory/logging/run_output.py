@@ -213,6 +213,22 @@ class RunOutputManager:
         except Exception:
             pass  # logging must never crash the evolution loop
 
+    def write_eval_cases(self, label: str, cases: list[dict]) -> None:
+        """Save evaluation cases to llm_calls/{label}/failed_cases.json.
+
+        Args:
+            label: Directory label (e.g. "final", "test").
+            cases: List of dicts, each with question/output/expected/score/memory_logs.
+        """
+        try:
+            d = self.run_dir / "llm_calls" / label
+            d.mkdir(parents=True, exist_ok=True)
+            out_path = d / "failed_cases.json"
+            out_path.write_text(json.dumps(cases, indent=2, default=str), encoding="utf-8")
+            get_logger().log(f"Saved {len(cases)} failed cases → {out_path}", header="OUTPUT")
+        except Exception:
+            pass
+
     def get_log_path(self) -> Path:
         """Return the path for the run's log file."""
         return self.run_dir / "run.log"
