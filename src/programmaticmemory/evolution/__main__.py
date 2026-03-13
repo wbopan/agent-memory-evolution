@@ -137,7 +137,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--eval-strategy",
-        choices=["full", "representative", "rotating"],
+        choices=["full", "representative", "rotating", "split"],
         default="representative",
         help="Evaluation strategy: full (every iter uses full data), "
         "representative (clustering-based fixed subset), rotating (batch rotation) (default: representative)",
@@ -159,6 +159,18 @@ def main() -> None:
         type=int,
         default=3,
         help="Number of candidates for final revalidation in rotating strategy (default: 3)",
+    )
+    parser.add_argument(
+        "--eval-static-size",
+        type=int,
+        default=25,
+        help="Static val size for split strategy — used for scoring/selection (default: 25)",
+    )
+    parser.add_argument(
+        "--eval-rotate-size",
+        type=int,
+        default=5,
+        help="Rotate val sample size per iteration for split strategy — used for reflection (default: 5)",
     )
     # Default seed-program: <repo>/seeds/
     _default_seed_program = Path(__file__).resolve().parents[3] / "seeds"
@@ -230,6 +242,16 @@ def main() -> None:
             batch_train_val_ratio=args.eval_train_ratio,
         )
         eval_strat = RotatingBatch(batches_list, top_k=args.eval_top_k, test_train_ratio=args.test_train_ratio)
+    elif args.eval_strategy == "split":
+        from programmaticmemory.evolution.strategies import SplitValidation
+
+        eval_strat = SplitValidation(
+            dataset,
+            static_size=args.eval_static_size,
+            rotate_size=args.eval_rotate_size,
+            train_val_ratio=args.eval_train_ratio,
+            test_train_ratio=args.test_train_ratio,
+        )
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
 
