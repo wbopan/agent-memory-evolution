@@ -9,7 +9,7 @@ from pathlib import Path
 
 from programmaticmemory.benchmarks._download import download_file, get_data_dir
 from programmaticmemory.datasets import register_dataset
-from programmaticmemory.evolution.evaluator import TokenF1Scorer
+from programmaticmemory.evolution.evaluator import ExactMatchScorer, TokenF1Scorer
 from programmaticmemory.evolution.types import DataItem, Dataset
 
 _LOCOMO_URL = "https://raw.githubusercontent.com/snap-research/locomo/main/data/locomo10.json"
@@ -107,4 +107,11 @@ def load_locomo(
                 continue
             val.append(DataItem(raw_text="", question=qa["question"], expected_answer=qa["answer"]))
 
-    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer(), available_categories=all_categories)
+    return Dataset(
+        train=train,
+        val=val,
+        test=[],
+        scorer=TokenF1Scorer(),
+        available_categories=all_categories,
+        extra_scorers={"em": ExactMatchScorer()},
+    )

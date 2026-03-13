@@ -94,6 +94,7 @@ class Dataset:
     scorer: Scorer | None = None
     val_scorer: ValScorer | None = None
     available_categories: list[str] | None = None
+    extra_scorers: dict[str, Scorer] = field(default_factory=dict)
 
 
 @dataclass
