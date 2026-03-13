@@ -236,7 +236,7 @@ def build_eval_batches(
     # Step 3: Facility location for each cluster
     batches: list[EvalBatch] = []
     for i, val_indices in enumerate(clusters):
-        budget = batch_train_val_ratio * len(val_indices)
+        budget = len(train_data) if batch_train_val_ratio < 0 else batch_train_val_ratio * len(val_indices)
         cluster_val_embs = val_embs[val_indices]
         train_indices, coverage = _select_train_subset(
             cluster_val_embs, train_embs, budget=budget, threshold=coverage_threshold
@@ -318,7 +318,7 @@ def select_representative_subset(
         val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
         subset_val_embs = val_embs_full[val_indices]
 
-    budget = train_val_ratio * len(val_indices)
+    budget = len(train_data) if train_val_ratio < 0 else train_val_ratio * len(val_indices)
     train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
     logger.log(
         f"Selected {len(train_indices)} train items (budget={budget}, coverage={coverage:.4f})",

@@ -138,6 +138,7 @@ class PoolEntry:
     program: KBProgram
     eval_result: EvalResult
     name: str = "seed_0"
+    reflection_result: EvalResult | None = None
 
     @property
     def score(self) -> float:
@@ -211,8 +212,16 @@ class ProgramPool:
         self.entries: list[PoolEntry] = []
         self.strategy = strategy
 
-    def add(self, program: KBProgram, eval_result: EvalResult, name: str = "seed_0") -> None:
-        self.entries.append(PoolEntry(program=program, eval_result=eval_result, name=name))
+    def add(
+        self,
+        program: KBProgram,
+        eval_result: EvalResult,
+        name: str = "seed_0",
+        reflection_result: EvalResult | None = None,
+    ) -> None:
+        self.entries.append(
+            PoolEntry(program=program, eval_result=eval_result, name=name, reflection_result=reflection_result)
+        )
 
     def sample_parent(self) -> PoolEntry:
         """Sample a parent using the configured selection strategy."""
