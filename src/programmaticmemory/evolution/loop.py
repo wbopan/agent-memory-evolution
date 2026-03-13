@@ -84,6 +84,22 @@ class EvolutionLoop:
         self.freeze_instructions = freeze_instructions
         self.logger = get_logger()
 
+    def _has_reflection_val(self) -> bool:
+        # Check class hierarchy rather than instance to avoid Mock auto-attribute creation
+        return any("select_reflection_val" in cls.__dict__ for cls in type(self.eval_strategy).__mro__)
+
+    def _evaluate_program(
+        self,
+        program: KBProgram,
+        train: list,
+        val: list,
+        reflect_val: list | None,
+    ) -> tuple:
+        """Evaluate program. Returns (score_result, reflect_result_or_None)."""
+        if reflect_val is not None:
+            return self.evaluator.evaluate_dual(program, train, val, reflect_val)
+        return self.evaluator.evaluate(program, train, val), None
+
     @weave.op()
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
@@ -99,6 +115,7 @@ class EvolutionLoop:
 
         # Evaluate all seed programs
         train, val = self.eval_strategy.select(self.dataset, 0)
+        reflect_val = self.eval_strategy.select_reflection_val(self.dataset, 0) if self._has_reflection_val() else None
         seed_eval_results = []
         for idx, seed in enumerate(self.initial_programs):
             seed_name = f"seed_{idx}"
@@ -108,8 +125,8 @@ class EvolutionLoop:
                 f"Evaluating seed {idx + 1}/{len(self.initial_programs)} (hash={seed.hash})",
                 header="EVOLUTION",
             )
-            eval_result = self.evaluator.evaluate(seed, train, val)
-            pool.add(seed, eval_result, name=seed_name)
+            eval_result, reflect_result = self._evaluate_program(seed, train, val, reflect_val)
+            pool.add(seed, eval_result, name=seed_name, reflection_result=reflect_result)
             seed_eval_results.append(eval_result)
             self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
 
@@ -155,7 +172,12 @@ class EvolutionLoop:
             if self.output_manager:
                 self.output_manager.set_phase(i, "reflect")
             self.logger.log("Starting reflection", header="EVOLUTION")
-            child = self.reflector.reflect_and_mutate(parent, parent_eval, i)
+            parent_eval_for_reflect = (
+                parent_entry.reflection_result
+                if parent_entry.reflection_result is not None
+                else parent_entry.eval_result
+            )
+            child = self.reflector.reflect_and_mutate(parent, parent_eval_for_reflect, i)
             if child is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
                 state.history.append(
@@ -191,13 +213,16 @@ class EvolutionLoop:
 
             # Evaluate child
             train, val = self.eval_strategy.select(self.dataset, i)
+            reflect_val = (
+                self.eval_strategy.select_reflection_val(self.dataset, i) if self._has_reflection_val() else None
+            )
             if self.output_manager:
                 self.output_manager.set_phase(i, "train")
             self.logger.log(
                 f"Evaluating child program (gen={child.generation}, hash={child.hash})",
                 header="EVOLUTION",
             )
-            child_result = self.evaluator.evaluate(child, train, val)
+            child_result, child_reflect = self._evaluate_program(child, train, val, reflect_val)
 
             # Runtime violation fix loop
             for _fix_attempt in range(self.reflector.max_fix_attempts):
@@ -216,12 +241,12 @@ class EvolutionLoop:
                     generation=parent.generation + 1,
                     parent_hash=parent.hash,
                 )
-                child_result = self.evaluator.evaluate(child, train, val)
+                child_result, child_reflect = self._evaluate_program(child, train, val, reflect_val)
 
             child_score = child_result.score
 
             # Add child to pool unconditionally
-            pool.add(child, child_result, name=f"iter_{i}")
+            pool.add(child, child_result, name=f"iter_{i}", reflection_result=child_reflect)
 
             improved = child_score > best_score
             self.logger.log(

@@ -686,3 +686,148 @@ class TestPerCategoryScores:
         cat_scores = state.test_category_scores[program_hash]
         assert cat_scores["X"] == pytest.approx(0.8)
         assert cat_scores["Y"] == pytest.approx(0.4)
+
+
+class _SplitStrategyStub:
+    """Concrete stub strategy with select_reflection_val defined at class level."""
+
+    def select(self, dataset, iteration):
+        return (
+            [DataItem(raw_text="train", question="", expected_answer="")],
+            [DataItem(raw_text="", question="static_q?", expected_answer="static_a")],
+        )
+
+    def select_reflection_val(self, dataset, iteration):
+        return [DataItem(raw_text="", question="rotate_q?", expected_answer="rotate_a")]
+
+    def final_eval_data(self, dataset):
+        return None
+
+    def test_eval_data(self, dataset):
+        return None
+
+    def final_candidates(self, pool):
+        return []
+
+
+class TestSplitValidationLoop:
+    """Tests for the dual-eval path when strategy has select_reflection_val."""
+
+    def _make_split_strategy(self):
+        """Return a strategy stub that has select_reflection_val defined at class level."""
+        return _SplitStrategyStub()
+
+    def test_dual_eval_used_when_strategy_has_reflection_val(self):
+        """When strategy has select_reflection_val, evaluate_dual is called instead of evaluate."""
+        dataset = _make_dataset()
+        strategy = self._make_split_strategy()
+
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        # Seeds: dual eval returns (score, reflect)
+        evaluator.evaluate_dual.return_value = (
+            EvalResult(score=0.5, failed_cases=[]),
+            EvalResult(score=0.4, failed_cases=[FailedCase(question="rq", output="ro", expected="re", score=0.0)]),
+        )
+        reflector = MagicMock(spec=Reflector)
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=0,
+            eval_strategy=strategy,
+        )
+        state = loop.run()
+
+        evaluator.evaluate_dual.assert_called_once()
+        evaluator.evaluate.assert_not_called()
+        assert state.best_score == 0.5
+
+    def test_reflection_uses_stored_reflection_result(self):
+        """Reflector receives the stored reflection_result, not the score eval_result."""
+        dataset = _make_dataset()
+        strategy = self._make_split_strategy()
+        child = KBProgram(source_code="child", generation=1)
+
+        seed_reflect = EvalResult(
+            score=0.3,
+            failed_cases=[FailedCase(question="rotate_q", output="wrong", expected="right", score=0.0)],
+        )
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate_dual.side_effect = [
+            (EvalResult(score=0.5), seed_reflect),  # seed
+            (EvalResult(score=0.7), EvalResult(score=0.6, failed_cases=[])),  # child
+        ]
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = child
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=1,
+            eval_strategy=strategy,
+        )
+        loop.run()
+
+        # Reflector should have been called with the reflection_result (seed_reflect),
+        # not the score result (score=0.5)
+        reflect_call = reflector.reflect_and_mutate.call_args
+        parent_eval_arg = reflect_call[0][1]  # second positional arg
+        assert parent_eval_arg is seed_reflect
+
+    def test_pool_stores_reflection_result(self):
+        """PoolEntry should have reflection_result set when dual eval is used."""
+        dataset = _make_dataset()
+        strategy = self._make_split_strategy()
+
+        reflect_result = EvalResult(score=0.3, failed_cases=[])
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate_dual.return_value = (EvalResult(score=0.5), reflect_result)
+        reflector = MagicMock(spec=Reflector)
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=0,
+            eval_strategy=strategy,
+        )
+        state = loop.run()
+
+        seed_entry = state.pool.entries[0]
+        assert seed_entry.reflection_result is reflect_result
+        assert seed_entry.score == 0.5  # score is from score_result
+
+    def test_fallback_to_eval_result_when_no_reflection_result(self):
+        """Without select_reflection_val, reflection uses eval_result as before."""
+        dataset = _make_dataset()
+        child = KBProgram(source_code="child", generation=1)
+
+        seed_eval = EvalResult(
+            score=0.5,
+            failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)],
+        )
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            seed_eval,
+            EvalResult(score=0.8),
+        ]
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = child
+        reflector.max_fix_attempts = 3
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=1,
+        )
+        loop.run()
+
+        # Should use regular evaluate, and reflector gets eval_result
+        reflect_call = reflector.reflect_and_mutate.call_args
+        parent_eval_arg = reflect_call[0][1]
+        assert parent_eval_arg is seed_eval
