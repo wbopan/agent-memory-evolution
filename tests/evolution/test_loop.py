@@ -5,7 +5,7 @@ from __future__ import annotations
 from unittest.mock import MagicMock, Mock
 
 from programmaticmemory.evolution.batching import EvalBatch
-from programmaticmemory.evolution.evaluator import MemoryEvaluator
+from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
@@ -539,3 +539,52 @@ class TestFreezeInstructions:
         parent_compiled = compile_kb_program(INITIAL_KB_PROGRAM)
         assert child_compiled.instruction_knowledge_item == parent_compiled.instruction_knowledge_item
         assert "CHANGED BY REFLECTOR" not in children[0].program.source_code
+
+
+class TestExtraScorers:
+    def test_extra_scorers_in_test_eval(self):
+        """Extra scorers compute additional metrics from per_case_outputs."""
+        mock_evaluator = Mock()
+        seed_eval = EvalResult(score=0.5)
+        test_eval = EvalResult(
+            score=0.8,
+            per_case_outputs=["alice", "wrong"],
+            per_case_scores=[1.0, 0.6],
+        )
+        mock_evaluator.evaluate.side_effect = [seed_eval, test_eval]
+
+        test_items = [
+            DataItem(raw_text="", question="q1", expected_answer="alice"),
+            DataItem(raw_text="", question="q2", expected_answer="bob"),
+        ]
+        dataset = Dataset(
+            train=[],
+            val=[],
+            test=test_items,
+            scorer=None,
+            extra_scorers={"em": ExactMatchScorer()},
+        )
+
+        mock_strategy = Mock()
+        mock_strategy.select.return_value = ([], [])
+        mock_strategy.final_eval_data.return_value = None
+        mock_strategy.test_eval_data.return_value = ([], test_items)
+        mock_strategy.final_candidates.return_value = []
+
+        mock_reflector = Mock()
+        mock_reflector.max_fix_attempts = 3
+
+        parent = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        loop = EvolutionLoop(
+            evaluator=mock_evaluator,
+            reflector=mock_reflector,
+            dataset=dataset,
+            initial_programs=[parent],
+            max_iterations=0,
+            eval_strategy=mock_strategy,
+        )
+        state = loop.run()
+
+        assert len(state.test_extra_metrics) == 1
+        program_hash = list(state.test_extra_metrics.keys())[0]
+        assert state.test_extra_metrics[program_hash]["em"] == 0.5

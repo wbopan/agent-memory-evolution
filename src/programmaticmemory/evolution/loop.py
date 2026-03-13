@@ -273,6 +273,19 @@ class EvolutionLoop:
                     f"Final score for {entry.program.hash}: {final_result.score:.3f} (evolution: {entry.score:.3f})",
                     header="EVOLUTION",
                 )
+                if self.dataset.extra_scorers and final_result.per_case_outputs:
+                    final_items = final_data[1]
+                    state.final_extra_metrics[entry.program.hash] = {}
+                    for name, scorer in self.dataset.extra_scorers.items():
+                        scores = [
+                            scorer(out, item.expected_answer)
+                            for out, item in zip(final_result.per_case_outputs, final_items, strict=False)
+                        ]
+                        avg = sum(scores) / len(scores) if scores else 0.0
+                        state.final_extra_metrics[entry.program.hash][name] = avg
+                        self.logger.log(
+                            f"Final extra metric '{name}' for {entry.program.hash}: {avg:.3f}", header="EVOLUTION"
+                        )
 
         # Test evaluation (held-out test set)
         test_data = self.eval_strategy.test_eval_data(self.dataset)
@@ -289,6 +302,17 @@ class EvolutionLoop:
                 f"Test evaluation: {best_entry.program.hash} score={test_result.score:.3f}",
                 header="EVOLUTION",
             )
+            if self.dataset.extra_scorers and test_result.per_case_outputs:
+                test_items = test_data[1]
+                state.test_extra_metrics[best_entry.program.hash] = {}
+                for name, scorer in self.dataset.extra_scorers.items():
+                    scores = [
+                        scorer(out, item.expected_answer)
+                        for out, item in zip(test_result.per_case_outputs, test_items, strict=False)
+                    ]
+                    avg = sum(scores) / len(scores) if scores else 0.0
+                    state.test_extra_metrics[best_entry.program.hash][name] = avg
+                    self.logger.log(f"Test extra metric '{name}': {avg:.3f}", header="EVOLUTION")
 
         best = state.best_program
         summary = {
@@ -304,11 +328,13 @@ class EvolutionLoop:
             "final_evaluation": {
                 "strategy": self.eval_strategy.__class__.__name__,
                 "candidates": [{"hash": h, "final_score": s} for h, s in state.final_scores.items()],
+                "extra_metrics": dict(state.final_extra_metrics),
             }
             if state.final_scores
             else None,
             "test_evaluation": {
                 "scores": dict(state.test_scores.items()),
+                "extra_metrics": dict(state.test_extra_metrics),
             }
             if state.test_scores
             else None,

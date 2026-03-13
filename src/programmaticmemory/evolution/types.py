@@ -263,6 +263,8 @@ class EvolutionState:
     total_iterations: int = 0
     final_scores: dict[str, float] = field(default_factory=dict)
     test_scores: dict[str, float] = field(default_factory=dict)
+    final_extra_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
+    test_extra_metrics: dict[str, dict[str, float]] = field(default_factory=dict)
 
     @property
     def best_program(self) -> KBProgram:
