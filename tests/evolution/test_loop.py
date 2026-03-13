@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 
 from programmaticmemory.evolution.batching import EvalBatch
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
+from programmaticmemory.evolution.sandbox import compile_kb_program
 from programmaticmemory.evolution.strategies import FullDataset, RotatingBatch
 from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, KBProgram
 
@@ -501,3 +502,40 @@ class TestFinalEvaluation:
 
         assert evaluator.evaluate.call_count == 1  # only seed
         assert state.final_scores == {}
+
+
+class TestFreezeInstructions:
+    def test_freeze_restores_parent_constants(self):
+        """When freeze_instructions=True, child's instruction constants match parent's."""
+        parent = KBProgram(source_code=INITIAL_KB_PROGRAM)
+
+        child_source = INITIAL_KB_PROGRAM.replace(
+            'INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."',
+            'INSTRUCTION_KNOWLEDGE_ITEM = "CHANGED BY REFLECTOR"',
+        )
+        mock_reflector = Mock()
+        mock_reflector.reflect_and_mutate.return_value = KBProgram(
+            source_code=child_source, generation=1, parent_hash=parent.hash
+        )
+        mock_reflector.max_fix_attempts = 3
+
+        mock_evaluator = Mock()
+        mock_evaluator.evaluate.return_value = EvalResult(score=0.5)
+
+        dataset = Dataset(train=[], val=[], test=[], scorer=None)
+        loop = EvolutionLoop(
+            evaluator=mock_evaluator,
+            reflector=mock_reflector,
+            dataset=dataset,
+            initial_programs=[parent],
+            max_iterations=1,
+            freeze_instructions=True,
+        )
+        state = loop.run()
+
+        children = [e for e in state.pool.entries if e.name != "seed_0"]
+        assert len(children) == 1
+        child_compiled = compile_kb_program(children[0].program.source_code)
+        parent_compiled = compile_kb_program(INITIAL_KB_PROGRAM)
+        assert child_compiled.instruction_knowledge_item == parent_compiled.instruction_knowledge_item
+        assert "CHANGED BY REFLECTOR" not in children[0].program.source_code

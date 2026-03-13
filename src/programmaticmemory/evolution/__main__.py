@@ -186,6 +186,12 @@ def main() -> None:
         default=3,
         help="Max compile-fix attempts per reflection (default: 3). Set to 0 to disable fix loop.",
     )
+    parser.add_argument(
+        "--freeze-instructions",
+        action="store_true",
+        default=False,
+        help="Freeze instruction constants during evolution (ablation: only memory design evolves)",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -307,6 +313,7 @@ def main() -> None:
             tracker=tracker,
             output_manager=output_manager,
             eval_strategy=eval_strat,
+            freeze_instructions=args.freeze_instructions,
         )
         state = loop.run()
 

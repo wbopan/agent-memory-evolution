@@ -5,6 +5,7 @@ from programmaticmemory.evolution.sandbox import (
     CompileError,
     compile_kb_program,
     extract_dataclass_schema,
+    freeze_instruction_constants,
     smoke_test,
 )
 
@@ -453,3 +454,107 @@ class KnowledgeBase:
         result = compile_kb_program(self.PROGRAM_MISSING_ALWAYS_ON)
         assert isinstance(result, CompileError)
         assert "ALWAYS_ON_KNOWLEDGE" in result.message
+
+
+class TestFreezeInstructionConstants:
+    def test_replaces_all_four_constants(self):
+        parent_source = """
+from dataclasses import dataclass, field
+INSTRUCTION_KNOWLEDGE_ITEM = "Parent KI instruction"
+INSTRUCTION_QUERY = "Parent query instruction"
+INSTRUCTION_RESPONSE = "Parent response instruction"
+ALWAYS_ON_KNOWLEDGE = "Parent always-on"
+
+@dataclass
+class KnowledgeItem:
+    text: str = field(metadata={"description": "text"})
+
+@dataclass
+class Query:
+    text: str = field(metadata={"description": "text"})
+
+class KnowledgeBase:
+    def __init__(self, toolkit): pass
+    def write(self, item, raw_text=""): pass
+    def read(self, query): return ""
+"""
+        child_source = parent_source.replace("Parent KI instruction", "Child KI instruction")
+        child_source = child_source.replace("Parent query instruction", "Child query instruction")
+        child_source = child_source.replace("Parent response instruction", "Child response instruction")
+        child_source = child_source.replace("Parent always-on", "Child always-on")
+
+        frozen = freeze_instruction_constants(parent_source, child_source)
+
+        parent_compiled = compile_kb_program(parent_source)
+        frozen_compiled = compile_kb_program(frozen)
+        assert frozen_compiled.instruction_knowledge_item == parent_compiled.instruction_knowledge_item
+        assert frozen_compiled.instruction_query == parent_compiled.instruction_query
+        assert frozen_compiled.instruction_response == parent_compiled.instruction_response
+        assert frozen_compiled.always_on_knowledge == parent_compiled.always_on_knowledge
+
+    def test_preserves_non_constant_code(self):
+        parent_source = """
+from dataclasses import dataclass, field
+INSTRUCTION_KNOWLEDGE_ITEM = "Parent KI"
+INSTRUCTION_QUERY = "Parent Q"
+INSTRUCTION_RESPONSE = "Parent R"
+ALWAYS_ON_KNOWLEDGE = ""
+
+@dataclass
+class KnowledgeItem:
+    text: str = field(metadata={"description": "text"})
+
+@dataclass
+class Query:
+    text: str = field(metadata={"description": "text"})
+
+class KnowledgeBase:
+    def __init__(self, toolkit): pass
+    def write(self, item, raw_text=""): pass
+    def read(self, query): return ""
+"""
+        child_source = (
+            parent_source.replace("Parent KI", "Child KI")
+            .replace("Parent Q", "Child Q")
+            .replace("Parent R", "Child R")
+            .replace(
+                'def read(self, query): return ""',
+                'def read(self, query): return "child logic"',
+            )
+        )
+
+        frozen = freeze_instruction_constants(parent_source, child_source)
+        assert 'return "child logic"' in frozen
+        parent_compiled = compile_kb_program(parent_source)
+        frozen_compiled = compile_kb_program(frozen)
+        assert frozen_compiled.instruction_knowledge_item == parent_compiled.instruction_knowledge_item
+
+    def test_handles_triple_quoted_constants(self):
+        parent_source = '''
+from dataclasses import dataclass, field
+INSTRUCTION_KNOWLEDGE_ITEM = """Parent
+multiline KI"""
+INSTRUCTION_QUERY = "Parent Q"
+INSTRUCTION_RESPONSE = "Parent R"
+ALWAYS_ON_KNOWLEDGE = ""
+
+@dataclass
+class KnowledgeItem:
+    text: str = field(metadata={"description": "text"})
+
+@dataclass
+class Query:
+    text: str = field(metadata={"description": "text"})
+
+class KnowledgeBase:
+    def __init__(self, toolkit): pass
+    def write(self, item, raw_text=""): pass
+    def read(self, query): return ""
+'''
+        child_source = parent_source.replace("Parent\nmultiline KI", "Child KI changed")
+
+        frozen = freeze_instruction_constants(parent_source, child_source)
+
+        parent_compiled = compile_kb_program(parent_source)
+        frozen_compiled = compile_kb_program(frozen)
+        assert frozen_compiled.instruction_knowledge_item == parent_compiled.instruction_knowledge_item

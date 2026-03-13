@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import concurrent.futures
 import dataclasses
+import re
 import traceback
 from dataclasses import dataclass
 from typing import Any
@@ -305,3 +306,38 @@ def smoke_test(
             return future.result(timeout=timeout)
         except concurrent.futures.TimeoutError:
             return SmokeTestResult(success=False, error=f"Smoke test timed out after {timeout}s")
+
+
+def freeze_instruction_constants(parent_source: str, child_source: str) -> str:
+    """Replace instruction constants in child source with values from parent.
+
+    Compiles parent to extract the four constant values, then regex-replaces
+    the corresponding assignments in the child source.
+    """
+    parent_result = compile_kb_program(parent_source)
+    if isinstance(parent_result, CompileError):
+        raise ValueError(f"Parent source failed to compile: {parent_result.message}")
+
+    constant_values = {
+        "INSTRUCTION_KNOWLEDGE_ITEM": parent_result.instruction_knowledge_item,
+        "INSTRUCTION_QUERY": parent_result.instruction_query,
+        "INSTRUCTION_RESPONSE": parent_result.instruction_response,
+        "ALWAYS_ON_KNOWLEDGE": parent_result.always_on_knowledge,
+    }
+
+    result = child_source
+    for name, value in constant_values.items():
+        pattern = re.compile(
+            rf"^({name}\s*=\s*)("
+            r'"{3}[\s\S]*?"{3}'
+            r"|'{3}[\s\S]*?'{3}"
+            r"|\([\s\S]*?\)"
+            r'|"(?:[^"\\]|\\.)*"'
+            r"|'(?:[^'\\]|\\.)*'"
+            r")",
+            re.MULTILINE,
+        )
+        value_repr = repr(value)
+        result = pattern.sub(lambda m: m.group(1) + value_repr, result, count=1)
+
+    return result

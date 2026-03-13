@@ -17,6 +17,12 @@ import weave
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import Reflector
+from programmaticmemory.evolution.sandbox import (
+    CompileError,
+    compile_kb_program,
+    freeze_instruction_constants,
+    smoke_test,
+)
 from programmaticmemory.evolution.strategies import FullDataset
 from programmaticmemory.evolution.types import (
     Dataset,
@@ -63,6 +69,7 @@ class EvolutionLoop:
         tracker: ExperimentTracker | None = None,
         output_manager: RunOutputManager | None = None,
         eval_strategy: EvalStrategy | None = None,
+        freeze_instructions: bool = False,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -74,6 +81,7 @@ class EvolutionLoop:
         self.tracker = tracker
         self.output_manager = output_manager
         self.eval_strategy = eval_strategy or FullDataset()
+        self.freeze_instructions = freeze_instructions
         self.logger = get_logger()
 
     @weave.op()
@@ -155,6 +163,31 @@ class EvolutionLoop:
                 )
                 state.total_iterations = i
                 continue
+
+            # Freeze instruction constants if requested
+            if self.freeze_instructions:
+                frozen_source = freeze_instruction_constants(parent.source_code, child.source_code)
+                compile_result = compile_kb_program(frozen_source)
+                if isinstance(compile_result, CompileError):
+                    self.logger.log(f"Frozen child failed compilation: {compile_result.message}", header="EVOLUTION")
+                    state.history.append(
+                        EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
+                    )
+                    state.total_iterations = i
+                    continue
+                smoke = smoke_test(frozen_source)
+                if not smoke.success:
+                    self.logger.log(f"Frozen child failed smoke test: {smoke.error}", header="EVOLUTION")
+                    state.history.append(
+                        EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
+                    )
+                    state.total_iterations = i
+                    continue
+                child = KBProgram(
+                    source_code=frozen_source,
+                    generation=child.generation,
+                    parent_hash=child.parent_hash,
+                )
 
             # Evaluate child
             train, val = self.eval_strategy.select(self.dataset, i)
