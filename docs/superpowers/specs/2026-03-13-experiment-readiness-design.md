@@ -22,16 +22,19 @@ Six changes needed to run all paper experiments:
 
 **Approach:** Post-mutation restoration. After `Reflector.reflect_and_mutate()` returns a child program, replace the child's instruction constants with the parent's originals. This is cleaner than modifying the reflection prompt because:
 - The LLM can still reason about instructions (avoids confusing it)
-- Implementation is a simple string replacement in `sandbox.py`'s `compile_kb_program`
 - No changes to prompts or reflector internals
 
+**Implementation:** Use `compile_kb_program()` to extract the 4 constants from the parent, then regex-replace the corresponding module-level assignments in the child source. The constants are simple string assignments (`CONSTANT_NAME = "..."` or `CONSTANT_NAME = """..."""`). Use a regex pattern that matches `^CONSTANT_NAME\s*=\s*(?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|"{3}[\s\S]*?"{3}|'{3}[\s\S]*?'{3})` for each constant name, and replace with `CONSTANT_NAME = <repr(parent_value)>`.
+
+After freezing, re-validate the child via `compile_kb_program()` + `smoke_test()`. If validation fails, discard the child (return None from that iteration). This is unlikely in practice since only string constants change, but ensures safety.
+
 **Changes:**
-- `__main__.py`: Add `--freeze-instructions` flag (default: `False`)
-- `loop.py`: After `reflector.reflect_and_mutate()` returns a child, if `freeze_instructions=True`, call `freeze_instruction_constants(parent.source_code, child.source_code)` to produce a new source with the parent's constants restored
-- `sandbox.py`: Add `freeze_instruction_constants(parent_source: str, child_source: str) -> str` — compiles both, extracts the 4 constants from parent, replaces them in child source via AST or regex
+- `__main__.py`: Add `--freeze-instructions` flag (default: `False`), pass to `EvolutionLoop`
+- `loop.py`: After `reflector.reflect_and_mutate()` returns a child, if `freeze_instructions=True`, call `freeze_instruction_constants(parent.source_code, child.source_code)` → new source. Re-validate; if invalid, skip iteration.
+- `sandbox.py`: Add `freeze_instruction_constants(parent_source: str, child_source: str) -> str` — compiles parent to extract the 4 constant values, regex-replaces them in child source
 
 **Semantics:**
-- `--freeze-instructions` (flag present) → constants frozen to seed values
+- `--freeze-instructions` (flag present) → constants frozen to seed values throughout evolution
 - (flag absent) → normal behavior, constants evolve freely
 
 ## 2. `--max-fix-attempts N` CLI Flag
@@ -44,17 +47,21 @@ Six changes needed to run all paper experiments:
 
 **That's it.** The Reflector already supports this parameter; it's just not exposed via CLI.
 
+**Note:** `max_fix_attempts=0` also disables the runtime-violation fix loop in `loop.py` (which uses the same parameter). This is acceptable for the ablation — both compile-fix and runtime-fix are part of the same "fix loop" mechanism.
+
 ## 3. No-Memory Baseline KBProgram
 
 **Purpose:** A baseline that stores nothing and retrieves nothing, establishing the lower bound.
 
 **File:** `src/programmaticmemory/baselines/no_memory.py`
 
-**Content:** A valid KBProgram where:
-- `KnowledgeBase.write()` is a no-op (pass)
+Create this file as a new valid KBProgram where:
+- `KnowledgeBase.write()` is a no-op (`pass`)
 - `KnowledgeBase.read()` returns `""`
 - `KnowledgeItem` and `Query` have minimal fields (single `text: str`)
 - All four instruction constants are set to minimal valid strings
+
+**Note:** The no-memory baseline still incurs LLM calls during training (the task agent generates KnowledgeItem JSON even though write discards it). This is intentional — it isolates the memory contribution, not the LLM cost.
 
 **Usage:**
 ```bash
@@ -65,29 +72,36 @@ uv run python -m programmaticmemory.evolution --dataset locomo --baseline src/pr
 
 **Purpose:** Report additional metrics (e.g., EM alongside F1 for LoCoMo) without changing the evolution selection signal.
 
-**Approach:** Post-evaluation scoring. After test eval produces `EvalResult` (with `per_case_outputs` and the corresponding test items), apply each extra scorer to compute additional metrics.
+**Approach:** Post-evaluation scoring. After test eval (or final eval) produces an `EvalResult`, retain the full result (not just the score float). Apply each extra scorer to `per_case_outputs` × test items' `expected_answer` to compute additional metrics.
 
 **Changes:**
 - `types.py`: Add `extra_scorers: dict[str, Scorer] = field(default_factory=dict)` to `Dataset`
 - `locomo.py`: Set `extra_scorers={"em": ExactMatchScorer()}` in the returned Dataset
-- `loop.py`: After test eval (and final eval), if `dataset.extra_scorers` is non-empty, iterate over `per_case_outputs` × test items' `expected_answer`, compute each extra scorer, add to summary
-- `EvolutionState`: Add `test_metrics: dict[str, dict[str, float]]` (maps scorer_name → {program_hash → score})
-- Summary JSON output: Include `extra_metrics: {"em": 0.xx, ...}` alongside the primary score
+- `loop.py`: In test eval and final eval blocks, retain the full `EvalResult` (currently only `test_result.score` is stored). After scoring, compute extra metrics:
+  ```python
+  extra = {}
+  for name, scorer in self.dataset.extra_scorers.items():
+      scores = [scorer(out, item.expected_answer)
+                for out, item in zip(test_result.per_case_outputs, test_items)]
+      extra[name] = sum(scores) / len(scores) if scores else 0.0
+  ```
+- Summary JSON: Add `extra_metrics` dict alongside existing score fields:
+  ```json
+  "test_evaluation": {
+      "scores": {"abc123": 0.45},
+      "extra_metrics": {"abc123": {"em": 0.32}}
+  }
+  ```
 
 **Key constraint:** Extra scorers are **report-only**. They never influence evolution selection, pool ranking, or final candidate selection.
 
-**Edge case:** `ALFWorldValScorer` is a `ValScorer` (not `Scorer`) — it runs episodes, not string comparison. ALFWorld only needs Success (already the primary metric), so no extra_scorers needed there.
+**Edge case:** `ALFWorldValScorer` is a `ValScorer` (not `Scorer`) — it runs episodes, not string comparison. ALFWorld only needs Success (already the primary metric), so no `extra_scorers` needed there. Extra scorers only work with the string-based `Scorer` protocol.
 
 ## 5. `seeds/single/` Directory
 
 **Purpose:** Single-seed ablation for Table 2.
 
-**Action:** Create `seeds/single/` containing only `llm_summarizer.py` (copied or symlinked from `seeds/`). This is the most generic seed — it summarizes and retrieves via LLM, a reasonable default starting point.
-
-**Usage:**
-```bash
-uv run python -m programmaticmemory.evolution --seed-dir seeds/single ...
-```
+**Action:** Create `seeds/single/` containing a **copy** of `seeds/llm_summarizer.py` (not a symlink). This is the most generic seed — it summarizes and retrieves via LLM, a reasonable default starting point.
 
 ## 6. Table 1 LaTeX Update
 
@@ -116,10 +130,10 @@ Method | LoCoMo EM | LoCoMo F1 | ALFWorld Success | Avg.
 | File | Changes |
 |------|---------|
 | `evolution/__main__.py` | Add `--freeze-instructions`, `--max-fix-attempts` CLI args |
-| `evolution/loop.py` | Freeze-instructions post-mutation, extra_scorers post-eval |
+| `evolution/loop.py` | Freeze-instructions post-mutation, extra_scorers post-eval, retain full EvalResult |
 | `evolution/sandbox.py` | Add `freeze_instruction_constants()` helper |
-| `evolution/types.py` | Add `extra_scorers` to Dataset, `test_metrics` to EvolutionState |
+| `evolution/types.py` | Add `extra_scorers` to Dataset |
 | `benchmarks/locomo.py` | Add `extra_scorers={"em": ExactMatchScorer()}` |
 | `baselines/no_memory.py` | New file: empty KBProgram baseline |
-| `seeds/single/` | New directory with single seed file |
+| `seeds/single/llm_summarizer.py` | Copy of seeds/llm_summarizer.py |
 | `Repos/paper/main.tex` | Remove ALFWorld Progress column from Table 1 |
