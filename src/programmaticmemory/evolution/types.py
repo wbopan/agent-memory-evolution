@@ -261,6 +261,7 @@ class EvolutionState:
     history: list[EvolutionRecord] = field(default_factory=list)
     total_iterations: int = 0
     final_scores: dict[str, float] = field(default_factory=dict)
+    test_scores: dict[str, float] = field(default_factory=dict)
 
     @property
     def best_program(self) -> KBProgram:

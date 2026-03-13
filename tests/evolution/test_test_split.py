@@ -159,3 +159,141 @@ class TestStrategyFinalEvalTest:
         ds = Dataset(train=_make_items(n_train), val=_make_items(n_val), test=_make_items(3))
         strategy = FixedRepresentative(ds, val_size=n_val)
         assert strategy.test_eval_data(ds) is None
+
+
+class TestLoopTestEval:
+    """Tests for two-stage test evaluation in the evolution loop."""
+
+    def test_loop_runs_test_eval_when_test_eval_data_returns_data(self) -> None:
+        """When test_eval_data returns data, the best program is evaluated on it."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.evolution.loop import EvolutionLoop
+        from programmaticmemory.evolution.types import EvalResult
+
+        train = _make_items(3)
+        val = _make_items(5)
+        test = _make_items(4)
+        ds = Dataset(train=train, val=val, test=test)
+
+        class TestStrategy:
+            def select(self, dataset: Dataset, iteration: int) -> tuple:
+                return dataset.train, dataset.val
+
+            def final_candidates(self, pool: object) -> list:
+                return []
+
+            def final_eval_data(self, dataset: Dataset) -> None:
+                return None
+
+            def test_eval_data(self, dataset: Dataset) -> tuple | None:
+                if dataset.test:
+                    return dataset.train, dataset.test
+                return None
+
+        evaluator = MagicMock()
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.6),  # seed eval
+            EvalResult(score=0.9),  # test eval
+        ]
+        reflector = MagicMock()
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=ds,
+            max_iterations=0,
+            eval_strategy=TestStrategy(),
+        )
+        state = loop.run()
+
+        # Should have called evaluate twice: seed + test
+        assert evaluator.evaluate.call_count == 2
+        # Test eval call should use train + test data
+        test_call = evaluator.evaluate.call_args_list[1]
+        assert test_call[0][1] == train
+        assert test_call[0][2] == test
+        # test_scores should be populated
+        assert len(state.test_scores) == 1
+        assert next(iter(state.test_scores.values())) == 0.9
+
+    def test_loop_skips_test_eval_when_test_eval_data_returns_none(self) -> None:
+        """When test_eval_data returns None, no test evaluation happens."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.evolution.loop import EvolutionLoop
+        from programmaticmemory.evolution.types import EvalResult
+
+        ds = Dataset(train=_make_items(3), val=_make_items(5), test=[])
+
+        evaluator = MagicMock()
+        evaluator.evaluate.return_value = EvalResult(score=0.5)
+        reflector = MagicMock()
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=ds,
+            max_iterations=0,
+            eval_strategy=FullDataset(),
+        )
+        state = loop.run()
+
+        # Only seed eval, no test eval
+        assert evaluator.evaluate.call_count == 1
+        assert state.test_scores == {}
+
+    def test_loop_test_eval_uses_final_scores_winner(self) -> None:
+        """When final_scores exist, test eval picks the best from final_scores."""
+        from unittest.mock import MagicMock
+
+        from programmaticmemory.evolution.loop import EvolutionLoop
+        from programmaticmemory.evolution.types import EvalResult, KBProgram
+
+        train = _make_items(3)
+        val = _make_items(5)
+        test = _make_items(4)
+        ds = Dataset(train=train, val=val, test=test)
+
+        seed1 = KBProgram(source_code="seed1_code")
+        seed2 = KBProgram(source_code="seed2_code")
+
+        class TestStrategy:
+            def select(self, dataset: Dataset, iteration: int) -> tuple:
+                return dataset.train, dataset.val
+
+            def final_candidates(self, pool: object) -> list:
+                return pool.entries  # type: ignore[attr-defined]
+
+            def final_eval_data(self, dataset: Dataset) -> tuple | None:
+                return dataset.train, dataset.val
+
+            def test_eval_data(self, dataset: Dataset) -> tuple | None:
+                if dataset.test:
+                    return dataset.train, dataset.test
+                return None
+
+        evaluator = MagicMock()
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.4),  # seed1 eval
+            EvalResult(score=0.6),  # seed2 eval
+            EvalResult(score=0.3),  # final eval seed1
+            EvalResult(score=0.9),  # final eval seed2 (winner)
+            EvalResult(score=0.85),  # test eval on seed2 (final_scores winner)
+        ]
+        reflector = MagicMock()
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=ds,
+            initial_programs=[seed1, seed2],
+            max_iterations=0,
+            eval_strategy=TestStrategy(),
+        )
+        state = loop.run()
+
+        assert evaluator.evaluate.call_count == 5
+        # Test scores should contain seed2's hash (best final_scores)
+        assert seed2.hash in state.test_scores
+        assert state.test_scores[seed2.hash] == 0.85

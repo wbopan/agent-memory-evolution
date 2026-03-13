@@ -231,6 +231,22 @@ class EvolutionLoop:
                     header="EVOLUTION",
                 )
 
+        # Test evaluation (held-out test set)
+        test_data = self.eval_strategy.test_eval_data(self.dataset)
+        if test_data is not None:
+            # Pick best program: winner from final_scores if available, else pool.best
+            if state.final_scores:
+                best_hash = max(state.final_scores, key=state.final_scores.get)
+                best_entry = next(e for e in pool.entries if e.program.hash == best_hash)
+            else:
+                best_entry = pool.best
+            test_result = self.evaluator.evaluate(best_entry.program, *test_data)
+            state.test_scores[best_entry.program.hash] = test_result.score
+            self.logger.log(
+                f"Test evaluation: {best_entry.program.hash} score={test_result.score:.3f}",
+                header="EVOLUTION",
+            )
+
         best = state.best_program
         summary = {
             "best_score": state.best_score,
@@ -247,6 +263,11 @@ class EvolutionLoop:
                 "candidates": [{"hash": h, "final_score": s} for h, s in state.final_scores.items()],
             }
             if state.final_scores
+            else None,
+            "test_evaluation": {
+                "scores": dict(state.test_scores.items()),
+            }
+            if state.test_scores
             else None,
         }
         if self.tracker:

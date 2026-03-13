@@ -460,6 +460,9 @@ class TestFinalEvaluation:
             def final_eval_data(self, ds):
                 return ds.train, ds.val
 
+            def test_eval_data(self, ds):
+                return None
+
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
             EvalResult(score=0.5),  # seed on subset
@@ -478,7 +481,7 @@ class TestFinalEvaluation:
 
         assert evaluator.evaluate.call_count == 2
         assert len(state.final_scores) == 1
-        assert list(state.final_scores.values())[0] == 0.8
+        assert next(iter(state.final_scores.values())) == 0.8
 
     def test_final_eval_skipped_when_strategy_returns_none(self):
         """FullDataset-like strategy skips final evaluation."""

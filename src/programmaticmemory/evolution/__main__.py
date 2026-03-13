@@ -346,6 +346,11 @@ def main() -> None:
         for prog_hash, score in state.final_scores.items():
             print(f"  {prog_hash}: {score:.3f}")
 
+    if state.test_scores:
+        print("\nTest evaluation (held-out test set):")
+        for prog_hash, score in state.test_scores.items():
+            print(f"  {prog_hash}: {score:.3f}")
+
     if output_manager:
         output_manager.close()
         logger.close()
