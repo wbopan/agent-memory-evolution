@@ -160,25 +160,25 @@ def main() -> None:
         default=3,
         help="Number of candidates for final revalidation in rotating strategy (default: 3)",
     )
-    # Default seed-dir: <repo>/seeds/
-    _default_seed_dir = Path(__file__).resolve().parents[3] / "seeds"
+    # Default seed-program: <repo>/seeds/
+    _default_seed_program = Path(__file__).resolve().parents[3] / "seeds"
     parser.add_argument(
-        "--seed-dir",
+        "--seed-program",
         type=Path,
-        default=_default_seed_dir,
-        help=f"Directory of .py seed programs to use as initial population (default: {_default_seed_dir})",
-    )
-    parser.add_argument(
-        "--baseline",
-        type=Path,
-        default=None,
-        help="Evaluate a single KBProgram file (no evolution). When set, --iterations is ignored.",
+        default=_default_seed_program,
+        help=f"Directory of .py seed programs or a single .py file (default: {_default_seed_program})",
     )
     parser.add_argument(
         "--test-size",
         type=int,
         default=-1,
         help="Held-out test split size: -1 = copy full val (default), 0 = skip final eval, N > 0 = hold out N items",
+    )
+    parser.add_argument(
+        "--test-train-ratio",
+        type=int,
+        default=-1,
+        help="Train items per test item for final/test evaluation: -1 = all train (default), N > 0 = facility location subset",
     )
     args, extra = parser.parse_known_args()
 
@@ -188,51 +188,6 @@ def main() -> None:
     from programmaticmemory.cache import configure_cache
 
     configure_cache("disk")
-
-    if args.baseline is not None:
-        # Single-pass baseline evaluation
-        dataset_kwargs = _parse_extra_kwargs(extra)
-        dataset = load_dataset(args.dataset, category=args.category, **dataset_kwargs)
-
-        from programmaticmemory.logging.logger import get_logger
-
-        logger = get_logger()
-
-        baseline_path = args.baseline
-        if not baseline_path.exists():
-            print(f"Error: baseline file not found: {baseline_path}", file=sys.stderr)
-            sys.exit(1)
-        source = baseline_path.read_text()
-        result = smoke_test(source)
-        if not result.success:
-            print(f"Error: invalid baseline program {baseline_path.name}: {result.error}", file=sys.stderr)
-            sys.exit(1)
-
-        program = KBProgram(source_code=source)
-        scorer = dataset.scorer or ExactMatchScorer()
-        toolkit_config = ToolkitConfig(llm_model=args.toolkit_model)
-        evaluator = MemoryEvaluator(
-            scorer=scorer,
-            task_model=args.task_model,
-            toolkit_config=toolkit_config,
-            val_scorer=dataset.val_scorer,
-        )
-
-        logger.log(
-            f"Baseline: {baseline_path.name}, dataset={args.dataset}, "
-            f"train={len(dataset.train)}, val={len(dataset.val)}",
-            header="CONFIG",
-        )
-        eval_result = evaluator.evaluate(program, dataset.train, dataset.val)
-
-        print(f"\n{'=' * 60}")
-        print(f"Baseline: {baseline_path.name}")
-        print(f"Score: {eval_result.score:.3f}")
-        print(f"Cases: {len(eval_result.per_case_scores)}")
-        if eval_result.failed_cases:
-            print(f"Failed: {len(eval_result.failed_cases)}")
-        print(f"{'=' * 60}")
-        sys.exit(0)
 
     # Load dataset (includes scorer, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
@@ -245,9 +200,14 @@ def main() -> None:
     from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
 
     if args.eval_strategy == "full":
-        eval_strat = FullDataset()
+        eval_strat = FullDataset(test_train_ratio=args.test_train_ratio)
     elif args.eval_strategy == "representative":
-        eval_strat = FixedRepresentative(dataset, val_size=args.eval_val_size, train_val_ratio=args.eval_train_ratio)
+        eval_strat = FixedRepresentative(
+            dataset,
+            val_size=args.eval_val_size,
+            train_val_ratio=args.eval_train_ratio,
+            test_train_ratio=args.test_train_ratio,
+        )
     elif args.eval_strategy == "rotating":
         from programmaticmemory.evolution.batching import build_eval_batches
 
@@ -257,7 +217,7 @@ def main() -> None:
             num_batches=max(1, len(dataset.val) // args.eval_val_size),
             batch_train_val_ratio=args.eval_train_ratio,
         )
-        eval_strat = RotatingBatch(batches_list, top_k=args.eval_top_k)
+        eval_strat = RotatingBatch(batches_list, top_k=args.eval_top_k, test_train_ratio=args.test_train_ratio)
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
 
@@ -299,13 +259,17 @@ def main() -> None:
     reflector = Reflector(model=args.reflect_model, prompt_config=prompt_config)
     tracker = ExperimentTracker(use_weave=not args.no_weave, weave_project_name=args.weave_project)
 
-    # Load seed programs
-    if not args.seed_dir.is_dir():
-        print(f"Error: --seed-dir is not a directory: {args.seed_dir}", file=sys.stderr)
-        sys.exit(1)
-    seed_files = sorted(args.seed_dir.glob("*.py"))
-    if not seed_files:
-        print(f"Error: no .py files found in --seed-dir: {args.seed_dir}", file=sys.stderr)
+    # Load seed programs (--seed-program accepts a directory or a single .py file)
+    seed_path = args.seed_program
+    if seed_path.is_file():
+        seed_files = [seed_path]
+    elif seed_path.is_dir():
+        seed_files = sorted(seed_path.glob("*.py"))
+        if not seed_files:
+            print(f"Error: no .py files found in --seed-program: {seed_path}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        print(f"Error: --seed-program path not found: {seed_path}", file=sys.stderr)
         sys.exit(1)
     initial_programs = []
     for f in seed_files:

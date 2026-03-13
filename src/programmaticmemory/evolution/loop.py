@@ -1,4 +1,14 @@
-"""Evolution loop — the main GEPA cycle for Knowledge Base Program optimization."""
+"""Evolution loop — the main GEPA cycle for Knowledge Base Program optimization.
+
+Determinism: given a fixed random seed (set via ``random.seed()`` in __main__)
+and LLM cache hits (``caching=True`` on all litellm calls), the evolution
+trajectory is fully reproducible. Sources of randomness and their controls:
+
+- Parent selection (``random.choices``/``random.choice``) → ``random.seed()``
+- Batching k-means (numpy) → ``np.random.RandomState(seed=42)`` in batching.py
+- LLM calls (evaluator, reflector, toolkit) → litellm disk cache
+- ChromaDB embeddings → deterministic sentence-transformer on same hardware
+"""
 
 from __future__ import annotations
 

@@ -73,3 +73,9 @@ class Toolkit:
     def close(self) -> None:
         """Release resources."""
         self.db.close()
+        # ChromaDB EphemeralClient uses internal SQLite databases; not closing
+        # it leaks file descriptors on every evaluation cycle.
+        try:
+            self.chroma.close()
+        except Exception:
+            pass

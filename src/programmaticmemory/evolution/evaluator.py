@@ -38,6 +38,17 @@ from programmaticmemory.evolution.types import (
 )
 from programmaticmemory.logging.logger import get_logger
 
+# Module-level thread pool for batch LLM calls.  Reusing threads avoids the
+# file-descriptor leak caused by litellm.batch_completion: each short-lived
+# ThreadPoolExecutor thread opens a thread-local SQLite connection to the
+# litellm disk-cache, and those connections are never explicitly closed when the
+# thread dies.  A long-lived pool means threads (and their cache connections)
+# are reused across calls.
+_BATCH_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+
+# Shared pool for _guarded_write / _guarded_read timeout enforcement.
+_GUARD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
 MEMORY_OP_TIMEOUT = 60.0
 MEMORY_READ_MAX_CHARS = 1000
 
@@ -50,12 +61,12 @@ def _guarded_write(kb: Any, item: Any, raw_text: str, timeout: float = MEMORY_OP
     """Wrap kb.write(item, raw_text) with timeout and per-call LLM budget reset."""
     if hasattr(kb, "toolkit"):
         kb.toolkit.reset_llm_budget()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(kb.write, item, raw_text)
-        try:
-            future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            raise RuntimeViolationError(f"kb.write() timed out after {timeout}s")
+    future = _GUARD_POOL.submit(kb.write, item, raw_text)
+    try:
+        future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise RuntimeViolationError(f"kb.write() timed out after {timeout}s")
 
 
 def _guarded_read(
@@ -64,12 +75,12 @@ def _guarded_read(
     """Wrap kb.read(query) with timeout, output length check, and per-call LLM budget reset."""
     if hasattr(kb, "toolkit"):
         kb.toolkit.reset_llm_budget()
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(kb.read, query)
-        try:
-            result = future.result(timeout=timeout)
-        except concurrent.futures.TimeoutError:
-            raise RuntimeViolationError(f"kb.read() timed out after {timeout}s")
+    future = _GUARD_POOL.submit(kb.read, query)
+    try:
+        result = future.result(timeout=timeout)
+    except concurrent.futures.TimeoutError:
+        future.cancel()
+        raise RuntimeViolationError(f"kb.read() timed out after {timeout}s")
     result_str = str(result) if result is not None else ""
     if len(result_str) > max_chars:
         raise RuntimeViolationError(f"kb.read() returned {len(result_str)} chars (limit: {max_chars})")
@@ -770,22 +781,39 @@ class MemoryEvaluator:
         return self._build_eval_result(scores, outputs, failed_cases, success_cases, logs)
 
     def _batch_llm_call(self, all_messages: list[list[dict]], *, json_mode: bool = False) -> list[str | None]:
-        """Fan out independent LLM calls via litellm.batch_completion.
+        """Fan out independent LLM calls using a shared thread pool.
+
+        Uses the module-level ``_BATCH_POOL`` instead of ``litellm.batch_completion``
+        to avoid the file-descriptor leak caused by short-lived ThreadPoolExecutor
+        threads each opening (and never closing) a thread-local SQLite connection
+        to the litellm disk cache.
 
         Returns a list of content strings (same length as all_messages).
         Failed entries are None (error already logged).
         """
         if not all_messages:
             return []
-        kwargs: dict = dict(model=self.task_model, messages=all_messages, caching=True)
+        extra: dict = {}
         if json_mode:
-            kwargs["response_format"] = {"type": "json_object"}
-        responses = litellm.batch_completion(**kwargs)
+            extra["response_format"] = {"type": "json_object"}
+
+        futures = [
+            _BATCH_POOL.submit(
+                litellm.completion,
+                model=self.task_model,
+                messages=msgs,
+                caching=True,
+                **extra,
+            )
+            for msgs in all_messages
+        ]
+
         results: list[str | None] = []
-        for resp in responses:
-            if isinstance(resp, Exception):
-                self.logger.log(f"Batch LLM call failed: {resp}", header="EVAL")
-                results.append(None)
-            else:
+        for future in futures:
+            try:
+                resp = future.result()
                 results.append(resp.choices[0].message.content)
+            except Exception as exc:
+                self.logger.log(f"Batch LLM call failed: {exc}", header="EVAL")
+                results.append(None)
         return results

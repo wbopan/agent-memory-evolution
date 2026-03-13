@@ -1,5 +1,7 @@
 """Tests for evolution/types.py — all dataclass types."""
 
+import pytest
+
 from programmaticmemory.evolution.types import (
     DataItem,
     Dataset,
@@ -390,3 +392,129 @@ class TestRecencyDecaySelection:
 
         strategy = RecencyDecaySelection(decay_rate=0.8)
         assert repr(strategy) == "RecencyDecaySelection(decay=0.8)"
+
+
+class TestSelectionStrategyValidation:
+    def test_softmax_rejects_zero_temperature(self):
+        with pytest.raises(ValueError, match="temperature must be positive"):
+            SoftmaxSelection(temperature=0)
+
+    def test_softmax_rejects_negative_temperature(self):
+        with pytest.raises(ValueError, match="temperature must be positive"):
+            SoftmaxSelection(temperature=-0.5)
+
+    def test_recency_decay_rejects_zero(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        with pytest.raises(ValueError, match="decay_rate must be in"):
+            RecencyDecaySelection(decay_rate=0)
+
+    def test_recency_decay_rejects_negative(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        with pytest.raises(ValueError, match="decay_rate must be in"):
+            RecencyDecaySelection(decay_rate=-0.5)
+
+    def test_recency_decay_rejects_greater_than_one(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        with pytest.raises(ValueError, match="decay_rate must be in"):
+            RecencyDecaySelection(decay_rate=1.5)
+
+    def test_recency_decay_accepts_one(self):
+        from programmaticmemory.evolution.types import RecencyDecaySelection
+
+        strategy = RecencyDecaySelection(decay_rate=1.0)
+        assert strategy.decay_rate == 1.0
+
+
+class TestProgramPoolSummary:
+    def test_empty_pool(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        assert pool.summary() == "Pool: empty"
+
+    def test_single_entry_shows_100_percent(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        p = KBProgram(source_code="x")
+        pool.add(p, EvalResult(score=0.5))
+        summary = pool.summary()
+        assert "1 programs" in summary
+        assert "P=100.0%" in summary
+        assert f"{p.hash}" in summary
+        assert "score=0.500" in summary
+
+    def test_multiple_entries_probabilities_sum_to_one(self):
+        import re
+
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="a"), EvalResult(score=0.8))
+        pool.add(KBProgram(source_code="b"), EvalResult(score=0.3))
+        pool.add(KBProgram(source_code="c"), EvalResult(score=0.5))
+        summary = pool.summary()
+
+        probs = [float(m) for m in re.findall(r"P=([\d.]+)%", summary)]
+        assert abs(sum(probs) - 100.0) < 1.0  # sum to ~100%
+
+    def test_entries_sorted_by_score_descending(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="low"), EvalResult(score=0.2))
+        pool.add(KBProgram(source_code="high"), EvalResult(score=0.9))
+        pool.add(KBProgram(source_code="mid"), EvalResult(score=0.5))
+        summary = pool.summary()
+
+        lines = summary.strip().split("\n")
+        scores = []
+        for line in lines[1:]:  # skip header
+            if "score=" in line:
+                score_str = line.split("score=")[1].split()[0]
+                scores.append(float(score_str))
+        assert scores == sorted(scores, reverse=True)
+
+    def test_summary_includes_strategy_repr(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="x"), EvalResult(score=0.5))
+        assert "SoftmaxSelection(T=0.15)" in pool.summary()
+
+    def test_summary_includes_generation_and_name(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="x", generation=3), EvalResult(score=0.5), name="iter_5")
+        summary = pool.summary()
+        assert "gen=3" in summary
+        assert "programs/iter_5.py" in summary
+
+    def test_summary_with_max_selection(self):
+        """Ensure summary works with MaxSelection (non-softmax weights)."""
+        from programmaticmemory.evolution.types import MaxSelection
+
+        pool = ProgramPool(strategy=MaxSelection())
+        pool.add(KBProgram(source_code="best"), EvalResult(score=0.9))
+        pool.add(KBProgram(source_code="worst"), EvalResult(score=0.1))
+        summary = pool.summary()
+        assert "P=100.0%" in summary
+        assert "P=0.0%" in summary
+
+
+class TestProgramPoolEdgeCases:
+    def test_add_with_custom_name(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="x"), EvalResult(score=0.5), name="iter_3")
+        assert pool.entries[0].name == "iter_3"
+
+    def test_add_default_name(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="x"), EvalResult(score=0.5))
+        assert pool.entries[0].name == "seed_0"
+
+    def test_best_raises_on_empty_pool(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        with pytest.raises(ValueError):
+            _ = pool.best
+
+    def test_sample_parent_with_multiple_entries(self):
+        """Verify sample_parent delegates to strategy when pool has >1 entry."""
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="a"), EvalResult(score=0.9))
+        pool.add(KBProgram(source_code="b"), EvalResult(score=0.1))
+        # With large score gap and low temperature, should strongly favor "a"
+        results = {pool.sample_parent().program.source_code for _ in range(50)}
+        assert "a" in results  # must appear at least once

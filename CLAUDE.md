@@ -107,7 +107,7 @@ Population-based: maintains a `ProgramPool` of evaluated programs with pluggable
 
 ### Two Separate LLM Roles
 
-1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates KnowledgeItem/Query JSON and answers questions via `litellm.batch_completion`. Separate from the knowledge base program.
+1. **Task agent** (`evaluator.py:_batch_llm_call`) — Fixed model that generates KnowledgeItem/Query JSON and answers questions via `litellm.completion` dispatched through a shared thread pool (`_BATCH_POOL`). Separate from the knowledge base program.
 2. **Toolkit LLM** (`toolkit.py:Toolkit.llm_completion`) — Available to Knowledge Base Programs via `toolkit.llm_completion()`, budget-limited (default 50 calls), with tenacity retry.
 
 ## Test Infrastructure
@@ -147,7 +147,7 @@ Population-based: maintains a `ProgramPool` of evaluated programs with pluggable
 - LLM integration tests use two model tiers: `MODEL` (deepseek-v3.2) for task agent calls, `REFLECT_MODEL` (gpt-5.3-codex) for ALL code generation (reflection, compile-fix, runtime-fix, patch generation). Never use `MODEL` for `Reflector` calls.
 - Inline test programs that use `write()` must include the `raw_text` parameter: `def write(self, item, raw_text=""):` — smoke_test passes `raw_text` to `kb.write()`.
 - `_batch_llm_call` supports `json_mode=True` for knowledge item/query generation (adds `response_format={"type": "json_object"}`). Answer generation calls leave it off.
-- Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.batch_completion = batch_mock` for all evaluation pipeline tests.
+- Evaluator tests use `_make_batch_mock(response_batches)` + `mock_litellm.completion = batch_mock` for all evaluation pipeline tests.
 - Inline test programs that reach execution (step 4+) in `compile_kb_program` must include `INSTRUCTION_KNOWLEDGE_ITEM`, `INSTRUCTION_QUERY`, `INSTRUCTION_RESPONSE`, and `ALWAYS_ON_KNOWLEDGE` or they'll get `CompileError`. Programs that fail earlier (syntax/class/import checks) don't need them.
 - All LLM calls use user-only messages (no system prompts). Instructions are merged into the user prompt.
 - Knowledge Base Program logger interface is `toolkit.logger.debug(message)` (`log()` kept as backward-compatible alias).
@@ -156,3 +156,5 @@ Population-based: maintains a `ProgramPool` of evaluated programs with pluggable
 - Val evaluation is two-phase: (1) `_retrieve_for_val` generates Query + calls `kb.read()` for all items, (2) either `_default_answer_and_score` (LLM answers + scorer) or `_val_scorer_path` (custom scorer, e.g. ALFWorld episodes). Both paths must include retrieval conversation in `FailedCase.conversation_history` for reflection diagnostics. `_val_scorer_path` builds 3-message history (query prompt, query JSON, retrieved prompt); default path adds a 4th (LLM answer).
 - `RunOutputManager.write_program` takes optional `name` parameter for filename. Seeds use `seed_0`, `seed_1`; children use `iter_N`. Changes to `write_program` cascade to `test_run_output.py`.
 - `EvolutionState` uses `pool: ProgramPool` (not individual program fields). `best_program` is a `@property` from `pool.best`. `EvolutionRecord` tracks `parent_hash` (not `accepted`). `drop_degraded_program` was removed — all children are added to the pool.
+- AgentBoard environments require runtime testing beyond mocks. ScienceWorld needs Java (`export PATH="/opt/homebrew/opt/openjdk/bin:$PATH"` on macOS with brew openjdk). BabyAI needs `minigrid`. PDDL needs `pddlgym`. Install all with `pip install -e ".[agentboard]"`.
+- Baselines live in `src/programmaticmemory/baselines/`. Evaluate with `--seed-program <path> --iterations 0` (no evolution, seed eval + final/test eval only).

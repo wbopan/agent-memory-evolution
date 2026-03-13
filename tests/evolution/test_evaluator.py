@@ -112,31 +112,55 @@ class TestParseJsonFromLLM:
 
 
 def _make_batch_mock(response_batches: list[list[str]]):
-    """Create a mock for litellm.batch_completion.
+    """Create a mock for litellm.completion that mimics the old batch_completion interface.
 
-    response_batches: one list of strings per expected call to batch_completion.
-    Each inner list maps 1:1 to the messages passed in that call.
-    captured_calls stores the messages argument for each call.
+    response_batches: one list of strings per logical batch (group of completion calls).
+    Each inner list maps 1:1 to the messages in that batch.
+    captured_calls stores the messages grouped by batch (same structure as before).
+
+    The evaluator now calls litellm.completion per-message via a thread pool.
+    This mock tracks call boundaries by counting: when len(current_batch_calls)
+    matches the expected batch size, it starts a new batch group.
     """
-    call_idx = [0]
-    captured_calls: list[list[list[dict]]] = []
+    import threading
 
-    def mock_batch_completion(*args, **kwargs):
-        idx = call_idx[0]
-        call_idx[0] += 1
-        messages = kwargs.get("messages", [])
-        captured_calls.append([list(m) for m in messages])
-        batch = response_batches[idx % len(response_batches)]
-        results = []
-        for text in batch:
+    lock = threading.Lock()
+    # Flat queue of all responses in order
+    flat_responses: list[str] = []
+    batch_sizes: list[int] = []
+    for batch in response_batches:
+        flat_responses.extend(batch)
+        batch_sizes.append(len(batch))
+
+    response_idx = [0]
+    # Track captured calls grouped by batch
+    captured_calls: list[list[list[dict]]] = []
+    current_group: list[list[dict]] = []
+    batch_cursor = [0]  # which batch group we're filling
+
+    def mock_completion(*args, **kwargs):
+        with lock:
+            idx = response_idx[0]
+            response_idx[0] += 1
+            messages = kwargs.get("messages", [])
+            current_group.append(list(messages))
+
+            # Check if we've filled the current batch
+            if batch_cursor[0] < len(batch_sizes):
+                expected_size = batch_sizes[batch_cursor[0]]
+                if len(current_group) >= expected_size:
+                    captured_calls.append(list(current_group))
+                    current_group.clear()
+                    batch_cursor[0] += 1
+
+            text = flat_responses[idx % len(flat_responses)]
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = text
-            results.append(mock_resp)
-        return results
+            return mock_resp
 
-    mock_batch_completion.captured_calls = captured_calls
-    return mock_batch_completion
+    mock_completion.captured_calls = captured_calls
+    return mock_completion
 
 
 # ── Memory lifecycle tests ──────────────────────────────────────────────────
@@ -205,7 +229,7 @@ class TestMemoryEvaluatorOffline:
                 ["Paris", "Berlin"],  # val round 2: answers
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
@@ -237,7 +261,7 @@ class TestMemoryEvaluatorOffline:
                 ["London"],  # val round 2: wrong answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="The capital of France is Paris.", question="q", expected_answer="e")]
@@ -272,7 +296,7 @@ class TestMemoryEvaluatorOffline:
                 ["correct1", "correct2"],  # val round 2: both answers
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
@@ -298,7 +322,7 @@ class TestMemoryEvaluatorOffline:
 class TestAlwaysOnKnowledgeInEvaluator:
     """Verify ALWAYS_ON_KNOWLEDGE appears inside <retrieved_memory> in evaluator LLM calls."""
 
-    PROGRAM_WITH_AOK = '''\
+    PROGRAM_WITH_AOK = """\
 from dataclasses import dataclass
 
 INSTRUCTION_KNOWLEDGE_ITEM = "Extract the key fact."
@@ -321,7 +345,7 @@ class KnowledgeBase:
         self.store.append(item.summary)
     def read(self, query):
         return " ".join(self.store) if self.store else "No information stored."
-'''
+"""
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_always_on_knowledge_in_retrieved_memory(self, mock_litellm, snapshot: SnapshotAssertion):
@@ -333,7 +357,7 @@ class KnowledgeBase:
                 ["blue"],  # val round 2: answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=self.PROGRAM_WITH_AOK)
         train = [DataItem(raw_text="The sky is blue.", question="q", expected_answer="e")]
@@ -373,7 +397,7 @@ class TestMemoryEvaluatorOnline:
                 ["obs stored"],  # val round 2: answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
@@ -411,7 +435,7 @@ class TestMemoryEvaluatorOnline:
                 ["va"],  # val round 2
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
@@ -436,7 +460,7 @@ class TestMemoryEvaluatorOnline:
                 ["va"],  # val round 2
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
@@ -460,7 +484,7 @@ class TestMemoryEvaluatorOnline:
                 ["stored via online"],  # val round 2: answer matches
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="A")]
@@ -484,7 +508,7 @@ class TestMemoryEvaluatorOnline:
                 ["va"],  # val round 2
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="", question="Q?", expected_answer="correct answer")]
@@ -516,7 +540,7 @@ class TestValidationPipeline:
                 ["answer"],  # val round 2: answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
@@ -541,7 +565,7 @@ class TestValidationPipeline:
                 ["va"],  # val round 2
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         # Use a KB program that tracks write calls
         tracking_program = """\
@@ -595,7 +619,7 @@ class KnowledgeBase:
                 ["wrong answer"],  # val round 2: wrong answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
@@ -622,7 +646,7 @@ class KnowledgeBase:
                 ["the answer"],  # val round 2: answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
@@ -654,7 +678,7 @@ class TestEvaluatorEdgeCases:
                 ["some answer"],  # val round 2: answer
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
@@ -677,7 +701,7 @@ class TestEvaluatorEdgeCases:
                 [],  # val round 2: no valid slots, empty batch
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
@@ -700,7 +724,7 @@ class TestEvaluatorEdgeCases:
                     ['{"summary": "x"}'],  # train ki
                 ]
             )
-            mock_litellm.batch_completion = batch_mock
+            mock_litellm.completion = batch_mock
             result = evaluator.evaluate(
                 program,
                 [DataItem(raw_text="x", question="q", expected_answer="a")],
@@ -719,7 +743,7 @@ class TestEvaluatorEdgeCases:
                 ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="f1", question="q", expected_answer="e")]
@@ -748,7 +772,7 @@ class TestEvaluatorEdgeCases:
                 ["correct1", "wrong"],  # val round 2: item 1 correct, item 2 wrong
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
@@ -770,23 +794,30 @@ class TestEvaluatorEdgeCases:
 
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_offline_train_exception_in_batch_skips_item(self, mock_litellm):
-        """If one batch response is an Exception, that item is skipped gracefully."""
+        """If one completion call raises, that item is skipped gracefully."""
+        import threading
+
+        lock = threading.Lock()
         call_idx = [0]
 
-        def mock_batch_completion(*args, **kwargs):
-            call_idx[0] += 1
-            if call_idx[0] == 1:  # train batch
+        def mock_completion(*args, **kwargs):
+            with lock:
+                call_idx[0] += 1
+                idx = call_idx[0]
+            if idx == 1:  # first train item: raise
+                raise ValueError("API error")
+            if idx == 2:  # second train item
                 mock_resp = MagicMock()
                 mock_resp.choices = [MagicMock()]
                 mock_resp.choices[0].message.content = '{"summary": "Paris is the capital of France."}'
-                return [ValueError("API error"), mock_resp]
-            # val batch calls
+                return mock_resp
+            # val calls
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
-            mock_resp.choices[0].message.content = '{"raw": "q"}' if call_idx[0] == 2 else "Paris"
-            return [mock_resp]
+            mock_resp.choices[0].message.content = '{"raw": "q"}' if idx == 3 else "Paris"
+            return mock_resp
 
-        mock_litellm.batch_completion = mock_batch_completion
+        mock_litellm.completion = mock_completion
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
@@ -899,7 +930,7 @@ class TestRuntimeViolationEarlyAbort:
                 # No round 2 needed — abort happens before answer generation
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=OVERSIZED_READ_PROGRAM)
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
@@ -938,7 +969,7 @@ class TestValScorerIntegration:
                 # No round 2! val_scorer handles scoring, not LLM answer generation.
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
@@ -979,7 +1010,7 @@ class TestValScorerIntegration:
                 ['{"raw": "sky query"}'],  # val round 1: query generation
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [
@@ -1015,7 +1046,7 @@ class TestValScorerIntegration:
                 ["Paris"],
             ]
         )
-        mock_litellm.batch_completion = batch_mock
+        mock_litellm.completion = batch_mock
 
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)
         train = [DataItem(raw_text="Paris is capital.", question="q", expected_answer="e")]
