@@ -18,9 +18,49 @@ from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.sandbox import smoke_test
 from programmaticmemory.evolution.toolkit import ToolkitConfig
-from programmaticmemory.evolution.types import KBProgram, MaxSelection, RecencyDecaySelection, SoftmaxSelection
+from programmaticmemory.evolution.types import (
+    Dataset,
+    KBProgram,
+    MaxSelection,
+    RecencyDecaySelection,
+    SoftmaxSelection,
+)
 from programmaticmemory.logging.experiment_tracker import ExperimentTracker
 from programmaticmemory.logging.run_output import RunOutputManager
+
+
+def split_val_test(dataset: Dataset, test_size: int, seed: int) -> None:
+    """Split dataset.val into evolution-val and held-out test, mutating in place.
+
+    Args:
+        dataset: Dataset to mutate (sets dataset.val and dataset.test).
+        test_size: -1 = copy full val as test (backward compat), 0 = no test,
+                   N > 0 = hold out last N items after seeded shuffle.
+        seed: Random seed for deterministic splitting.
+    """
+    if test_size < -1:
+        print(f"Error: --test-size must be >= -1, got {test_size}", file=sys.stderr)
+        sys.exit(1)
+    if test_size == -1:
+        dataset.test = list(dataset.val)
+        return
+    if test_size == 0:
+        dataset.test = []
+        return
+    # test_size > 0
+    if test_size >= len(dataset.val):
+        print(
+            f"Error: --test-size ({test_size}) must be < len(val) ({len(dataset.val)}), "
+            f"would leave evolution-val empty",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    # Copy first — some benchmarks (kv_memory) share the same list object for train and val
+    val_copy = list(dataset.val)
+    rng = random.Random(seed)
+    rng.shuffle(val_copy)
+    dataset.val = val_copy[:-test_size]
+    dataset.test = val_copy[-test_size:]
 
 
 def _parse_extra_kwargs(extra: list[str]) -> dict:
@@ -134,6 +174,12 @@ def main() -> None:
         default=None,
         help="Evaluate a single KBProgram file (no evolution). When set, --iterations is ignored.",
     )
+    parser.add_argument(
+        "--test-size",
+        type=int,
+        default=-1,
+        help="Held-out test split size: -1 = copy full val (default), 0 = skip final eval, N > 0 = hold out N items",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -192,6 +238,9 @@ def main() -> None:
     dataset_kwargs = _parse_extra_kwargs(extra)
     dataset = load_dataset(args.dataset, category=args.category, **dataset_kwargs)
 
+    # Split val into evolution-val + held-out test
+    split_val_test(dataset, test_size=args.test_size, seed=args.seed)
+
     # Build eval strategy
     from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
 
@@ -222,7 +271,7 @@ def main() -> None:
     logger = get_logger()
     logger.log(
         f"Dataset={args.dataset}, train={len(dataset.train)}, val={len(dataset.val)}, "
-        f"task_model={args.task_model}, reflect_model={args.reflect_model}",
+        f"test={len(dataset.test)}, task_model={args.task_model}, reflect_model={args.reflect_model}",
         header="CONFIG",
     )
     if args.category:
@@ -292,7 +341,8 @@ def main() -> None:
         state = loop.run()
 
     if state.final_scores:
-        print("\nFinal evaluation (full dataset):")
+        label = "held-out test set" if args.test_size > 0 else "full dataset"
+        print(f"\nFinal evaluation ({label}):")
         for prog_hash, score in state.final_scores.items():
             print(f"  {prog_hash}: {score:.3f}")
 
