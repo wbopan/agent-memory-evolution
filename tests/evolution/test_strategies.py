@@ -166,8 +166,18 @@ class TestFixedRepresentative:
         assert len(candidates) == 1
         assert candidates[0].score == 0.9
 
-    def test_final_eval_data_returns_full_dataset(self):
+    def test_final_eval_data_returns_none_when_no_test(self):
         ds = _make_dataset(n_train=20, n_val=10)
+        with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
+            mock_sel.return_value = ([0], [0])
+            strategy = FixedRepresentative(ds, val_size=1)
+
+        result = strategy.final_eval_data(ds)
+        assert result is None
+
+    def test_final_eval_data_returns_test_when_present(self):
+        ds = _make_dataset(n_train=20, n_val=10)
+        ds.test = [DataItem(raw_text="", question=f"testq{i}?", expected_answer=f"testa{i}") for i in range(5)]
         with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
             mock_sel.return_value = ([0], [0])
             strategy = FixedRepresentative(ds, val_size=1)
@@ -175,4 +185,5 @@ class TestFixedRepresentative:
         result = strategy.final_eval_data(ds)
         assert result is not None
         assert len(result[0]) == 20
-        assert len(result[1]) == 10
+        assert len(result[1]) == 5
+        assert result[1] is ds.test

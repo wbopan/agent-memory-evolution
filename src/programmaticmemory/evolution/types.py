@@ -47,6 +47,10 @@ class EvalStrategy(Protocol):
         """Return (train, val) for final evaluation, or None to skip."""
         ...
 
+    def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        """Return (train, test) for held-out test evaluation, or None to skip."""
+        ...
+
 
 @dataclass(frozen=True)
 class KBProgram:

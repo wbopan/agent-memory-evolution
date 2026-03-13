@@ -16,6 +16,9 @@ class FullDataset:
         return [pool.best]
 
     def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        return (dataset.train, dataset.test) if dataset.test else None
+
+    def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
         return None
 
 
@@ -43,6 +46,9 @@ class RotatingBatch:
     def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
         return dataset.train, dataset.val
 
+    def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        return (dataset.train, dataset.test) if dataset.test else None
+
 
 class FixedRepresentative:
     """Representative subset selection via clustering. Scores are comparable across programs.
@@ -68,4 +74,7 @@ class FixedRepresentative:
         return [pool.best]
 
     def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
-        return dataset.train, dataset.val
+        return (dataset.train, dataset.test) if dataset.test else None
+
+    def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        return None
