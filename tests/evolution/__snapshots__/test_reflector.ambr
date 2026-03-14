@@ -3,6 +3,10 @@
   list([
     list([
       dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
@@ -156,6 +160,10 @@
 # name: TestReflector.test_reflection_no_code_block_returns_none
   list([
     dict({
+      'content': ' ',
+      'role': 'system',
+    }),
+    dict({
       'content': '''
         You are an expert Python programmer specializing in knowledge base system design.
         
@@ -295,6 +303,10 @@
 # name: TestReflector.test_reflection_passes_failed_cases
   list([
     list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
       dict({
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
@@ -442,6 +454,10 @@
 # name: TestReflector.test_reflection_passes_success_cases
   list([
     list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
       dict({
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
@@ -605,6 +621,10 @@
   list([
     list([
       dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
         'content': '''
           You are an expert Python programmer specializing in knowledge base system design.
           
@@ -744,6 +764,10 @@
 # ---
 # name: TestReflector.test_successful_reflection
   list([
+    dict({
+      'content': ' ',
+      'role': 'system',
+    }),
     dict({
       'content': '''
         You are an expert Python programmer specializing in knowledge base system design.

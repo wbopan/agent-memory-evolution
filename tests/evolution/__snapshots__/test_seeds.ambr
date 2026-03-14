@@ -2,7 +2,7 @@
 # name: test_seed_end_to_end[experience_learner]
   dict({
     'num_failed': 0,
-    'output': "Project Zephyr's access code is DELTA-7742.",
+    'output': 'The access code for Project Zephyr is DELTA-7742.',
     'score': 1.0,
   })
 # ---
@@ -16,7 +16,7 @@
 # name: test_seed_end_to_end[vector_search]
   dict({
     'num_failed': 0,
-    'output': 'The access code is DELTA-7742.',
+    'output': 'DELTA-7742',
     'score': 1.0,
   })
 # ---

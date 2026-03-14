@@ -390,8 +390,9 @@ def test_reflection_recovery(snapshot: SnapshotAssertion):
 
     # Reflect on failures (uses stronger model for code reasoning)
     reflector = Reflector(model=REFLECT_MODEL)
-    child = reflector.reflect_and_mutate(program, result1, iteration=1)
-    assert child is not None, "Reflection failed to produce code"
+    reflection = reflector.reflect_and_mutate(program, result1, iteration=1)
+    assert reflection is not None, "Reflection failed to produce code"
+    child = reflection.program
 
     # Round 2: reflected program should improve
     result2 = evaluator.evaluate(child, train_data, val_data)

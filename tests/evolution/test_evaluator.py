@@ -62,8 +62,8 @@ class TestExactMatchScorer:
 
 class TestLLMJudgeScorer:
     @patch("programmaticmemory.evolution.evaluator.litellm")
-    def test_sends_user_only_message(self, mock_litellm):
-        """LLMJudgeScorer must not use system messages."""
+    def test_sends_system_and_user_message(self, mock_litellm):
+        """LLMJudgeScorer sends a minimal system message followed by the user prompt."""
         mock_resp = MagicMock()
         mock_resp.choices = [MagicMock()]
         mock_resp.choices[0].message.content = "1"
@@ -75,9 +75,10 @@ class TestLLMJudgeScorer:
         assert score == 1.0
         call_kwargs = mock_litellm.completion.call_args.kwargs
         messages = call_kwargs["messages"]
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        assert "Paris" in messages[0]["content"]
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        assert "Paris" in messages[1]["content"]
 
 
 # ── JSON Parsing Tests ──────────────────────────────────────────────────────
@@ -312,7 +313,7 @@ class TestMemoryEvaluatorOffline:
         assert len(batch_mock.captured_calls) == 3  # train + 2 val rounds
         assert len(batch_mock.captured_calls[1]) == 2  # round 1: 2 queries
         assert len(batch_mock.captured_calls[2]) == 2  # round 2: 2 answers (3 msgs each)
-        assert len(batch_mock.captured_calls[2][0]) == 3  # each answer msg = query+response+retrieved
+        assert len(batch_mock.captured_calls[2][0]) == 4  # system + query + response + retrieved
         assert batch_mock.captured_calls == snapshot
 
 
@@ -409,17 +410,18 @@ class TestMemoryEvaluatorOnline:
         assert len(batch_mock.captured_calls) == 5  # 3 train rounds + 2 val rounds
         # Round 1: 1 query prompt (1 msg each)
         assert len(batch_mock.captured_calls[0]) == 1
-        assert len(batch_mock.captured_calls[0][0]) == 1  # 1 user message
-        # Round 2: 3 messages (user + assistant + user)
-        assert len(batch_mock.captured_calls[1][0]) == 3
-        assert batch_mock.captured_calls[1][0][0]["role"] == "user"
-        assert batch_mock.captured_calls[1][0][1]["role"] == "assistant"
-        assert batch_mock.captured_calls[1][0][2]["role"] == "user"
-        assert "<retrieved_memory>" in batch_mock.captured_calls[1][0][2]["content"]
-        # Round 3: 5 messages (user + asst + user + asst + user)
-        assert len(batch_mock.captured_calls[2][0]) == 5
-        assert batch_mock.captured_calls[2][0][3]["role"] == "assistant"  # answer
-        assert batch_mock.captured_calls[2][0][4]["role"] == "user"  # ki gen with feedback
+        assert len(batch_mock.captured_calls[0][0]) == 2  # system + 1 user message
+        # Round 2: 4 messages (system + user + assistant + user)
+        assert len(batch_mock.captured_calls[1][0]) == 4
+        assert batch_mock.captured_calls[1][0][0]["role"] == "system"
+        assert batch_mock.captured_calls[1][0][1]["role"] == "user"
+        assert batch_mock.captured_calls[1][0][2]["role"] == "assistant"
+        assert batch_mock.captured_calls[1][0][3]["role"] == "user"
+        assert "<retrieved_memory>" in batch_mock.captured_calls[1][0][3]["content"]
+        # Round 3: 6 messages (system + user + asst + user + asst + user)
+        assert len(batch_mock.captured_calls[2][0]) == 6
+        assert batch_mock.captured_calls[2][0][4]["role"] == "assistant"  # answer
+        assert batch_mock.captured_calls[2][0][5]["role"] == "user"  # ki gen with feedback
         assert result.score == 1.0
         assert batch_mock.captured_calls == snapshot
 
@@ -655,12 +657,13 @@ class KnowledgeBase:
         evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
         evaluator.evaluate(program, train, val)
 
-        # Val round 2 (call index 2): each item should have 3 messages
+        # Val round 2 (call index 2): each item should have 4 messages (system + 3 turns)
         step2_msgs = batch_mock.captured_calls[2][0]
-        assert len(step2_msgs) == 3
-        assert "What is X?" in step2_msgs[0]["content"]  # query gen mentions question
-        assert step2_msgs[1]["content"] == '{"raw": "my query"}'  # assistant's query
-        assert "<retrieved_memory>" in step2_msgs[2]["content"]  # retrieved memory prompt
+        assert len(step2_msgs) == 4
+        assert step2_msgs[0]["role"] == "system"
+        assert "What is X?" in step2_msgs[1]["content"]  # query gen mentions question
+        assert step2_msgs[2]["content"] == '{"raw": "my query"}'  # assistant's query
+        assert "<retrieved_memory>" in step2_msgs[3]["content"]  # retrieved memory prompt
         assert batch_mock.captured_calls == snapshot
 
 

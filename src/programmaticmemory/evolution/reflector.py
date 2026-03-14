@@ -91,6 +91,7 @@ class Reflector:
         response = litellm.completion(
             model=self.model,
             messages=[
+                {"role": "system", "content": " "},
                 {"role": "user", "content": user_prompt},
             ],
             max_tokens=16384,
@@ -167,6 +168,7 @@ class Reflector:
         response = litellm.completion(
             model=self.model,
             messages=[
+                {"role": "system", "content": " "},
                 {"role": "user", "content": user_prompt},
             ],
             max_tokens=16384,

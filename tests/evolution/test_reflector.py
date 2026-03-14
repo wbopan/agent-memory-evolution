@@ -238,10 +238,11 @@ class KnowledgeBase:
 
         assert len(captured_messages) == 1
         messages = captured_messages[0]
-        # Single user message containing everything (interface spec + code + failed cases)
-        assert len(messages) == 1
-        assert messages[0]["role"] == "user"
-        user_content = messages[0]["content"]
+        # System placeholder + user message containing everything (interface spec + code + failed cases)
+        assert len(messages) == 2
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+        user_content = messages[1]["content"]
         assert "KnowledgeItem" in user_content  # interface spec
         assert "code here" in user_content
         assert "0.200" in user_content
@@ -316,7 +317,7 @@ class KnowledgeBase:
 
         assert len(captured_messages) == 1
         messages = captured_messages[0]
-        user_content = messages[0]["content"]
+        user_content = messages[1]["content"]
         # Weighted sampling selects exactly 2 from 6 (not all 6)
         case_count = user_content.count("<case id=")
         assert case_count == 2
@@ -360,7 +361,7 @@ class KnowledgeBase:
         reflector.reflect_and_mutate(current, eval_result, iteration=3)
 
         assert len(captured_messages) == 1
-        user_content = captured_messages[0][0]["content"]
+        user_content = captured_messages[0][1]["content"]
         assert "<success_cases>" in user_content
         assert "What is Y?" in user_content
         assert "Preserve the behavior" in user_content
@@ -600,7 +601,7 @@ class TestReflectorRuntimeFix:
         assert result == fixed_code
         # _try_fix was called — verify the prompt includes "Runtime violation"
         call_args = mock_litellm.completion.call_args
-        prompt = call_args.kwargs["messages"][0]["content"]
+        prompt = call_args.kwargs["messages"][1]["content"]
         assert "Runtime violation" in prompt
 
     @patch("programmaticmemory.evolution.reflector.litellm")

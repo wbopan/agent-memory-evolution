@@ -138,6 +138,7 @@ class LLMJudgeScorer:
         response = litellm.completion(
             model=self.model,
             messages=[
+                {"role": "system", "content": " "},
                 {
                     "role": "user",
                     "content": (
@@ -921,7 +922,7 @@ class MemoryEvaluator:
             _BATCH_POOL.submit(
                 litellm.completion,
                 model=self.task_model,
-                messages=msgs,
+                messages=[{"role": "system", "content": " "}, *msgs],
                 caching=True,
                 **extra,
             )

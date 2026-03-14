@@ -4,6 +4,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Extract the key fact.
             
@@ -24,6 +28,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Ask for the fact.
             
@@ -43,6 +51,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Ask for the fact.
@@ -84,6 +96,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -108,6 +124,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -128,6 +148,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -147,6 +171,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -186,6 +214,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -203,6 +235,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Summarize the key information from the text.
@@ -224,6 +260,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -241,6 +281,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -261,6 +305,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -296,6 +344,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -338,6 +390,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -357,6 +413,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -382,6 +442,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -402,6 +466,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -419,6 +487,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -439,6 +511,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -472,6 +548,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -512,6 +592,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -529,6 +613,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Summarize the key information from the text.
@@ -550,6 +638,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -567,6 +659,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -587,6 +683,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -622,6 +722,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -664,6 +768,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -684,6 +792,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -701,6 +813,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -721,6 +837,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -754,6 +874,10 @@
         }),
       ]),
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -794,6 +918,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -814,6 +942,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -833,6 +965,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -873,6 +1009,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -892,6 +1032,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -926,6 +1070,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -982,6 +1130,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1001,6 +1153,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1041,6 +1197,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1060,6 +1220,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1094,6 +1258,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1150,6 +1318,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1169,6 +1341,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1209,6 +1385,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1228,6 +1408,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1262,6 +1446,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1318,6 +1506,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1337,6 +1529,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1377,6 +1573,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1396,6 +1596,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1430,6 +1634,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1486,6 +1694,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1505,6 +1717,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1545,6 +1761,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1564,6 +1784,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1598,6 +1822,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1654,6 +1882,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1673,6 +1905,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1713,6 +1949,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -1733,6 +1973,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1752,6 +1996,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -1792,6 +2040,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             
             
@@ -1811,6 +2063,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             
@@ -1845,6 +2101,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             
@@ -1901,6 +2161,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             
             
@@ -1920,6 +2184,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             
@@ -1959,6 +2227,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -1979,6 +2251,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -1998,6 +2274,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
@@ -2038,6 +2318,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Summarize the key information from the text.
             
@@ -2058,6 +2342,10 @@
     list([
       list([
         dict({
+          'content': ' ',
+          'role': 'system',
+        }),
+        dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
             
@@ -2077,6 +2365,10 @@
     ]),
     list([
       list([
+        dict({
+          'content': ' ',
+          'role': 'system',
+        }),
         dict({
           'content': '''
             Given the following question, generate a query to retrieve relevant knowledge.
