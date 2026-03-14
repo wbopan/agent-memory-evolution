@@ -1,5 +1,6 @@
 """Tests for evolution/prompts.py — prompt templates and construction."""
 
+import pytest
 from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.prompts import (
@@ -23,6 +24,16 @@ from programmaticmemory.evolution.types import (
     SoftmaxSelection,
     TrainExample,
 )
+
+
+def _llm_call(model: str, messages: list[dict]) -> str:
+    import litellm
+
+    response = litellm.completion(model=model, messages=messages, caching=True)
+    return response.choices[0].message.content
+
+
+REFLECT_MODEL = "openrouter/openai/gpt-5.3-codex"
 
 
 class TestInitialKBProgram:
@@ -565,3 +576,171 @@ class TestBuildCompileFixPrompt:
         assert "Import whitelist violation" in prompt
         assert "Disallowed import: numpy" in prompt
         assert prompt == snapshot
+
+
+class TestLineageLogEndToEnd:
+    """AC2: End-to-end test with 5-entry lineage and subagent verification."""
+
+    def _build_five_entry_lineage(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+
+        seed_code = (
+            "from dataclasses import dataclass, field\n"
+            "class KnowledgeItem:\n    summary: str = ''\n"
+            "class Query:\n    query_text: str = ''\n"
+            "class KnowledgeBase:\n"
+            "    def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []\n"
+            "    def write(self, item, raw_text): self.raw_texts.append(raw_text)\n"
+            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:1000]\n"
+        )
+        seed = KBProgram(source_code=seed_code)
+        pool.add(
+            seed,
+            EvalResult(score=0.289),
+            name="seed_0",
+            commit_message="Title: LLM query-focused summarizer\n- Stores raw text, uses toolkit.llm_completion() in read() for query-focused summarization",
+        )
+
+        iter1_code = (
+            "from dataclasses import dataclass, field\n"
+            "class KnowledgeItem:\n    summary: str = ''\n"
+            "class Query:\n    query_text: str = ''\n"
+            "class KnowledgeBase:\n"
+            "    def __init__(self, toolkit): self.store = []\n"
+            "    def write(self, item, raw_text): self.store.append(raw_text)\n"
+            "    def read(self, query): return self._token_overlap(query.query_text)\n"
+            "    def _token_overlap(self, q): return ''\n"
+        )
+        iter1 = KBProgram(source_code=iter1_code, generation=1, parent_hash=seed.hash)
+        pool.add(
+            iter1,
+            EvalResult(score=0.171),
+            name="iter_1",
+            commit_message="Title: Replace LLM with token overlap\n- Removed toolkit.llm_completion() to avoid hallucination, added deterministic token overlap",
+        )
+
+        iter4_code = (
+            "from dataclasses import dataclass, field\n"
+            "class KnowledgeItem:\n    summary: str = ''\n"
+            "class Query:\n    query_text: str = ''\n"
+            "class KnowledgeBase:\n"
+            "    def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []\n"
+            "    def write(self, item, raw_text): self.raw_texts.append(raw_text)\n"
+            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'precise summary'}])[:1000]\n"
+        )
+        iter4 = KBProgram(source_code=iter4_code, generation=1, parent_hash=seed.hash)
+        pool.add(
+            iter4,
+            EvalResult(score=0.310),
+            name="iter_4",
+            commit_message="Title: Improve LLM summarization prompt\n- Tuned the LLM prompt for more precise, factual summarization",
+        )
+
+        iter8_code = (
+            "from dataclasses import dataclass, field\nimport sqlite3\n"
+            "class KnowledgeItem:\n    summary: str = ''\n    people: list = None\n"
+            "class Query:\n    query_text: str = ''\n"
+            "class KnowledgeBase:\n"
+            "    def __init__(self, toolkit): self.toolkit = toolkit; self._init_db()\n"
+            "    def _init_db(self): pass\n"
+            "    def write(self, item, raw_text): pass\n"
+            "    def read(self, query): return ''\n"
+        )
+        iter8 = KBProgram(source_code=iter8_code, generation=2, parent_hash=iter4.hash)
+        pool.add(
+            iter8,
+            EvalResult(score=0.280),
+            name="iter_8",
+            commit_message="Title: Add SQLite structured storage\n- Replaced LLM retrieval with SQLite-based structured storage",
+        )
+
+        iter12_code = (
+            "from dataclasses import dataclass, field\n"
+            "class KnowledgeItem:\n    summary: str = ''\n    people: list = None\n"
+            "class Query:\n    query_text: str = ''\n    focus_person: str = ''\n"
+            "class KnowledgeBase:\n"
+            "    def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []\n"
+            "    def write(self, item, raw_text): self.raw_texts.append(raw_text)\n"
+            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':f'focus on {query.focus_person}'}])[:1000]\n"
+            "    def _filter_by_person(self, person): return []\n"
+        )
+        iter12 = KBProgram(source_code=iter12_code, generation=2, parent_hash=iter4.hash)
+        pool.add(
+            iter12,
+            EvalResult(score=0.355),
+            name="iter_12",
+            commit_message="Title: Add person-focused LLM retrieval\n- Added focus_person to Query for targeted LLM summarization",
+        )
+
+        return pool, pool.entries[0]
+
+    def test_lineage_log_snapshot(self, snapshot: SnapshotAssertion):
+        pool, seed_entry = self._build_five_entry_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "seed_0" in log
+        assert "iter_1" in log
+        assert "iter_4" in log
+        assert "REGRESSION" in log
+        assert "* current:" in log
+        assert log == snapshot
+
+    def test_full_prompt_with_lineage_snapshot(self, snapshot: SnapshotAssertion):
+        pool, seed_entry = self._build_five_entry_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        prompt = build_reflection_user_prompt(
+            code=seed_entry.program.source_code,
+            score=0.289,
+            failed_cases=[
+                {
+                    "question": "What instruments?",
+                    "expected": "violin, piano",
+                    "output": "violin, piano, guitar",
+                    "score": 0.3,
+                }
+            ],
+            iteration=5,
+            lineage_log=log,
+        )
+        assert "<lineage_log>" in prompt
+        assert "Do NOT repeat changes that previously caused regressions" in prompt
+        assert prompt == snapshot
+
+    @pytest.mark.llm
+    def test_subagent_can_interpret_lineage(self, snapshot: SnapshotAssertion):
+        """A subagent reading ONLY the rendered prompt can identify current, children, and regressions."""
+        pool, seed_entry = self._build_five_entry_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        prompt = build_reflection_user_prompt(
+            code=seed_entry.program.source_code,
+            score=0.289,
+            failed_cases=[{"question": "q", "expected": "a", "output": "wrong", "score": 0.0}],
+            iteration=5,
+            lineage_log=log,
+        )
+
+        verification_prompt = (
+            "You are analyzing a reflection prompt for a code evolution system. "
+            "Read the <lineage_log> section carefully and answer these questions. "
+            "Answer each with ONLY the requested information, no explanation.\n\n"
+            f"PROMPT:\n{prompt}\n\n"
+            "QUESTIONS:\n"
+            "1. What is the name (e.g., seed_0, iter_N) of the current program being improved? Answer: \n"
+            "2. List the names of its direct children (comma-separated). Answer: \n"
+            "3. List the names of commits marked as REGRESSION (comma-separated). Answer: \n"
+            "4. What specific code pattern was removed in iter_1 that caused its regression? Answer: \n"
+            "5. Based on the lineage, what should the reflector avoid doing? Answer: \n"
+        )
+
+        output = _llm_call(
+            REFLECT_MODEL,
+            [{"role": "user", "content": verification_prompt}],
+        )
+
+        output_lower = output.lower()
+        assert "seed_0" in output_lower or "seed" in output_lower
+        assert "iter_1" in output_lower
+        assert "iter_4" in output_lower
+        assert "llm" in output_lower or "completion" in output_lower
+        assert "remov" in output_lower or "llm" in output_lower
+
+        assert {"prompt": verification_prompt, "output": output} == snapshot
