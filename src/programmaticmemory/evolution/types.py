@@ -140,6 +140,7 @@ class PoolEntry:
     eval_result: EvalResult
     name: str = "seed_0"
     reflection_result: EvalResult | None = None
+    commit_message: str | None = None
 
     @property
     def score(self) -> float:
@@ -276,9 +277,16 @@ class ProgramPool:
         eval_result: EvalResult,
         name: str = "seed_0",
         reflection_result: EvalResult | None = None,
+        commit_message: str | None = None,
     ) -> None:
         self.entries.append(
-            PoolEntry(program=program, eval_result=eval_result, name=name, reflection_result=reflection_result)
+            PoolEntry(
+                program=program,
+                eval_result=eval_result,
+                name=name,
+                reflection_result=reflection_result,
+                commit_message=commit_message,
+            )
         )
 
     def sample_parent(self) -> PoolEntry:

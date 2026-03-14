@@ -678,3 +678,23 @@ class TestFindReferences:
 
         sibling, _ = pool.find_references(pool.entries[1])  # parent of b
         assert sibling is None  # all entries are in b's lineage
+
+
+class TestPoolEntryCommitMessage:
+    def test_default_commit_message_is_none(self):
+        entry = PoolEntry(
+            program=KBProgram(source_code="x"),
+            eval_result=EvalResult(score=0.5),
+        )
+        assert entry.commit_message is None
+
+    def test_commit_message_stored(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        prog = KBProgram(source_code="x")
+        pool.add(prog, EvalResult(score=0.5), commit_message="Title: test\n- changed something")
+        assert pool.entries[0].commit_message == "Title: test\n- changed something"
+
+    def test_commit_message_none_by_default_in_add(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        pool.add(KBProgram(source_code="x"), EvalResult(score=0.5))
+        assert pool.entries[0].commit_message is None
