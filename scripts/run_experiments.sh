@@ -15,9 +15,9 @@
 set -euo pipefail
 
 COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio -1 --no-weave"
-COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio -1 --no-weave"
+COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio 5 --no-weave"
 EVOLUTION_LOCOMO="--eval-strategy split --eval-rotate-size 5 --eval-static-size 25 --eval-train-ratio -1 --softmax-temp 0.05"
-EVOLUTION_ALFWORLD="--eval-strategy split --eval-rotate-size 5 --eval-static-size 15 --eval-train-ratio 5 --softmax-temp 0.05"
+EVOLUTION_ALFWORLD="--eval-strategy split --eval-rotate-size 5 --eval-static-size 15 --eval-train-ratio 3"
 
 run() {
     local label="$1"
