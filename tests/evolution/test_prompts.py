@@ -11,11 +11,18 @@ from programmaticmemory.evolution.prompts import (
     build_compile_fix_prompt,
     build_knowledge_item_generation_prompt,
     build_knowledge_item_with_feedback_prompt,
+    build_lineage_log,
     build_query_generation_prompt,
     build_reflection_user_prompt,
     build_retrieved_memory_prompt,
 )
-from programmaticmemory.evolution.types import TrainExample
+from programmaticmemory.evolution.types import (
+    EvalResult,
+    KBProgram,
+    ProgramPool,
+    SoftmaxSelection,
+    TrainExample,
+)
 
 
 class TestInitialKBProgram:
@@ -434,6 +441,74 @@ class TestSampleCases:
         # Extract indices of selected cases in the original list
         indices = [cases.index(c) for c in result]
         assert indices == sorted(indices)
+
+
+class TestBuildLineageLog:
+    def _make_pool_with_lineage(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        seed = KBProgram(source_code="def read(): return llm_completion()")
+        pool.add(
+            seed,
+            EvalResult(score=0.289),
+            name="seed_0",
+            commit_message="Title: LLM query-focused summarizer\n- Uses toolkit.llm_completion() in read()",
+        )
+        child1 = KBProgram(source_code="def read(): return token_overlap()", generation=1, parent_hash=seed.hash)
+        pool.add(
+            child1,
+            EvalResult(score=0.171),
+            name="iter_1",
+            commit_message="Title: Replace LLM with token overlap\n- Removed llm_completion from read()",
+        )
+        child4 = KBProgram(
+            source_code="def read(): return llm_completion(improved=True)", generation=1, parent_hash=seed.hash
+        )
+        pool.add(
+            child4,
+            EvalResult(score=0.310),
+            name="iter_4",
+            commit_message="Title: Improve LLM prompt\n- Tuned summarization prompt for precision",
+        )
+        return pool, pool.entries[0]
+
+    def test_contains_seed_commit(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "LLM query-focused summarizer" in log
+
+    def test_marks_current(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "* current:" in log
+        assert seed_entry.program.hash in log
+
+    def test_shows_children(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "iter_1" in log
+        assert "iter_4" in log
+
+    def test_marks_regression(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "REGRESSION" in log
+
+    def test_shows_delta(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "-0.118" in log
+
+    def test_single_entry_no_crash(self):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        seed = KBProgram(source_code="x = 1")
+        pool.add(seed, EvalResult(score=0.5), name="seed_0")
+        log = build_lineage_log(pool, pool.entries[0])
+        assert "* current:" in log
+
+    def test_snapshot(self, snapshot):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert log == snapshot
 
 
 class TestBuildCompileFixPrompt:

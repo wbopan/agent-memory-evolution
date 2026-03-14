@@ -5,7 +5,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 
-from programmaticmemory.evolution.types import TrainExample
+from programmaticmemory.evolution.types import PoolEntry, ProgramPool, TrainExample, diff_functions
 
 
 def _sample_cases(cases: list[dict], k: int, seed: int) -> list[dict]:
@@ -382,6 +382,63 @@ to store and retrieve more useful information for the task agent.
    (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
 3. Output your changes as a patch.
 </task>"""
+
+
+def build_lineage_log(pool: ProgramPool, entry: PoolEntry) -> str:
+    """Build a git-log-style lineage history for a program entry."""
+    hash_to_entry = {e.program.hash: e for e in pool.entries}
+
+    # Walk ancestor chain upward
+    ancestors: list[PoolEntry] = []
+    current = entry
+    while current.program.parent_hash and current.program.parent_hash in hash_to_entry:
+        parent = hash_to_entry[current.program.parent_hash]
+        ancestors.append(parent)
+        current = parent
+    ancestors.reverse()
+
+    # Find direct children
+    children = [e for e in pool.entries if e.program.parent_hash == entry.program.hash]
+
+    lines: list[str] = []
+
+    def _format_entry(e: PoolEntry, parent_entry: PoolEntry | None, is_current: bool = False) -> None:
+        if is_current:
+            lines.append(f"\n* current: {e.program.hash} ({e.name}) score={e.score:.3f}  \u2190 you are improving this")
+            msg = e.commit_message or "Initial seed program"
+            for msg_line in msg.splitlines():
+                lines.append(f"  {msg_line}")
+            lines.append("")
+            return
+        header = f"commit {e.program.hash} ({e.name}) score={e.score:.3f}"
+        if parent_entry is not None:
+            delta = e.score - parent_entry.score
+            header += f" (\u0394{delta:+.3f})"
+            if delta < 0:
+                header += " \u2190 REGRESSION"
+        lines.append(header)
+        msg = e.commit_message or "Initial seed program"
+        for msg_line in msg.splitlines():
+            lines.append(f"  {msg_line}")
+        if parent_entry is not None:
+            added, removed = diff_functions(parent_entry.program.source_code, e.program.source_code)
+            if added:
+                lines.append(f"  + {', '.join(f'{n}()' for n in added)}")
+            if removed:
+                lines.append(f"  - {', '.join(f'{n}()' for n in removed)}")
+        lines.append("")
+
+    prev: PoolEntry | None = None
+    for anc in ancestors:
+        _format_entry(anc, prev)
+        prev = anc
+
+    _format_entry(entry, prev, is_current=True)
+
+    for child in children:
+        _format_entry(child, entry)
+
+    return "\n".join(lines)
 
 
 def build_knowledge_item_generation_prompt(

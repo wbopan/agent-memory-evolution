@@ -237,6 +237,23 @@
   Respond with the JSON only.
   '''
 # ---
+# name: TestBuildLineageLog.test_snapshot
+  '''
+  
+  * current: c0617023a8818a67 (seed_0) score=0.289  ← you are improving this
+    Title: LLM query-focused summarizer
+    - Uses toolkit.llm_completion() in read()
+  
+  commit 5d3d240240d24c46 (iter_1) score=0.171 (Δ-0.118) ← REGRESSION
+    Title: Replace LLM with token overlap
+    - Removed llm_completion from read()
+  
+  commit 6eb56dbd3e2d81c7 (iter_4) score=0.310 (Δ+0.021)
+    Title: Improve LLM prompt
+    - Tuned summarization prompt for precision
+  
+  '''
+# ---
 # name: TestBuildQueryGenerationPrompt.test_includes_question_and_schema
   '''
   Given the following question, generate a query to retrieve relevant memory.
