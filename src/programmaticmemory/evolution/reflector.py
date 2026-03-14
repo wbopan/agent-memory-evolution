@@ -33,6 +33,20 @@ def _extract_patch(text: str) -> str | None:
     return None
 
 
+def _extract_commit_message(text: str) -> str | None:
+    """Extract the commit message block from LLM output.
+
+    Looks for text between ``*** Commit Message`` and the next ``***`` marker.
+    Returns the stripped text block, or None if not found.
+    """
+    match = re.search(r"\*\*\* Commit Message\n(.*?)(?=\n\*\*\*|\Z)", text, re.DOTALL)
+    if match:
+        lines = [line.strip() for line in match.group(1).strip().splitlines()]
+        result = "\n".join(lines)
+        return result if result else None
+    return None
+
+
 class Reflector:
     """Reflects on evaluation results and mutates Knowledge Base Programs."""
 

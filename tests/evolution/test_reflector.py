@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.prompts import ReflectionPromptConfig
-from programmaticmemory.evolution.reflector import Reflector, _extract_patch
+from programmaticmemory.evolution.reflector import Reflector, _extract_commit_message, _extract_patch
 from programmaticmemory.evolution.sandbox import CompileError, SmokeTestResult
 from programmaticmemory.evolution.types import EvalResult, FailedCase, KBProgram
 
@@ -81,6 +81,45 @@ class TestExtractPatch:
     def test_non_patch_block_ignored(self):
         text = "```python\nclass A: pass\n```"
         assert _extract_patch(text) is None
+
+
+class TestExtractCommitMessage:
+    def test_extracts_message_before_patch(self):
+        text = (
+            "Analysis here.\n\n"
+            "*** Commit Message\n"
+            "Title: Improve retrieval precision\n"
+            "- Added entity filtering\n"
+            "- Changed read() to use token overlap\n\n"
+            "*** Begin Patch\n"
+            "*** Update File: program.py\n"
+            "@@ change\n"
+            "-old\n"
+            "+new\n"
+            "*** End Patch"
+        )
+        msg = _extract_commit_message(text)
+        assert msg is not None
+        assert "Title: Improve retrieval precision" in msg
+        assert "Added entity filtering" in msg
+
+    def test_no_commit_message_returns_none(self):
+        text = "*** Begin Patch\n*** Update File: program.py\n@@ change\n-old\n+new\n*** End Patch"
+        assert _extract_commit_message(text) is None
+
+    def test_strips_whitespace(self):
+        text = (
+            "*** Commit Message\n  Title: Fix bug  \n  - Changed something  \n\n*** Begin Patch\nstuff\n*** End Patch"
+        )
+        msg = _extract_commit_message(text)
+        assert msg is not None
+        assert msg == "Title: Fix bug\n- Changed something"
+
+    def test_commit_message_without_patch_still_extracts(self):
+        text = "*** Commit Message\nTitle: Something\n- Did stuff\n"
+        msg = _extract_commit_message(text)
+        assert msg is not None
+        assert "Title: Something" in msg
 
 
 class TestReflector:
