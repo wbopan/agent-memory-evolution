@@ -206,14 +206,19 @@ class EvolutionLoop:
                 ref_desc = ", ".join(f"{r.relationship}={r.score:.3f}" for r in references)
                 self.logger.log(f"References: {ref_desc}", header="EVOLUTION")
 
-            child = self.reflector.reflect_and_mutate(parent, parent_eval_for_reflect, i, references=references or None)
-            if child is None:
+            result = self.reflector.reflect_and_mutate(
+                parent, parent_eval_for_reflect, i, references=references or None
+            )
+            if result is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
                 state.history.append(
                     EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                 )
                 state.total_iterations = i
                 continue
+
+            child = result.program
+            commit_message = result.commit_message
 
             # Freeze instruction constants if requested
             if self.freeze_instructions:
@@ -275,7 +280,9 @@ class EvolutionLoop:
             child_score = child_result.score
 
             # Add child to pool unconditionally
-            pool.add(child, child_result, name=f"iter_{i}", reflection_result=child_reflect)
+            pool.add(
+                child, child_result, name=f"iter_{i}", reflection_result=child_reflect, commit_message=commit_message
+            )
 
             improved = child_score > best_score
             self.logger.log(

@@ -182,10 +182,10 @@ class KnowledgeBase:
         child = reflector.reflect_and_mutate(current, eval_result, iteration=3)
 
         assert child is not None
-        assert child.generation == 3
-        assert child.parent_hash == current.hash
-        assert "class KnowledgeBase" in child.source_code
-        assert "self.store" in child.source_code
+        assert child.program.generation == 3
+        assert child.program.parent_hash == current.hash
+        assert "class KnowledgeBase" in child.program.source_code
+        assert "self.store" in child.program.source_code
         assert mock_litellm.completion.call_args.kwargs["messages"] == snapshot
 
     @patch("programmaticmemory.evolution.reflector.litellm")
@@ -571,7 +571,7 @@ class TestReflectorCompileFixLoop:
         )
 
         assert child is not None
-        assert child.source_code == "finally good"
+        assert child.program.source_code == "finally good"
         assert mock_litellm.completion.call_count == 3  # reflection + 2 fix attempts
 
 

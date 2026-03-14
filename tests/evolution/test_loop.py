@@ -10,7 +10,7 @@ from programmaticmemory.evolution.batching import EvalBatch
 from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
-from programmaticmemory.evolution.reflector import Reflector
+from programmaticmemory.evolution.reflector import ReflectionResult, Reflector
 from programmaticmemory.evolution.sandbox import compile_kb_program
 from programmaticmemory.evolution.strategies import FullDataset, RotatingBatch
 from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, KBProgram
@@ -57,7 +57,7 @@ class TestEvolutionLoop:
             EvalResult(score=0.8, per_case_scores=[0.8]),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child_program
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child_program)
         reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
@@ -84,7 +84,7 @@ class TestEvolutionLoop:
             EvalResult(score=0.3, per_case_scores=[0.3]),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
@@ -178,7 +178,9 @@ class TestEvolutionLoop:
             EvalResult(score=0.8, per_case_scores=[0.8]),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = KBProgram(source_code="child", generation=1)
+        reflector.reflect_and_mutate.return_value = ReflectionResult(
+            program=KBProgram(source_code="child", generation=1)
+        )
         reflector.max_fix_attempts = 3
         tracker = MagicMock()
 
@@ -206,7 +208,7 @@ class TestEvolutionLoop:
             EvalResult(score=0.8),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
@@ -239,7 +241,7 @@ class TestEvolutionLoopRuntimeFix:
             EvalResult(score=0.8),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.fix_runtime_violation.return_value = "fixed code"
         reflector.max_fix_attempts = 3
 
@@ -270,7 +272,7 @@ class TestEvolutionLoopRuntimeFix:
             EvalResult(score=0.0, runtime_violation="memory.read() timed out after 5.0s"),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.fix_runtime_violation.return_value = None
         reflector.max_fix_attempts = 3
 
@@ -301,7 +303,7 @@ class TestEvolutionLoopRuntimeFix:
             EvalResult(score=0.7),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.fix_runtime_violation.side_effect = ["fix1", "fix2"]
         reflector.max_fix_attempts = 3
 
@@ -373,7 +375,7 @@ class TestBatchRotation:
             EvalResult(score=0.5),  # final eval candidate 3
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
@@ -409,7 +411,7 @@ class TestBatchRotation:
             EvalResult(score=0.5),  # final eval candidate 2
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.fix_runtime_violation.return_value = "fixed"
         reflector.max_fix_attempts = 3
 
@@ -516,8 +518,8 @@ class TestFreezeInstructions:
             'INSTRUCTION_KNOWLEDGE_ITEM = "CHANGED BY REFLECTOR"',
         )
         mock_reflector = Mock()
-        mock_reflector.reflect_and_mutate.return_value = KBProgram(
-            source_code=child_source, generation=1, parent_hash=parent.hash
+        mock_reflector.reflect_and_mutate.return_value = ReflectionResult(
+            program=KBProgram(source_code=child_source, generation=1, parent_hash=parent.hash)
         )
         mock_reflector.max_fix_attempts = 3
 
@@ -760,7 +762,7 @@ class TestSplitValidationLoop:
             (EvalResult(score=0.7), EvalResult(score=0.6, failed_cases=[])),  # child
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(
@@ -816,7 +818,7 @@ class TestSplitValidationLoop:
             EvalResult(score=0.8),
         ]
         reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = child
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
         reflector.max_fix_attempts = 3
 
         loop = EvolutionLoop(

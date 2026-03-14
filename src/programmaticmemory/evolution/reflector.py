@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 
 import litellm
 import weave
@@ -45,6 +46,14 @@ def _extract_commit_message(text: str) -> str | None:
         result = "\n".join(lines)
         return result if result else None
     return None
+
+
+@dataclass
+class ReflectionResult:
+    """Result of a successful reflection — the mutated program and its commit message."""
+
+    program: KBProgram
+    commit_message: str | None = None
 
 
 class Reflector:
@@ -106,11 +115,11 @@ class Reflector:
         eval_result: EvalResult,
         iteration: int,
         references: list[ReferenceProgram] | None = None,
-    ) -> KBProgram | None:
+    ) -> ReflectionResult | None:
         """Reflect on failures and produce a mutated Knowledge Base Program.
 
         Returns None if code extraction fails or compile-fix loop is exhausted.
-        Returned KBProgram is guaranteed to pass compile + smoke_test.
+        Returned ReflectionResult.program is guaranteed to pass compile + smoke_test.
         """
         # Build failed case dicts for the prompt
         failed_dicts = []
@@ -163,6 +172,9 @@ class Reflector:
         )
         output = response.choices[0].message.content
 
+        # Extract commit message once (used by both return paths)
+        commit_message = _extract_commit_message(output)
+
         # Extract and apply patch
         patch = _extract_patch(output)
         if patch is None:
@@ -178,10 +190,13 @@ class Reflector:
         # Validate and fix loop
         validation_error = self._validate_code(new_code)
         if validation_error is None:
-            return KBProgram(
-                source_code=new_code,
-                generation=current.generation + 1,
-                parent_hash=current.hash,
+            return ReflectionResult(
+                program=KBProgram(
+                    source_code=new_code,
+                    generation=current.generation + 1,
+                    parent_hash=current.hash,
+                ),
+                commit_message=commit_message,
             )
 
         for attempt in range(1, self.max_fix_attempts + 1):
@@ -196,10 +211,13 @@ class Reflector:
             validation_error = self._validate_code(new_code)
             if validation_error is None:
                 self.logger.log(f"Fix succeeded on attempt {attempt}", header="REFLECT")
-                return KBProgram(
-                    source_code=new_code,
-                    generation=current.generation + 1,
-                    parent_hash=current.hash,
+                return ReflectionResult(
+                    program=KBProgram(
+                        source_code=new_code,
+                        generation=current.generation + 1,
+                        parent_hash=current.hash,
+                    ),
+                    commit_message=commit_message,
                 )
 
         self.logger.log(f"All {self.max_fix_attempts} fix attempts exhausted", header="REFLECT")
