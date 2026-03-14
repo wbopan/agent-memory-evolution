@@ -23,7 +23,7 @@ from programmaticmemory.evolution.prompts import (
     build_reflection_user_prompt,
     build_retrieved_memory_prompt,
 )
-from programmaticmemory.evolution.reflector import Reflector, _extract_patch
+from programmaticmemory.evolution.reflector import Reflector, _extract_commit_message, _extract_patch
 from programmaticmemory.evolution.sandbox import (
     CompiledProgram,
     CompileError,
@@ -801,4 +801,62 @@ def test_patch_generation_compile_fix(snapshot: SnapshotAssertion):
         "prompt": user_prompt,
         "output": output,
         "fixed_code": fixed_code,
+    } == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3n. Commit Message Generation — reflection prompt → commit message + patch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.llm
+def test_commit_message_generation(snapshot: SnapshotAssertion):
+    """GPT 5.3 CodeX produces a valid commit message + patch in the new format."""
+    failed_cases = [
+        {
+            "question": "What instruments does Caroline play?",
+            "expected": "violin, piano",
+            "output": "violin, piano, guitar, drums",
+            "score": 0.3,
+            "conversation_history": [
+                {"role": "user", "content": "What instruments does Caroline play?"},
+                {"role": "assistant", "content": "violin, piano, guitar, drums"},
+            ],
+            "memory_logs": [],
+        }
+    ]
+
+    user_prompt = build_reflection_user_prompt(
+        code=INITIAL_KB_PROGRAM,
+        score=0.300,
+        failed_cases=failed_cases,
+        iteration=2,
+    )
+
+    output = _llm_call(
+        REFLECT_MODEL,
+        [{"role": "user", "content": user_prompt}],
+    )
+
+    # 1. Extract commit message
+    commit_message = _extract_commit_message(output)
+    assert commit_message is not None, f"No commit message found in output:\n{output[:500]}"
+
+    # 2. Commit message has a Title line
+    assert "Title:" in commit_message, f"Commit message missing Title: line:\n{commit_message}"
+
+    # 3. Patch is still parseable
+    patch = _extract_patch(output)
+    assert patch is not None, f"No patch found in output:\n{output[:500]}"
+
+    # 4. Apply and compile
+    patched_code = apply_patch(INITIAL_KB_PROGRAM, patch)
+    compile_result = compile_kb_program(patched_code)
+    assert isinstance(compile_result, CompiledProgram), f"Compile failed: {compile_result}"
+
+    assert {
+        "prompt": user_prompt,
+        "output": output,
+        "commit_message": commit_message,
+        "patched_code": patched_code,
     } == snapshot
