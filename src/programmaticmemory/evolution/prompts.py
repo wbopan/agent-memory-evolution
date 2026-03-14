@@ -54,7 +54,7 @@ You are designing a Knowledge Base Program that implements three classes:
    - `__init__(self, toolkit)`: Receives a Toolkit with:
      - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
      - `toolkit.chroma`: chromadb ephemeral client
-     - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM calls (budget-limited)
+     - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
      - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
    - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
    - `read(self, query: Query) -> str`: Retrieve relevant information as a string
@@ -67,7 +67,7 @@ These limits are enforced during evaluation. Violating them results in score = 0
 
 - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
 - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
-- **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. Use the single call wisely (e.g., query-focused summarization in `read()`); prefer deterministic retrieval (SQL, text matching) when possible.
+- **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
 
 ## Instruction Constants (required)
 
@@ -373,7 +373,7 @@ Both dimensions matter and should be considered together.
 2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
 3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
 4. `read()` must return at most 1000 characters — do not return all stored text.
-5. Keep it simple. Make minimal, targeted fixes.
+5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
 6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. \
 Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow \
 — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. \
