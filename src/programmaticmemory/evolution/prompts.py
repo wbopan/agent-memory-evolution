@@ -127,7 +127,16 @@ class KnowledgeBase:
 
 
 PATCH_FORMAT_SPEC = """\
-Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+Before the patch, output a commit message summarizing your changes:
+
+```
+*** Commit Message
+Title: <one-line summary of what you changed and why>
+- <root cause / diagnosis>
+- <what you changed>
+```
+
+Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
 
 Format:
 ```
@@ -148,6 +157,11 @@ Rules:
 
 Example — replacing a return value:
 ```
+*** Commit Message
+Title: Truncate read output to respect 1000-char limit
+- read() returned all stored text, exceeding the limit
+- Added [:1000] truncation to the return value
+
 *** Begin Patch
 *** Update File: program.py
 @@ return statement

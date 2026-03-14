@@ -55,7 +55,16 @@
   3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
   4. Make minimal changes — fix ONLY the broken line(s). Do NOT add new fields, imports, or restructure the code.
   
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -76,6 +85,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -154,7 +168,16 @@
   3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
   4. Make minimal changes — fix ONLY the broken line(s). Do NOT add new fields, imports, or restructure the code.
   
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -175,6 +198,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -332,7 +360,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -353,6 +390,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -458,7 +500,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -479,6 +530,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -578,7 +634,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -599,6 +664,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -712,7 +782,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -733,6 +812,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -852,7 +936,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -873,6 +966,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -996,7 +1094,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1017,6 +1124,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1137,7 +1249,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1158,6 +1279,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1268,7 +1394,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1289,6 +1424,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1388,7 +1528,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1409,6 +1558,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1508,7 +1662,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1529,6 +1692,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1641,7 +1809,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1662,6 +1839,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1811,7 +1993,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1832,6 +2023,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -1937,7 +2133,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -1958,6 +2163,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -2070,7 +2280,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -2091,6 +2310,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -2196,7 +2420,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -2217,6 +2450,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
@@ -2333,7 +2571,16 @@
   </rules>
   
   <patch_format>
-  Output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+  Before the patch, output a commit message summarizing your changes:
+  
+  ```
+  *** Commit Message
+  Title: <one-line summary of what you changed and why>
+  - <root cause / diagnosis>
+  - <what you changed>
+  ```
+  
+  Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
   Format:
   ```
@@ -2354,6 +2601,11 @@
   
   Example — replacing a return value:
   ```
+  *** Commit Message
+  Title: Truncate read output to respect 1000-char limit
+  - read() returned all stored text, exceeding the limit
+  - Added [:1000] truncation to the return value
+  
   *** Begin Patch
   *** Update File: program.py
   @@ return statement
