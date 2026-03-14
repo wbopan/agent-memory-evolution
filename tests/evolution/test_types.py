@@ -13,7 +13,59 @@ from programmaticmemory.evolution.types import (
     PoolEntry,
     ProgramPool,
     SoftmaxSelection,
+    diff_functions,
 )
+
+
+class TestDiffFunctions:
+    def test_no_changes(self):
+        code = "def foo(): pass\ndef bar(): pass"
+        added, removed = diff_functions(code, code)
+        assert added == []
+        assert removed == []
+
+    def test_added_function(self):
+        parent = "def foo(): pass"
+        child = "def foo(): pass\ndef bar(): pass"
+        added, removed = diff_functions(parent, child)
+        assert added == ["bar"]
+        assert removed == []
+
+    def test_removed_function(self):
+        parent = "def foo(): pass\ndef bar(): pass"
+        child = "def foo(): pass"
+        added, removed = diff_functions(parent, child)
+        assert added == []
+        assert removed == ["bar"]
+
+    def test_class_methods(self):
+        parent = "class A:\n    def read(self): pass\n    def write(self): pass"
+        child = "class A:\n    def read(self): pass\n    def query(self): pass"
+        added, removed = diff_functions(parent, child)
+        assert added == ["A.query"]
+        assert removed == ["A.write"]
+
+    def test_mixed_top_level_and_class(self):
+        parent = "def helper(): pass\nclass KB:\n    def read(self): pass"
+        child = "def util(): pass\nclass KB:\n    def read(self): pass\n    def write(self): pass"
+        added, removed = diff_functions(parent, child)
+        assert sorted(added) == ["KB.write", "util"]
+        assert removed == ["helper"]
+
+    def test_one_side_parse_failure_returns_empty(self):
+        added, removed = diff_functions("def foo(:", "def bar(): pass")
+        assert added == []
+        assert removed == []
+
+    def test_both_unparseable(self):
+        added, removed = diff_functions("syntax error{", "another error{")
+        assert added == []
+        assert removed == []
+
+    def test_valid_but_no_functions(self):
+        added, removed = diff_functions("x = 1", "y = 2")
+        assert added == []
+        assert removed == []
 
 
 class TestKBProgram:

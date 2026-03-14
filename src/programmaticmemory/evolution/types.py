@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import math
 import random
@@ -338,3 +339,35 @@ class EvolutionState:
     @property
     def best_program(self) -> KBProgram:
         return self.pool.best.program
+
+
+def _extract_function_names(source: str) -> set[str] | None:
+    """Extract top-level function names and class method names from source code.
+    Returns None on parse failure (distinct from empty set for valid code with no functions).
+    """
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return None
+    names: set[str] = set()
+    for node in ast.iter_child_nodes(tree):
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            names.add(node.name)
+        elif isinstance(node, ast.ClassDef):
+            for child in ast.iter_child_nodes(node):
+                if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+                    names.add(f"{node.name}.{child.name}")
+    return names
+
+
+def diff_functions(parent_source: str, child_source: str) -> tuple[list[str], list[str]]:
+    """Compare two program sources and return (added, removed) function/method names.
+    Graceful on parse failure: returns ([], []) if either source fails to parse.
+    """
+    parent_names = _extract_function_names(parent_source)
+    child_names = _extract_function_names(child_source)
+    if parent_names is None or child_names is None:
+        return [], []
+    added = sorted(child_names - parent_names)
+    removed = sorted(parent_names - child_names)
+    return added, removed
