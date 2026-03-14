@@ -241,6 +241,39 @@ class TestBuildReflectionUserPrompt:
         assert "which design patterns" in prompt
         assert prompt == snapshot
 
+    def test_includes_lineage_log(self, snapshot: SnapshotAssertion):
+        log = (
+            "commit abc123 (seed_0) score=0.289\n"
+            "  Title: LLM summarizer\n"
+            "  - Uses llm_completion\n\n"
+            "* current: abc123 (seed_0) score=0.289  \u2190 you are improving this\n\n"
+            "commit def456 (iter_1) score=0.171 (\u0394-0.118) \u2190 REGRESSION\n"
+            "  Title: Removed LLM\n"
+            "  - Replaced with token overlap\n"
+        )
+        prompt = build_reflection_user_prompt(
+            code="class KnowledgeBase: pass",
+            score=0.289,
+            failed_cases=[{"question": "q", "expected": "a", "output": "wrong", "score": 0.0}],
+            iteration=3,
+            lineage_log=log,
+        )
+        assert "<lineage_log>" in prompt
+        assert "REGRESSION" in prompt
+        assert "Do NOT repeat changes that previously caused regressions" in prompt
+        assert prompt == snapshot
+
+    def test_no_lineage_log_when_none(self, snapshot: SnapshotAssertion):
+        prompt = build_reflection_user_prompt(
+            code="class KnowledgeBase: pass",
+            score=0.5,
+            failed_cases=[],
+            iteration=1,
+            lineage_log=None,
+        )
+        assert "<lineage_log>" not in prompt
+        assert prompt == snapshot
+
 
 class TestReflectionPromptConfig:
     def test_max_failed_cases(self, snapshot: SnapshotAssertion):

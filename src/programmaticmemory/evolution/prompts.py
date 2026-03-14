@@ -210,6 +210,7 @@ def build_reflection_user_prompt(
     config: ReflectionPromptConfig | None = None,
     success_cases: list[dict] | None = None,
     references: list[ReferenceProgram] | None = None,
+    lineage_log: str | None = None,
 ) -> str:
     """Build the user prompt for the reflection LLM."""
     if config is None:
@@ -322,6 +323,18 @@ If the current program has a unique pattern absent from lower-scoring references
 {"".join(ref_parts)}</reference_programs>
 """
 
+    lineage_section = ""
+    if lineage_log:
+        lineage_section = f"""
+The following is the evolution history of the current program's lineage. \
+Each entry shows what was changed, what functions were added/removed, and the resulting score. \
+Pay close attention to REGRESSION markers — these indicate changes that hurt performance. \
+Do NOT repeat changes that previously caused regressions.
+
+<lineage_log>
+{lineage_log}</lineage_log>
+"""
+
     failed_cases_header = """
 The following cases show poor performance on the validation set after memory has been written \
 (using the same write process shown in the write examples above). \
@@ -367,7 +380,7 @@ to store and retrieve more useful information for the task agent.
 </current_program>
 
 <evaluation_score>{score:.3f}</evaluation_score>
-{train_section}{deduplicated_logs_section}{success_section}{reference_section}
+{lineage_section}{train_section}{deduplicated_logs_section}{success_section}{reference_section}
 {failed_cases_header}
 
 <underperforming_cases>
