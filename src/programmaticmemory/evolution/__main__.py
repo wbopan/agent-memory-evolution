@@ -207,8 +207,8 @@ def main() -> None:
     parser.add_argument(
         "--no-references",
         action="store_true",
-        default=False,
-        help="Disable cross-program reference context in reflection prompt",
+        default=True,
+        help="Disable cross-program reference context in reflection prompt (default: disabled)",
     )
     args, extra = parser.parse_known_args()
 
