@@ -15,7 +15,7 @@ from __future__ import annotations
 import weave
 
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
-from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM, ReferenceProgram
+from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM, ReferenceProgram, build_lineage_log
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.sandbox import (
     CompileError,
@@ -71,6 +71,7 @@ class EvolutionLoop:
         eval_strategy: EvalStrategy | None = None,
         freeze_instructions: bool = False,
         use_references: bool = True,
+        seed_commit_messages: list[str | None] | None = None,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -84,6 +85,7 @@ class EvolutionLoop:
         self.eval_strategy = eval_strategy or FullDataset()
         self.freeze_instructions = freeze_instructions
         self.use_references = use_references
+        self.seed_commit_messages = seed_commit_messages
         self.logger = get_logger()
 
     def _has_reflection_val(self) -> bool:
@@ -128,7 +130,8 @@ class EvolutionLoop:
                 header="EVOLUTION",
             )
             eval_result, reflect_result = self._evaluate_program(seed, train, val, reflect_val)
-            pool.add(seed, eval_result, name=seed_name, reflection_result=reflect_result)
+            seed_msg = self.seed_commit_messages[idx] if self.seed_commit_messages else None
+            pool.add(seed, eval_result, name=seed_name, reflection_result=reflect_result, commit_message=seed_msg)
             seed_eval_results.append(eval_result)
             self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
 
@@ -206,8 +209,9 @@ class EvolutionLoop:
                 ref_desc = ", ".join(f"{r.relationship}={r.score:.3f}" for r in references)
                 self.logger.log(f"References: {ref_desc}", header="EVOLUTION")
 
+            lineage_log = build_lineage_log(pool, parent_entry)
             result = self.reflector.reflect_and_mutate(
-                parent, parent_eval_for_reflect, i, references=references or None
+                parent, parent_eval_for_reflect, i, references=references or None, lineage_log=lineage_log
             )
             if result is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")

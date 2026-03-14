@@ -312,6 +312,7 @@ def main() -> None:
         print(f"Error: --seed-program path not found: {seed_path}", file=sys.stderr)
         sys.exit(1)
     initial_programs = []
+    seed_commit_messages: list[str | None] = []
     for f in seed_files:
         source = f.read_text()
         result = smoke_test(source)
@@ -319,6 +320,15 @@ def main() -> None:
             print(f"Error: invalid seed program {f.name}: {result.error}", file=sys.stderr)
             sys.exit(1)
         initial_programs.append(KBProgram(source_code=source))
+        # Extract COMMIT_MESSAGE constant if present
+        commit_msg = None
+        try:
+            ns: dict = {}
+            exec(compile(source, f.name, "exec"), ns)
+            commit_msg = ns.get("COMMIT_MESSAGE")
+        except Exception:
+            pass
+        seed_commit_messages.append(commit_msg)
         logger.log(f"Loaded seed: {f.name}", header="CONFIG")
 
     # Build selection strategy
@@ -343,6 +353,7 @@ def main() -> None:
             eval_strategy=eval_strat,
             freeze_instructions=args.freeze_instructions,
             use_references=not args.no_references,
+            seed_commit_messages=seed_commit_messages,
         )
         state = loop.run()
 

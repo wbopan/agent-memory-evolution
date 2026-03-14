@@ -115,6 +115,7 @@ class Reflector:
         eval_result: EvalResult,
         iteration: int,
         references: list[ReferenceProgram] | None = None,
+        lineage_log: str | None = None,
     ) -> ReflectionResult | None:
         """Reflect on failures and produce a mutated Knowledge Base Program.
 
@@ -158,6 +159,7 @@ class Reflector:
             config=self.prompt_config,
             success_cases=success_dicts,
             references=references,
+            lineage_log=lineage_log,
         )
 
         self.logger.log(f"Reflecting on iteration {iteration}, score={eval_result.score:.3f}", header="REFLECT")
