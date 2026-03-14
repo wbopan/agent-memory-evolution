@@ -9,6 +9,7 @@ import weave
 
 from programmaticmemory.evolution.patcher import apply_patch
 from programmaticmemory.evolution.prompts import (
+    ReferenceProgram,
     ReflectionPromptConfig,
     build_compile_fix_prompt,
     build_reflection_user_prompt,
@@ -90,6 +91,7 @@ class Reflector:
         current: KBProgram,
         eval_result: EvalResult,
         iteration: int,
+        references: list[ReferenceProgram] | None = None,
     ) -> KBProgram | None:
         """Reflect on failures and produce a mutated Knowledge Base Program.
 
@@ -132,6 +134,7 @@ class Reflector:
             train_examples=eval_result.train_examples or None,
             config=self.prompt_config,
             success_cases=success_dicts,
+            references=references,
         )
 
         self.logger.log(f"Reflecting on iteration {iteration}, score={eval_result.score:.3f}", header="REFLECT")

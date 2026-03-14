@@ -5,6 +5,7 @@ from syrupy.assertion import SnapshotAssertion
 from programmaticmemory.evolution.prompts import (
     INITIAL_KB_PROGRAM,
     KB_INTERFACE_SPEC,
+    ReferenceProgram,
     ReflectionPromptConfig,
     _sample_cases,
     build_compile_fix_prompt,
@@ -201,6 +202,36 @@ class TestBuildReflectionUserPrompt:
         )
         assert "<write_examples>" in prompt
         assert "Hello world" in prompt
+        assert prompt == snapshot
+
+    def test_includes_reference_programs(self, snapshot: SnapshotAssertion):
+        refs = [
+            ReferenceProgram(
+                source_code="class KnowledgeBase:\n    def read(self, q): return 'sibling'",
+                score=0.85,
+                relationship="best_sibling",
+            ),
+            ReferenceProgram(
+                source_code="class KnowledgeBase:\n    def read(self, q): return 'child'",
+                score=0.30,
+                relationship="latest_child",
+            ),
+        ]
+        prompt = build_reflection_user_prompt(
+            code="class KnowledgeBase:\n    def read(self, q): return 'current'",
+            score=0.50,
+            failed_cases=[{"question": "q", "expected": "a", "output": "wrong", "score": 0.0}],
+            iteration=5,
+            references=refs,
+        )
+        assert "<reference_programs>" in prompt
+        assert 'relationship="best_sibling"' in prompt
+        assert 'relationship="latest_child"' in prompt
+        assert 'score="0.850"' in prompt
+        assert 'current_score="0.500"' in prompt
+        assert "sibling" in prompt
+        assert "child" in prompt
+        assert "which design patterns" in prompt
         assert prompt == snapshot
 
 

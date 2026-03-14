@@ -212,6 +212,63 @@ class ProgramPool:
         self.entries: list[PoolEntry] = []
         self.strategy = strategy
 
+    def _ancestor_hashes(self, entry: PoolEntry) -> set[str]:
+        """Walk parent_hash chain upward, returning all ancestor hashes."""
+        ancestors: set[str] = set()
+        hash_to_entry = {e.program.hash: e for e in self.entries}
+        current = entry
+        while current.program.parent_hash and current.program.parent_hash in hash_to_entry:
+            ancestors.add(current.program.parent_hash)
+            current = hash_to_entry[current.program.parent_hash]
+        return ancestors
+
+    def _descendant_hashes(self, entry: PoolEntry) -> set[str]:
+        """Find all descendant hashes by BFS on parent_hash links."""
+        descendants: set[str] = set()
+        frontier = [entry.program.hash]
+        while frontier:
+            parent_h = frontier.pop()
+            for e in self.entries:
+                if e.program.parent_hash == parent_h and e.program.hash not in descendants:
+                    descendants.add(e.program.hash)
+                    frontier.append(e.program.hash)
+        return descendants
+
+    def find_references(self, entry: PoolEntry) -> tuple[PoolEntry | None, PoolEntry | None]:
+        """Find two reference programs for cross-program context in reflection.
+
+        Returns (best_sibling, latest_child_or_parent):
+        - best_sibling: highest-scoring program NOT in entry's ancestor/descendant chain
+        - latest_child_or_parent: most recently added child of entry, or entry's parent if no children
+        """
+        my_hash = entry.program.hash
+        lineage = {my_hash} | self._ancestor_hashes(entry) | self._descendant_hashes(entry)
+
+        # Best sibling: highest score outside lineage
+        best_sibling: PoolEntry | None = None
+        for e in self.entries:
+            if e.program.hash in lineage:
+                continue
+            if best_sibling is None or e.score > best_sibling.score:
+                best_sibling = e
+
+        # Latest child: most recently added entry whose parent_hash == my_hash
+        latest_child: PoolEntry | None = None
+        for e in self.entries:
+            if e.program.parent_hash == my_hash:
+                latest_child = e  # entries are append-only, so last match = latest
+
+        if latest_child is not None:
+            return best_sibling, latest_child
+
+        # Fallback: parent
+        if entry.program.parent_hash:
+            for e in self.entries:
+                if e.program.hash == entry.program.parent_hash:
+                    return best_sibling, e
+
+        return best_sibling, None
+
     def add(
         self,
         program: KBProgram,

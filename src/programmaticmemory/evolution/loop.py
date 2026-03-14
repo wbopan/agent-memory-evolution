@@ -15,7 +15,7 @@ from __future__ import annotations
 import weave
 
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
-from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
+from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM, ReferenceProgram
 from programmaticmemory.evolution.reflector import Reflector
 from programmaticmemory.evolution.sandbox import (
     CompileError,
@@ -70,6 +70,7 @@ class EvolutionLoop:
         output_manager: RunOutputManager | None = None,
         eval_strategy: EvalStrategy | None = None,
         freeze_instructions: bool = False,
+        use_references: bool = True,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -82,6 +83,7 @@ class EvolutionLoop:
         self.output_manager = output_manager
         self.eval_strategy = eval_strategy or FullDataset()
         self.freeze_instructions = freeze_instructions
+        self.use_references = use_references
         self.logger = get_logger()
 
     def _has_reflection_val(self) -> bool:
@@ -177,7 +179,34 @@ class EvolutionLoop:
                 if parent_entry.reflection_result is not None
                 else parent_entry.eval_result
             )
-            child = self.reflector.reflect_and_mutate(parent, parent_eval_for_reflect, i)
+
+            # Build cross-program references for reflector context
+            references: list[ReferenceProgram] = []
+            if self.use_references:
+                best_sibling, child_or_parent = pool.find_references(parent_entry)
+                if best_sibling is not None:
+                    references.append(
+                        ReferenceProgram(
+                            source_code=best_sibling.program.source_code,
+                            score=best_sibling.score,
+                            relationship="best_sibling",
+                        )
+                    )
+                if child_or_parent is not None:
+                    is_child = child_or_parent.program.parent_hash == parent_entry.program.hash
+                    references.append(
+                        ReferenceProgram(
+                            source_code=child_or_parent.program.source_code,
+                            score=child_or_parent.score,
+                            relationship="latest_child" if is_child else "parent",
+                        )
+                    )
+
+            if references:
+                ref_desc = ", ".join(f"{r.relationship}={r.score:.3f}" for r in references)
+                self.logger.log(f"References: {ref_desc}", header="EVOLUTION")
+
+            child = self.reflector.reflect_and_mutate(parent, parent_eval_for_reflect, i, references=references or None)
             if child is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
                 state.history.append(

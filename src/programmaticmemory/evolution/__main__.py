@@ -204,6 +204,12 @@ def main() -> None:
         default=False,
         help="Freeze instruction constants during evolution (ablation: only memory design evolves)",
     )
+    parser.add_argument(
+        "--no-references",
+        action="store_true",
+        default=False,
+        help="Disable cross-program reference context in reflection prompt",
+    )
     args, extra = parser.parse_known_args()
 
     random.seed(args.seed)
@@ -336,6 +342,7 @@ def main() -> None:
             output_manager=output_manager,
             eval_strategy=eval_strat,
             freeze_instructions=args.freeze_instructions,
+            use_references=not args.no_references,
         )
         state = loop.run()
 

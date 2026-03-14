@@ -293,17 +293,13 @@ def select_representative_subset(
         val_embs = _embed_texts(val_texts, model=embedding_model)
 
         labels = _kmeans(val_embs, k=val_size)
+        rng = np.random.RandomState(42)
         val_indices = []
         for c in range(val_size):
             members = [i for i, label in enumerate(labels) if label == c]
             if not members:
                 continue
-            centroid = val_embs[members].mean(axis=0)
-            norm = np.linalg.norm(centroid)
-            if norm > 1e-10:
-                centroid /= norm
-            sims = val_embs[members] @ centroid
-            val_indices.append(members[int(sims.argmax())])
+            val_indices.append(members[rng.randint(len(members))])
 
         logger.log(f"Selected {len(val_indices)} representative val items from {val_size} clusters", header="SUBSET")
 

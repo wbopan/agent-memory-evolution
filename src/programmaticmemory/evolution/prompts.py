@@ -192,6 +192,15 @@ def _truncate_memory_logs(logs: list[str], max_chars: int) -> str:
     return full[:head] + f"\n  ... [{omitted} chars omitted] ...\n" + full[-tail:]
 
 
+@dataclass
+class ReferenceProgram:
+    """A reference program shown to the reflector for cross-program context."""
+
+    source_code: str
+    score: float
+    relationship: str  # e.g. "best_sibling", "latest_child", "parent"
+
+
 def build_reflection_user_prompt(
     code: str,
     score: float,
@@ -200,6 +209,7 @@ def build_reflection_user_prompt(
     train_examples: list[TrainExample] | None = None,
     config: ReflectionPromptConfig | None = None,
     success_cases: list[dict] | None = None,
+    references: list[ReferenceProgram] | None = None,
 ) -> str:
     """Build the user prompt for the reflection LLM."""
     if config is None:
@@ -285,6 +295,33 @@ Preserve the behavior that makes these work.
 {"".join(success_parts)}</success_cases>
 """
 
+    # Build reference programs section
+    reference_section = ""
+    if references:
+        ref_parts: list[str] = []
+        for ref in references:
+            label = {
+                "best_sibling": "Best program from a different lineage",
+                "latest_child": "Latest child derived from the current program",
+                "parent": "Parent of the current program",
+            }.get(ref.relationship, ref.relationship)
+            ref_parts.append(
+                f'<reference relationship="{ref.relationship}" label="{label}" '
+                f'score="{ref.score:.3f}" current_score="{score:.3f}">\n'
+                f"```python\n{ref.source_code}\n```\n"
+                f"</reference>\n"
+            )
+        reference_section = f"""
+The following reference programs from the population show what other designs score. \
+Study which design patterns (e.g., use of `toolkit.llm_completion()`, ChromaDB vs SQLite, schema granularity, \
+retrieval logic) correlate with higher or lower scores. \
+If a higher-scoring reference uses a pattern the current program lacks, consider adopting it. \
+If the current program has a unique pattern absent from lower-scoring references, preserve it.
+
+<reference_programs>
+{"".join(ref_parts)}</reference_programs>
+"""
+
     failed_cases_header = """
 The following cases show poor performance on the validation set after memory has been written \
 (using the same write process shown in the write examples above). \
@@ -330,7 +367,7 @@ to store and retrieve more useful information for the task agent.
 </current_program>
 
 <evaluation_score>{score:.3f}</evaluation_score>
-{train_section}{deduplicated_logs_section}{success_section}
+{train_section}{deduplicated_logs_section}{success_section}{reference_section}
 {failed_cases_header}
 
 <underperforming_cases>
