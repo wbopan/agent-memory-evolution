@@ -1,5 +1,10 @@
 from dataclasses import dataclass, field
 
+COMMIT_MESSAGE = (
+    "Title: LLM query-focused summarizer\n"
+    "- Stores raw text, uses toolkit.llm_completion() in read() for query-focused summarization"
+)
+
 INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
 INSTRUCTION_QUERY = (
     "Formulate a natural language query to search the knowledge base for information relevant to the question."

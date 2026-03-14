@@ -1,18 +1,25 @@
 from dataclasses import dataclass, field
 
+COMMIT_MESSAGE = (
+    "Title: ChromaDB vector search with QA pairs\n- Extracts question-answer pairs, retrieves via semantic similarity"
+)
+
 INSTRUCTION_KNOWLEDGE_ITEM = (
     "Extract a question-answer pair from the text. "
     "The question should capture what this text is about, "
     "and the answer should contain the key factual content."
 )
 INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
-INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+INSTRUCTION_RESPONSE = (
+    "Based on the above knowledge and the original question, provide a short answer without explanation."
+)
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
 class KnowledgeItem:
     """A question-answer pair extracted from source text."""
+
     question: str = field(metadata={"description": "A question that this text answers"})
     answer: str = field(metadata={"description": "The factual answer contained in the text"})
 
@@ -20,6 +27,7 @@ class KnowledgeItem:
 @dataclass
 class Query:
     """Raw text query for semantic search."""
+
     raw: str = field(metadata={"description": "The query text to search for"})
 
 

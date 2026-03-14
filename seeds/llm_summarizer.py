@@ -1,23 +1,31 @@
 from dataclasses import dataclass, field
 
+COMMIT_MESSAGE = (
+    "Title: LLM query-focused summarizer\n"
+    "- Stores raw text, uses toolkit.llm_completion() in read() for query-focused summarization"
+)
+
 INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
 INSTRUCTION_QUERY = (
-    "Formulate a natural language query to search the knowledge base "
-    "for information relevant to the question."
+    "Formulate a natural language query to search the knowledge base for information relevant to the question."
 )
-INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+INSTRUCTION_RESPONSE = (
+    "Based on the above knowledge and the original question, provide a short answer without explanation."
+)
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
 class KnowledgeItem:
     """A summary of what was learnt from the source text."""
+
     summary: str = field(metadata={"description": "What you have learnt from the text"})
 
 
 @dataclass
 class Query:
     """Natural language query to the knowledge base."""
+
     query_text: str = field(metadata={"description": "A natural language query describing what information you need"})
 
 

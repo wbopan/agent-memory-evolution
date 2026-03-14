@@ -1,18 +1,25 @@
 from dataclasses import dataclass, field
 
+COMMIT_MESSAGE = (
+    "Title: Lesson-fact dual storage with full recall\n- Extracts lessons and facts separately, returns all on read()"
+)
+
 INSTRUCTION_KNOWLEDGE_ITEM = (
     "Extract two things from the text: "
     "(1) a general lesson or pattern learned, and "
     "(2) a specific fact worth remembering."
 )
 INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
-INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+INSTRUCTION_RESPONSE = (
+    "Based on the above knowledge and the original question, provide a short answer without explanation."
+)
 ALWAYS_ON_KNOWLEDGE = ""
 
 
 @dataclass
 class KnowledgeItem:
     """A lesson and a fact extracted from source text."""
+
     lesson_learned: str = field(metadata={"description": "A general lesson or pattern learned from the text"})
     fact_to_remember: str = field(metadata={"description": "A specific fact worth remembering from the text"})
 
@@ -20,6 +27,7 @@ class KnowledgeItem:
 @dataclass
 class Query:
     """Query to the knowledge base (all knowledge is returned regardless)."""
+
     raw: str = field(metadata={"description": "The query text"})
 
 
