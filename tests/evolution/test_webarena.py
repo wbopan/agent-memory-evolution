@@ -480,3 +480,95 @@ class TestWebArenaValScorer:
         trajectory, score = results[0]
         assert score == 0.0
         assert "failed" in trajectory.lower() or "crashed" in trajectory.lower()
+
+
+class TestTraceAgentConsistency:
+    """Snapshot tests comparing human trace format vs agent trajectory format.
+
+    These snapshots must be human-reviewed to verify:
+    1. Human trace and agent trajectory use the same structural format
+    2. Human traces contain useful, actionable strategy information
+    """
+
+    def test_human_trace_snapshot(self, snapshot):
+        """Snapshot of a parsed human demonstration trace.
+
+        Reviewer: verify this looks like a useful training signal —
+        does it show a clear problem-solving strategy that a KB could learn from?
+        """
+        # Simulate realistic human trace events
+        trace_events = [
+            {
+                "type": "before",
+                "apiName": "Frame.goto",
+                "params": {"url": "http://shopping.example.com"},
+                "startTime": 1.0,
+            },
+            {
+                "type": "before",
+                "apiName": "Frame.click",
+                "params": {"selector": 'internal:role=link[name="Electronics"]'},
+                "startTime": 2.0,
+            },
+            {
+                "type": "before",
+                "apiName": "Frame.click",
+                "params": {"selector": 'internal:role=button[name="Sort by: Price low to high"]'},
+                "startTime": 3.0,
+            },
+            {
+                "type": "before",
+                "apiName": "Frame.fill",
+                "params": {"selector": 'internal:role=textbox[name="Search"]', "value": "wireless headphones"},
+                "startTime": 4.0,
+            },
+            {"type": "before", "apiName": "Keyboard.press", "params": {"key": "Enter"}, "startTime": 5.0},
+        ]
+
+        steps = []
+        step_num = 0
+        for event in trace_events:
+            action = trace_event_to_action(event)
+            if action is None:
+                continue
+            step_num += 1
+            steps.append(format_trajectory_step(step_num, action, ""))
+
+        trajectory = "\n".join(steps)
+        assert trajectory == snapshot
+
+    def test_agent_trajectory_snapshot(self, snapshot):
+        """Snapshot of an agent-generated trajectory during a live episode.
+
+        Reviewer: verify this uses the same structural format as the human trace above.
+        """
+        steps = [
+            format_trajectory_step(1, 'goto("http://shopping.example.com")', "http://shopping.example.com"),
+            format_trajectory_step(2, "click('a12')", "http://shopping.example.com/electronics"),
+            format_trajectory_step(3, "click('b45')", "http://shopping.example.com/electronics?sort=price_asc"),
+            format_trajectory_step(
+                4, "fill('c78', \"wireless headphones\")", "http://shopping.example.com/electronics"
+            ),
+            format_trajectory_step(5, 'keyboard_press("Enter")', "http://shopping.example.com/search?q=wireless"),
+            format_trajectory_step(6, 'send_msg_to_user("The cheapest is USB-C Headphones at $12.99")', ""),
+        ]
+        trajectory = "\n".join(steps)
+        assert trajectory == snapshot
+
+    def test_format_structure_consistency(self):
+        """Both trace and agent trajectories use the same structural format.
+
+        Note: action *arguments* intentionally differ:
+        - Trace actions use descriptive selectors: click(link "Electronics")
+        - Agent actions use BID strings: click('a51')
+        The KB learns task *strategies* from traces, not exact element references.
+        """
+        trace_step = format_trajectory_step(1, 'click(link "Electronics")', "Navigate to Electronics")
+        agent_step = format_trajectory_step(1, "click('a51')", "http://shop.example.com/electronics")
+
+        # Both use identical structural format
+        assert trace_step.startswith("Step 1:")
+        assert agent_step.startswith("Step 1:")
+        assert "\nObservation:" in trace_step
+        assert "\nObservation:" in agent_step
+        assert trace_step.count("\n") == agent_step.count("\n")
