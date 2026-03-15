@@ -392,6 +392,11 @@ def _run_episode(
     TextWorld's tatsu-based parsers use global singletons that are not thread-safe,
     so each episode must run in a separate process.
     """
+    import os
+
+    os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+    os.environ.setdefault("MKL_NUM_THREADS", "1")
+
     import textworld
     import textworld.gym
     from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
@@ -530,7 +535,7 @@ class ALFWorldValScorer:
     (TextWorld's tatsu-based parsers use global singletons that are not thread-safe).
     """
 
-    def __init__(self, max_steps: int = 50, max_workers: int = 20, episode_timeout: float = 300.0) -> None:
+    def __init__(self, max_steps: int = 50, max_workers: int = 8, episode_timeout: float = 300.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
         self.episode_timeout = episode_timeout
