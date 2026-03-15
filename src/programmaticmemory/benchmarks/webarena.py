@@ -230,7 +230,10 @@ def parse_trace_zip(zip_path: Path) -> list[dict]:
         action = trace_event_to_action(event)
         if action is None:
             continue
-        steps.append({"step_num": step_num, "action": action, "observation": ""})
+        # Use the event's title as observation context (Playwright auto-generates
+        # human-readable titles like 'Navigate to "url"', 'Fill "value"', 'Click')
+        observation = event.get("title", "")
+        steps.append({"step_num": step_num, "action": action, "observation": observation})
         step_num += 1
 
     return steps

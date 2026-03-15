@@ -213,12 +213,14 @@ class TestParseTraceZip:
                 "apiName": "Frame.goto",
                 "params": {"url": "https://example.com"},
                 "startTime": 1000.0,
+                "title": 'Navigate to "https://example.com"',
             },
             {
                 "type": "before",
                 "apiName": "Frame.click",
                 "params": {"selector": 'internal:role=button[name="OK"]'},
                 "startTime": 2000.0,
+                "title": "Click",
             },
             # Non-action event should be ignored
             {
@@ -243,9 +245,10 @@ class TestParseTraceZip:
         assert len(steps) == 2
         assert steps[0]["step_num"] == 1
         assert steps[0]["action"] == 'goto("https://example.com")'
-        assert steps[0]["observation"] == ""
+        assert steps[0]["observation"] == 'Navigate to "https://example.com"'
         assert steps[1]["step_num"] == 2
         assert steps[1]["action"] == 'click(button "OK")'
+        assert steps[1]["observation"] == "Click"
 
     def test_steps_sorted_by_start_time(self, tmp_path):
         events = [
@@ -503,26 +506,36 @@ class TestTraceAgentConsistency:
                 "apiName": "Frame.goto",
                 "params": {"url": "http://shopping.example.com"},
                 "startTime": 1.0,
+                "title": 'Navigate to "http://shopping.example.com"',
             },
             {
                 "type": "before",
                 "apiName": "Frame.click",
                 "params": {"selector": 'internal:role=link[name="Electronics"]'},
                 "startTime": 2.0,
+                "title": "Click",
             },
             {
                 "type": "before",
                 "apiName": "Frame.click",
                 "params": {"selector": 'internal:role=button[name="Sort by: Price low to high"]'},
                 "startTime": 3.0,
+                "title": "Click",
             },
             {
                 "type": "before",
                 "apiName": "Frame.fill",
                 "params": {"selector": 'internal:role=textbox[name="Search"]', "value": "wireless headphones"},
                 "startTime": 4.0,
+                "title": 'Fill "wireless headphones"',
             },
-            {"type": "before", "apiName": "Keyboard.press", "params": {"key": "Enter"}, "startTime": 5.0},
+            {
+                "type": "before",
+                "apiName": "Keyboard.press",
+                "params": {"key": "Enter"},
+                "startTime": 5.0,
+                "title": 'Press "Enter"',
+            },
         ]
 
         steps = []
@@ -532,7 +545,8 @@ class TestTraceAgentConsistency:
             if action is None:
                 continue
             step_num += 1
-            steps.append(format_trajectory_step(step_num, action, ""))
+            observation = event.get("title", "")
+            steps.append(format_trajectory_step(step_num, action, observation))
 
         trajectory = "\n".join(steps)
         assert trajectory == snapshot
