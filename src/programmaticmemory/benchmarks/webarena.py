@@ -226,7 +226,12 @@ def parse_trace_zip(zip_path: Path) -> list[dict]:
 
     steps: list[dict] = []
     step_num = 1
-    current_url = ""  # Track page URL from goto events
+    # Observation = page URL, tracked from goto events only.
+    # Unlike live agent trajectories (where the browser URL updates after every
+    # step), Playwright traces don't record post-action browser state, so the
+    # URL stays at the last goto target. This is acceptable because the KB
+    # learns action-sequence strategies, not state-transition models.
+    current_url = ""
     for event in events:
         action = trace_event_to_action(event)
         if action is None:
