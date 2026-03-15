@@ -96,6 +96,7 @@ class Reflector:
             ],
             max_tokens=16384,
             caching=True,
+            reasoning_effort="high",
         )
         output = response.choices[0].message.content
 
@@ -173,6 +174,7 @@ class Reflector:
             ],
             max_tokens=16384,
             caching=True,
+            reasoning_effort="high",
         )
         output = response.choices[0].message.content
 
