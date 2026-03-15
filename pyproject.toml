@@ -36,6 +36,11 @@ agentboard = [
 alfworld = [
     "alfworld>=0.2.2",
 ]
+webarena = [
+    "browsergym-core",
+    "browsergym-webarena",
+    "playwright",
+]
 dev = [
     "pytest",
     "pyright",
@@ -57,6 +62,7 @@ markers = [
     "llm: tests that call real LLM APIs (use disk cache for replay)",
     "agentboard: tests that require agentboard environment packages (scienceworld, minigrid, pddlgym)",
     "alfworld: tests that require alfworld package",
+    "webarena: tests that require browsergym and playwright",
 ]
 
 [tool.ruff]

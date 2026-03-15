@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import inspect
 import io
 import json
 import zipfile
+from concurrent.futures import ThreadPoolExecutor
 from typing import ClassVar
+from unittest.mock import MagicMock, patch
 
 from programmaticmemory.benchmarks.webarena import (
     PLAYWRIGHT_TO_BROWSERGYM,
+    WebArenaValScorer,
     format_trajectory_step,
+    load_webarena,
     parse_selector,
     parse_trace_zip,
     trace_event_to_action,
@@ -290,3 +295,188 @@ class TestParseTraceZip:
 
         steps = parse_trace_zip(zip_path)
         assert steps == []
+
+
+# ---------------------------------------------------------------------------
+# Dataset loader tests
+# ---------------------------------------------------------------------------
+
+_FAKE_TRACES = [
+    {"task_id": 1, "trajectory": 'Step 1: goto("https://shop.example.com")\nObservation: Homepage loaded.'},
+    {"task_id": 2, "trajectory": 'Step 1: click(button "Add to cart")\nObservation: Cart updated.'},
+]
+
+_FAKE_TASK_CONFIGS = [
+    {
+        "task_id": 1,
+        "sites": ["shopping"],
+        "task_entrypoint": "webarena.shopping.1",
+        "intent": "Find a red shirt",
+        "eval": {},
+    },
+    {
+        "task_id": 2,
+        "sites": ["shopping"],
+        "task_entrypoint": "webarena.shopping.2",
+        "intent": "Buy blue jeans",
+        "eval": {},
+    },
+    {"task_id": 3, "sites": ["reddit"], "task_entrypoint": "webarena.reddit.3", "intent": "Post a comment", "eval": {}},
+    {"task_id": 4, "sites": ["map"], "task_entrypoint": "webarena.map.4", "intent": "Find directions", "eval": {}},
+    {
+        "task_id": 5,
+        "sites": ["wikipedia"],
+        "task_entrypoint": "webarena.wikipedia.5",
+        "intent": "Look up Python",
+        "eval": {},
+    },
+]
+
+
+class TestLoadWebarena:
+    def _patch_both(self):
+        """Return a context manager that patches _load_traces, _load_task_configs, and _HAS_BROWSERGYM."""
+        return (
+            patch("programmaticmemory.benchmarks.webarena._load_traces", return_value=_FAKE_TRACES),
+            patch("programmaticmemory.benchmarks.webarena._load_task_configs", return_value=_FAKE_TASK_CONFIGS),
+            patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", True),
+        )
+
+    def test_registration(self):
+        """load_dataset('webarena') should resolve to load_webarena."""
+        from programmaticmemory.datasets import load_dataset
+
+        with (
+            patch("programmaticmemory.benchmarks.webarena._load_traces", return_value=_FAKE_TRACES),
+            patch("programmaticmemory.benchmarks.webarena._load_task_configs", return_value=_FAKE_TASK_CONFIGS),
+            patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", True),
+        ):
+            ds = load_dataset("webarena")
+        assert ds is not None
+
+    def test_train_items_have_raw_text(self):
+        """Tasks with traces should become train items with non-empty raw_text."""
+        with (
+            patch("programmaticmemory.benchmarks.webarena._load_traces", return_value=_FAKE_TRACES),
+            patch("programmaticmemory.benchmarks.webarena._load_task_configs", return_value=_FAKE_TASK_CONFIGS),
+            patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", True),
+        ):
+            ds = load_webarena()
+        assert len(ds.train) == 2
+        for item in ds.train:
+            assert item.raw_text != ""
+
+    def test_val_items_have_empty_raw_text_and_metadata(self):
+        """Tasks without traces become val items with raw_text='' and metadata populated."""
+        with (
+            patch("programmaticmemory.benchmarks.webarena._load_traces", return_value=_FAKE_TRACES),
+            patch("programmaticmemory.benchmarks.webarena._load_task_configs", return_value=_FAKE_TASK_CONFIGS),
+            patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", True),
+        ):
+            ds = load_webarena()
+        # task_id 3 (reddit) has no trace → val item
+        assert len(ds.val) == 1
+        item = ds.val[0]
+        assert item.raw_text == ""
+        assert "task_id" in item.metadata
+        assert "sites" in item.metadata
+        assert "task_entrypoint" in item.metadata
+
+    def test_category_filter(self):
+        """category='reddit' should return only reddit tasks."""
+        with (
+            patch("programmaticmemory.benchmarks.webarena._load_traces", return_value=_FAKE_TRACES),
+            patch("programmaticmemory.benchmarks.webarena._load_task_configs", return_value=_FAKE_TASK_CONFIGS),
+            patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", True),
+        ):
+            ds = load_webarena(category="reddit")
+        # task_id 3 (reddit, no trace) → val only
+        assert len(ds.train) == 0
+        assert len(ds.val) == 1
+        assert ds.val[0].metadata["task_id"] == 3
+
+    def test_excluded_sites_filtered(self):
+        """Tasks touching excluded sites (map, wikipedia) should not appear."""
+        with (
+            patch("programmaticmemory.benchmarks.webarena._load_traces", return_value=_FAKE_TRACES),
+            patch("programmaticmemory.benchmarks.webarena._load_task_configs", return_value=_FAKE_TASK_CONFIGS),
+            patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", True),
+        ):
+            ds = load_webarena()
+        all_items = ds.train + ds.val
+        for item in all_items:
+            sites = item.metadata["sites"]
+            assert not any(s in {"map", "wikipedia"} for s in sites), f"Excluded site found in {sites}"
+
+    def test_raises_import_error_when_no_browsergym(self):
+        """Should raise ImportError when BrowserGym is not installed."""
+        import pytest
+
+        with patch("programmaticmemory.benchmarks.webarena._HAS_BROWSERGYM", False):
+            with pytest.raises(ImportError, match="BrowserGym"):
+                load_webarena()
+
+
+# ---------------------------------------------------------------------------
+# WebArenaValScorer tests
+# ---------------------------------------------------------------------------
+
+
+class TestWebArenaValScorer:
+    def test_interface_compliance(self):
+        """score_batch must have the expected signature."""
+        sig = inspect.signature(WebArenaValScorer.score_batch)
+        params = list(sig.parameters)
+        assert "items" in params
+        assert "retrieved" in params
+        assert "task_model" in params
+        assert "instruction_response" in params
+        assert "always_on_knowledge" in params
+        assert "reasoning_effort" in params
+
+    def test_score_batch_dispatches_episodes(self):
+        """score_batch should dispatch one _run_episode call per item."""
+        scorer = WebArenaValScorer(max_steps=5, max_workers=2, episode_timeout=30.0)
+
+        fake_item = MagicMock()
+        fake_item.question = "Buy a red shirt"
+        fake_item.metadata = {"task_entrypoint": "webarena.shopping.1"}
+
+        items = [fake_item]
+        retrieved = ["Tip: always add to cart first."]
+
+        def fake_run_episode(*args, **kwargs):
+            return ("ACTION: click(button 'Submit')\nOBSERVATION: done", 1.0)
+
+        with patch("programmaticmemory.benchmarks.webarena._run_episode", side_effect=fake_run_episode):
+            # Patch ProcessPoolExecutor to use ThreadPoolExecutor to avoid spawn overhead
+            with patch("concurrent.futures.ProcessPoolExecutor", lambda **kw: ThreadPoolExecutor(max_workers=1)):
+                results = scorer.score_batch(items, retrieved, "fake-model", "")
+
+        assert len(results) == 1
+        trajectory, score = results[0]
+        assert score == 1.0
+        assert "click" in trajectory
+
+    def test_score_batch_handles_failure(self):
+        """score_batch should return (error_message, 0.0) when _run_episode raises."""
+        scorer = WebArenaValScorer(max_steps=5, max_workers=1, episode_timeout=30.0)
+
+        fake_item = MagicMock()
+        fake_item.question = "Do something"
+        fake_item.metadata = {"task_entrypoint": "webarena.shopping.99"}
+
+        items = [fake_item]
+        retrieved = [""]
+
+        def failing_run_episode(*args, **kwargs):
+            raise RuntimeError("Browser crashed")
+
+        with patch("programmaticmemory.benchmarks.webarena._run_episode", side_effect=failing_run_episode):
+            with patch("concurrent.futures.ProcessPoolExecutor", lambda **kw: ThreadPoolExecutor(max_workers=1)):
+                results = scorer.score_batch(items, retrieved, "fake-model", "")
+
+        assert len(results) == 1
+        trajectory, score = results[0]
+        assert score == 0.0
+        assert "failed" in trajectory.lower() or "crashed" in trajectory.lower()
