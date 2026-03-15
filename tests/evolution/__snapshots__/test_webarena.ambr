@@ -18,14 +18,14 @@
 # name: TestTraceAgentConsistency.test_human_trace_snapshot
   '''
   Step 1: goto("http://shopping.example.com")
-  Observation: Navigate to "http://shopping.example.com"
+  Observation: http://shopping.example.com
   Step 2: click(link "Electronics")
-  Observation: Click
+  Observation: http://shopping.example.com
   Step 3: click(button "Sort by: Price low to high")
-  Observation: Click
+  Observation: http://shopping.example.com
   Step 4: fill(textbox "Search", "wireless headphones")
-  Observation: Fill "wireless headphones"
+  Observation: http://shopping.example.com
   Step 5: keyboard_press("Enter")
-  Observation: Press "Enter"
+  Observation: http://shopping.example.com
   '''
 # ---

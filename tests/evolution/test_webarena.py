@@ -245,10 +245,10 @@ class TestParseTraceZip:
         assert len(steps) == 2
         assert steps[0]["step_num"] == 1
         assert steps[0]["action"] == 'goto("https://example.com")'
-        assert steps[0]["observation"] == 'Navigate to "https://example.com"'
+        assert steps[0]["observation"] == "https://example.com"
         assert steps[1]["step_num"] == 2
         assert steps[1]["action"] == 'click(button "OK")'
-        assert steps[1]["observation"] == "Click"
+        assert steps[1]["observation"] == "https://example.com"
 
     def test_steps_sorted_by_start_time(self, tmp_path):
         events = [
@@ -506,47 +506,45 @@ class TestTraceAgentConsistency:
                 "apiName": "Frame.goto",
                 "params": {"url": "http://shopping.example.com"},
                 "startTime": 1.0,
-                "title": 'Navigate to "http://shopping.example.com"',
             },
             {
                 "type": "before",
                 "apiName": "Frame.click",
                 "params": {"selector": 'internal:role=link[name="Electronics"]'},
                 "startTime": 2.0,
-                "title": "Click",
             },
             {
                 "type": "before",
                 "apiName": "Frame.click",
                 "params": {"selector": 'internal:role=button[name="Sort by: Price low to high"]'},
                 "startTime": 3.0,
-                "title": "Click",
             },
             {
                 "type": "before",
                 "apiName": "Frame.fill",
                 "params": {"selector": 'internal:role=textbox[name="Search"]', "value": "wireless headphones"},
                 "startTime": 4.0,
-                "title": 'Fill "wireless headphones"',
             },
             {
                 "type": "before",
                 "apiName": "Keyboard.press",
                 "params": {"key": "Enter"},
                 "startTime": 5.0,
-                "title": 'Press "Enter"',
             },
         ]
 
         steps = []
         step_num = 0
+        current_url = ""
         for event in trace_events:
             action = trace_event_to_action(event)
             if action is None:
                 continue
             step_num += 1
-            observation = event.get("title", "")
-            steps.append(format_trajectory_step(step_num, action, observation))
+            params = event.get("params", {}) or {}
+            if action.startswith("goto("):
+                current_url = params.get("url", "")
+            steps.append(format_trajectory_step(step_num, action, current_url))
 
         trajectory = "\n".join(steps)
         assert trajectory == snapshot

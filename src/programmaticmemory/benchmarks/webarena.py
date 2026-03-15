@@ -226,14 +226,16 @@ def parse_trace_zip(zip_path: Path) -> list[dict]:
 
     steps: list[dict] = []
     step_num = 1
+    current_url = ""  # Track page URL from goto events
     for event in events:
         action = trace_event_to_action(event)
         if action is None:
             continue
-        # Use the event's title as observation context (Playwright auto-generates
-        # human-readable titles like 'Navigate to "url"', 'Fill "value"', 'Click')
-        observation = event.get("title", "")
-        steps.append({"step_num": step_num, "action": action, "observation": observation})
+        # Update current URL from goto events
+        params = event.get("params", {}) or {}
+        if action.startswith("goto("):
+            current_url = params.get("url", "")
+        steps.append({"step_num": step_num, "action": action, "observation": current_url})
         step_num += 1
 
     return steps
