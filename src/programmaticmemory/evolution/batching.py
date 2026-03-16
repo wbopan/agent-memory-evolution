@@ -17,6 +17,8 @@ _EMBED_MAX_RETRIES = 3
 
 def _embed_texts(texts: list[str], model: str) -> np.ndarray:
     """Encode texts via litellm embedding API. Returns L2-normalized vectors."""
+    if not texts:
+        return np.empty((0, 0), dtype=np.float64)
     all_embeddings: list[list[float]] = []
     for start in range(0, len(texts), _EMBED_BATCH_SIZE):
         chunk = texts[start : start + _EMBED_BATCH_SIZE]
@@ -290,7 +292,18 @@ def select_representative_subset(
     else:
         val_texts = [item.question for item in val_data]
         logger.log(f"Embedding {len(val_texts)} val texts for representative selection...", header="SUBSET")
-        val_embs = _embed_texts(val_texts, model=embedding_model)
+        try:
+            val_embs = _embed_texts(val_texts, model=embedding_model)
+        except Exception as e:
+            logger.log(f"Embedding failed ({e}), falling back to random selection", header="SUBSET")
+            rng = np.random.RandomState(42)
+            val_indices = rng.choice(len(val_data), size=min(val_size, len(val_data)), replace=False).tolist()
+            train_indices = list(range(len(train_data)))
+            if train_val_ratio >= 0:
+                budget = train_val_ratio * len(val_indices)
+                train_indices = rng.choice(len(train_data), size=min(budget, len(train_data)), replace=False).tolist()
+            logger.log(f"Random fallback: {len(val_indices)} val, {len(train_indices)} train", header="SUBSET")
+            return train_indices, val_indices
 
         labels = _kmeans(val_embs, k=val_size)
         rng = np.random.RandomState(42)
@@ -304,18 +317,23 @@ def select_representative_subset(
         logger.log(f"Selected {len(val_indices)} representative val items from {val_size} clusters", header="SUBSET")
 
     train_texts = [item.raw_text if item.raw_text else item.question for item in train_data]
-    logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
-    train_embs = _embed_texts(train_texts, model=embedding_model)
+    if train_texts:
+        logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
+        train_embs = _embed_texts(train_texts, model=embedding_model)
 
-    val_texts_for_embed = [item.question for item in val_data]
-    if val_size < len(val_data):
-        subset_val_embs = val_embs[val_indices]
+        val_texts_for_embed = [item.question for item in val_data]
+        if val_size < len(val_data):
+            subset_val_embs = val_embs[val_indices]
+        else:
+            val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
+            subset_val_embs = val_embs_full[val_indices]
+
+        budget = len(train_data) if train_val_ratio < 0 else train_val_ratio * len(val_indices)
+        train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
     else:
-        val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
-        subset_val_embs = val_embs_full[val_indices]
-
-    budget = len(train_data) if train_val_ratio < 0 else train_val_ratio * len(val_indices)
-    train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
+        train_indices: list[int] = []
+        coverage = 0.0
+        budget = 0
     logger.log(
         f"Selected {len(train_indices)} train items (budget={budget}, coverage={coverage:.4f})",
         header="SUBSET",

@@ -273,34 +273,32 @@ def _load_traces(traces_path: str | Path | None = None) -> list[dict]:
 
 
 def _load_task_configs() -> list[dict]:
-    """Load WebArena task configs from BrowserGym.
+    """Load WebArena task configs from the ``webarena`` package.
+
+    Reads ``test.raw.json`` bundled with the webarena package (installed as a
+    dependency of browsergym-webarena).  URL placeholders (``__SHOPPING__`` etc.)
+    are left as-is since we only need ``task_id``, ``sites``, and ``intent``.
 
     Returns:
-        List of task config dicts with at least ``task_id``, ``sites``, and
-        ``task_entrypoint`` keys.  Returns an empty list when BrowserGym is not
-        installed or the API is not as expected.
+        List of task config dicts with ``task_id``, ``sites``, ``intent``, and
+        ``eval`` keys.  Returns an empty list when the package is not installed.
     """
-    if not _HAS_BROWSERGYM:
-        return []
     try:
-        import browsergym.webarena as _wa  # noqa: F401
+        import importlib.resources
 
-        # BrowserGym registers WebArena tasks in the gym registry.
-        # We enumerate them via the browsergym.webarena task list helper.
-        from browsergym.webarena import task_list  # type: ignore[attr-defined]
+        import webarena  # type: ignore[import-untyped]
 
-        configs: list[dict] = []
-        for entry in task_list.WEBARENA_TASK_LIST:
-            configs.append(
-                {
-                    "task_id": int(entry.get("task_id", 0)),
-                    "sites": entry.get("sites", []),
-                    "task_entrypoint": entry.get("task_entrypoint", ""),
-                    "intent": entry.get("intent", ""),
-                    "eval": entry.get("eval", {}),
-                }
-            )
-        return configs
+        all_configs_str = importlib.resources.files(webarena).joinpath("test.raw.json").read_text()
+        all_configs = json.loads(all_configs_str)
+        return [
+            {
+                "task_id": int(cfg.get("task_id", 0)),
+                "sites": cfg.get("sites", []),
+                "intent": cfg.get("intent", ""),
+                "eval": cfg.get("eval", {}),
+            }
+            for cfg in all_configs
+        ]
     except Exception:
         return []
 
@@ -372,13 +370,11 @@ def load_webarena(
             continue
 
         task_id = int(cfg.get("task_id", 0))
-        task_entrypoint = cfg.get("task_entrypoint", "")
         intent = cfg.get("intent", "")
 
         metadata = {
             "task_id": task_id,
             "sites": sites,
-            "task_entrypoint": task_entrypoint,
         }
 
         if task_id in traced_task_ids:
@@ -415,28 +411,37 @@ def load_webarena(
 
 import litellm  # noqa: E402
 
-_SYSTEM_PROMPT = """\
-You are a web automation agent controlling a browser via BrowserGym.
-Your job: select the NEXT action to complete the given task.
+_ACTION_PROMPT = """\
+You are a web automation agent. You observe a web page as an accessibility tree \
+(AXTree) and output ONE action per turn.
 
-Available actions (use exact function-call syntax):
-  click(<element>)                    — left-click an element
-  fill(<element>, "<text>")           — clear and type into an input field
-  hover(<element>)                    — hover over an element
-  select_option(<element>, "<value>") — select a <select> dropdown option
-  goto("<url>")                       — navigate to a URL
-  go_back()                           — navigate back in history
-  go_forward()                        — navigate forward in history
-  keyboard_press("<key>")             — press a keyboard key (e.g. "Enter", "Tab")
-  scroll(<dx>, <dy>)                  — scroll by (dx, dy) pixels
-  tab_close()                         — close the current browser tab
-  send_msg_to_user("<message>")       — send a final answer / completion message
-  noop(<ms>)                          — wait <ms> milliseconds (use as last resort)
+# Actions
+Each <element> argument is a BID number from the AXTree (the number in square brackets, e.g. 226).
 
-Rules:
-  - Output the action inside a fenced code block: ```action\\n<action>\\n```
-  - Output ONLY the code block — no prose, no explanation.
-  - Prefer send_msg_to_user when the task is complete.
+  click(<bid>)                       — click element, e.g. click("226")
+  fill(<bid>, "<text>")              — type into input, e.g. fill("679", "hello")
+  hover(<bid>)                       — hover element
+  select_option(<bid>, "<value>")    — pick dropdown option
+  goto("<url>")                      — navigate to URL
+  go_back()                          — browser back
+  go_forward()                       — browser forward
+  keyboard_press("<key>")            — press key (Enter, Tab, etc.)
+  scroll(0, <dy>)                    — scroll down (positive) or up (negative)
+  send_msg_to_user("<message>")      — send final answer to user (use when task is done)
+  noop(1000)                         — wait 1 second
+
+# Rules
+- Output EXACTLY ONE action per turn.
+- Use the BID numbers from the AXTree, NOT element text or CSS selectors.
+- When the task asks a question, find the answer and use send_msg_to_user("answer").
+- When the task asks to perform an action, navigate and act, then send_msg_to_user("done").
+- Wrap the action in a code block: ```action
+<your action here>
+```
+
+# Example
+AXTree shows: [226] link 'MARKETING'
+To click it: click("226")
 """
 
 
@@ -464,24 +469,31 @@ def _select_action(
     Returns:
         A BrowserGym-style action string.
     """
-    system_content = _SYSTEM_PROMPT
+    # Build a single user prompt (no system message — compatible with chatgpt/ provider)
+    parts: list[str] = [_ACTION_PROMPT]
+
     aok = always_on_knowledge.strip() if always_on_knowledge else ""
     if aok:
-        system_content = system_content + "\nAlways-on knowledge:\n" + aok
+        parts += ["# Domain knowledge", aok]
 
-    user_lines: list[str] = []
-    user_lines.append(f"Task: {intent.strip()}")
+    parts.append(f"\n# Task\n{intent.strip()}")
 
     if tips and tips.strip():
-        user_lines += ["", "Retrieved tips (optional, short & actionable):", tips.strip()]
+        parts += ["", "# Retrieved tips", tips.strip()]
 
     if action_history:
-        user_lines += ["", "Action history (most recent last):"]
-        for act in action_history[-20:]:
-            user_lines.append(f"  {act}")
+        recent = action_history[-10:]
+        parts += ["", "# Previous actions"]
+        for i, act in enumerate(recent, 1):
+            parts.append(f"{i}. {act}")
 
-    user_lines += ["", "Current page (AXTree):", axtree_text.strip() if axtree_text else "(empty)"]
-    user_lines += ["", "Think step by step, then output the action code block."]
+    # Truncate AXTree to avoid exceeding context
+    ax = axtree_text.strip() if axtree_text else "(empty page)"
+    if len(ax) > 16000:
+        ax = ax[:16000] + "\n... (truncated)"
+    parts += ["", "# Current page (AXTree)", ax]
+
+    parts.append("\nOutput ONE action in a ```action code block.")
 
     extra: dict = {}
     if reasoning_effort is not None:
@@ -491,21 +503,27 @@ def _select_action(
         model=task_model,
         messages=[
             {"role": "system", "content": " "},
-            {"role": "user", "content": "\n".join(user_lines)},
+            {"role": "user", "content": "\n".join(parts)},
         ],
-        max_tokens=1024,
+        max_tokens=512,
         caching=True,
         **extra,
     )
     raw = resp.choices[0].message.content or ""
 
     # Extract action from fenced code block
-    m = re.search(r"```action\s*\n(.*?)\n```", raw, re.DOTALL)
+    m = re.search(r"```(?:action)?\s*\n(.*?)\n```", raw, re.DOTALL)
     if m:
-        return m.group(1).strip()
+        # Take only the first line (in case LLM outputs multiple actions)
+        first_line = m.group(1).strip().split("\n")[0].strip()
+        if first_line:
+            return first_line
 
-    # Fallback: look for any function call pattern
-    m = re.search(r"(\w+\([^)]*\))", raw)
+    # Fallback: look for a single function call pattern
+    m = re.search(
+        r"((?:click|fill|hover|select_option|goto|go_back|go_forward|keyboard_press|scroll|send_msg_to_user|noop|tab_close)\([^)]*\))",
+        raw,
+    )
     if m:
         return m.group(1).strip()
 
@@ -518,7 +536,7 @@ def _select_action(
 
 
 def _run_episode(
-    task_entrypoint: str,
+    task_id: int,
     intent: str,
     tips: str,
     task_model: str,
@@ -531,7 +549,7 @@ def _run_episode(
     Module-level function (not a method) so it can be pickled for ProcessPoolExecutor.
 
     Args:
-        task_entrypoint: BrowserGym gym-id / task entrypoint string.
+        task_id: WebArena numeric task ID (0–811).
         intent: Natural-language task intent.
         tips: Retrieved procedural tips from the Knowledge Base.
         task_model: LiteLLM model string for the task agent.
@@ -544,18 +562,39 @@ def _run_episode(
     """
     try:
         from browsergym.core.env import BrowserEnv  # type: ignore[import-untyped]
+        from browsergym.utils.obs import flatten_axtree_to_str  # type: ignore[import-untyped]
+        from browsergym.webarena.task import GenericWebArenaTask  # type: ignore[import-untyped]
     except ImportError as exc:
         return (f"BrowserGym not available: {exc}", 0.0)
+
+    def _extract_axtree(obs: dict) -> str:
+        if "axtree_object" in obs:
+            return flatten_axtree_to_str(obs["axtree_object"])
+        return obs.get("axtree_txt", str(obs))
 
     trajectory_lines: list[str] = []
     action_history: list[str] = []
     reward = 0.0
 
+    # Use system proxy if available (needed for mihomo/Stash setups)
+    import os
+
+    proxy_url = os.environ.get("ALL_PROXY") or os.environ.get("HTTP_PROXY")
+    pw_chromium_kwargs: dict = {}
+    if proxy_url:
+        pw_chromium_kwargs["proxy"] = {"server": proxy_url}
+
     try:
-        env = BrowserEnv(task_entrypoint=task_entrypoint, headless=True)
+        env = BrowserEnv(
+            task_entrypoint=GenericWebArenaTask,
+            task_kwargs={"task_id": task_id},
+            headless=True,
+            timeout=60000,
+            pw_chromium_kwargs=pw_chromium_kwargs,
+        )
         try:
             obs, _info = env.reset()
-            axtree = obs.get("axtree_txt", "") if isinstance(obs, dict) else str(obs)
+            axtree = _extract_axtree(obs)
 
             for _step in range(max_steps):
                 action = _select_action(
@@ -572,7 +611,7 @@ def _run_episode(
 
                 obs, step_reward, terminated, truncated, _info = env.step(action)
                 reward = float(step_reward)
-                axtree = obs.get("axtree_txt", "") if isinstance(obs, dict) else str(obs)
+                axtree = _extract_axtree(obs)
                 trajectory_lines.append(f"OBSERVATION: {axtree[:500]}")
 
                 if terminated or truncated:
@@ -626,7 +665,7 @@ class WebArenaValScorer:
                 futures = [
                     pool.submit(
                         _run_episode,
-                        item.metadata["task_entrypoint"],
+                        item.metadata["task_id"],
                         item.question,
                         tips,
                         task_model,

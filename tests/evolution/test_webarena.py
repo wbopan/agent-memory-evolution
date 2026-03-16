@@ -310,29 +310,11 @@ _FAKE_TRACES = [
 ]
 
 _FAKE_TASK_CONFIGS = [
-    {
-        "task_id": 1,
-        "sites": ["shopping"],
-        "task_entrypoint": "webarena.shopping.1",
-        "intent": "Find a red shirt",
-        "eval": {},
-    },
-    {
-        "task_id": 2,
-        "sites": ["shopping"],
-        "task_entrypoint": "webarena.shopping.2",
-        "intent": "Buy blue jeans",
-        "eval": {},
-    },
-    {"task_id": 3, "sites": ["reddit"], "task_entrypoint": "webarena.reddit.3", "intent": "Post a comment", "eval": {}},
-    {"task_id": 4, "sites": ["map"], "task_entrypoint": "webarena.map.4", "intent": "Find directions", "eval": {}},
-    {
-        "task_id": 5,
-        "sites": ["wikipedia"],
-        "task_entrypoint": "webarena.wikipedia.5",
-        "intent": "Look up Python",
-        "eval": {},
-    },
+    {"task_id": 1, "sites": ["shopping"], "intent": "Find a red shirt", "eval": {}},
+    {"task_id": 2, "sites": ["shopping"], "intent": "Buy blue jeans", "eval": {}},
+    {"task_id": 3, "sites": ["reddit"], "intent": "Post a comment", "eval": {}},
+    {"task_id": 4, "sites": ["map"], "intent": "Find directions", "eval": {}},
+    {"task_id": 5, "sites": ["wikipedia"], "intent": "Look up Python", "eval": {}},
 ]
 
 
@@ -383,7 +365,7 @@ class TestLoadWebarena:
         assert item.raw_text == ""
         assert "task_id" in item.metadata
         assert "sites" in item.metadata
-        assert "task_entrypoint" in item.metadata
+        assert "task_id" in item.metadata
 
     def test_category_filter(self):
         """category='reddit' should return only reddit tasks."""
@@ -443,7 +425,7 @@ class TestWebArenaValScorer:
 
         fake_item = MagicMock()
         fake_item.question = "Buy a red shirt"
-        fake_item.metadata = {"task_entrypoint": "webarena.shopping.1"}
+        fake_item.metadata = {"task_id": 1}
 
         items = [fake_item]
         retrieved = ["Tip: always add to cart first."]
@@ -467,7 +449,7 @@ class TestWebArenaValScorer:
 
         fake_item = MagicMock()
         fake_item.question = "Do something"
-        fake_item.metadata = {"task_entrypoint": "webarena.shopping.99"}
+        fake_item.metadata = {"task_id": 99}
 
         items = [fake_item]
         retrieved = [""]
