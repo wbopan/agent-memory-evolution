@@ -209,6 +209,8 @@ class TestValScorer:
                 task_model: str,
                 instruction_response: str,
                 always_on_knowledge: str,
+                *,
+                reasoning_effort: str | None = None,
             ) -> list[tuple[str, float]]:
                 return [("answer", 1.0)] * len(items)
 
@@ -223,7 +225,9 @@ class TestValScorer:
 
     def test_dataset_accepts_val_scorer(self):
         class MyScorer:
-            def score_batch(self, items, retrieved, task_model, instruction_response, always_on_knowledge):
+            def score_batch(
+                self, items, retrieved, task_model, instruction_response, always_on_knowledge, *, reasoning_effort=None
+            ):
                 return []
 
         ds = Dataset(train=[], val=[], test=[], val_scorer=MyScorer())

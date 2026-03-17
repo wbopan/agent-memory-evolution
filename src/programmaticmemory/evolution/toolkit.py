@@ -32,6 +32,7 @@ class ToolkitConfig:
 
     llm_model: str
     llm_call_budget: int = 1
+    reasoning_effort: str | None = None
 
 
 class Toolkit:
@@ -48,6 +49,7 @@ class Toolkit:
         self.logger: MemoryLogger = MemoryLogger()
         self._llm_call_budget: int = config.llm_call_budget
         self._llm_calls_used: int = 0
+        self._reasoning_effort: str | None = config.reasoning_effort
 
     def reset_llm_budget(self) -> None:
         """Reset the LLM call counter. Called before each guarded write/read."""
@@ -67,6 +69,8 @@ class Toolkit:
     def _llm_call_with_retry(self, messages: list[dict], **kwargs: object) -> str:
         """Internal LLM call with tenacity retry (only retries API errors, not budget)."""
         kwargs.setdefault("max_tokens", 512)
+        if self._reasoning_effort is not None:
+            kwargs.setdefault("reasoning_effort", self._reasoning_effort)
         response = litellm.completion(
             model=self.llm_model, messages=[{"role": "system", "content": " "}, *messages], caching=True, **kwargs
         )

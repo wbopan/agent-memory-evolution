@@ -195,6 +195,8 @@ def _select_action(
     valid_actions: list[str],
     task_model: str,
     always_on_knowledge: str = "",
+    *,
+    reasoning_effort: str | None = None,
 ) -> str:
     env_desc = {
         "scienceworld": "You are controlling a text-based ScienceWorld environment to perform science experiments.",
@@ -230,8 +232,11 @@ def _select_action(
         for cmd in valid_actions:
             lines.append(f"- {cmd}")
     prompt = "\n".join(lines)
+    extra: dict = {}
+    if reasoning_effort is not None:
+        extra["reasoning_effort"] = reasoning_effort
     resp = litellm.completion(
-        model=task_model, messages=[{"role": "user", "content": prompt}], max_tokens=64, caching=True
+        model=task_model, messages=[{"role": "user", "content": prompt}], max_tokens=64, caching=True, **extra
     )
     raw = resp.choices[0].message.content.strip()
     return _parse_action_response(raw, valid_actions)
@@ -248,6 +253,7 @@ def _run_episode(
     task_model: str,
     max_steps: int,
     always_on_knowledge: str = "",
+    reasoning_effort: str | None = None,
 ) -> tuple[str, float]:
     if env_type == "scienceworld":
         from programmaticmemory.benchmarks._scienceworld_wrapper import ScienceWorldWrapper
@@ -275,7 +281,14 @@ def _run_episode(
             if not valid_actions:
                 break
             action = _select_action(
-                env_type, objective, tips, "\n".join(trajectory_lines), valid_actions, task_model, always_on_knowledge
+                env_type,
+                objective,
+                tips,
+                "\n".join(trajectory_lines),
+                valid_actions,
+                task_model,
+                always_on_knowledge,
+                reasoning_effort=reasoning_effort,
             )
             trajectory_lines.append(f"ACTION: {action}")
             obs, progress, done = wrapper.step(action)
@@ -303,6 +316,8 @@ class AgentBoardValScorer:
         task_model: str,
         instruction_response: str,
         always_on_knowledge: str = "",
+        *,
+        reasoning_effort: str | None = None,
     ) -> list[tuple[str, float]]:
         import concurrent.futures
 
@@ -318,6 +333,7 @@ class AgentBoardValScorer:
                     task_model,
                     self.max_steps,
                     always_on_knowledge,
+                    reasoning_effort,
                 )
                 for item, tips in zip(items, retrieved, strict=True)
             ]

@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 from programmaticmemory.datasets import load_dataset
-from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
+from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator, set_batch_pool_size
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import ReflectionPromptConfig
 from programmaticmemory.evolution.reflector import Reflector
@@ -98,6 +98,12 @@ def main() -> None:
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
     parser.add_argument("--reflect-model", default="openrouter/openai/gpt-5.3-codex", help="Model for reflection")
     parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
+    parser.add_argument(
+        "--task-lm-thinking-effort",
+        choices=["low", "medium", "high"],
+        default=None,
+        help="Reasoning effort for task/toolkit LLM calls (default: None, no thinking)",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")
@@ -137,9 +143,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--eval-strategy",
-        choices=["full", "representative", "rotating", "split"],
+        choices=["none", "full", "representative", "rotating", "split"],
         default="representative",
-        help="Evaluation strategy: full (every iter uses full data), "
+        help="Evaluation strategy: none (skip seed/iter eval, test only), full (every iter uses full data), "
         "representative (clustering-based fixed subset), rotating (batch rotation) (default: representative)",
     )
     parser.add_argument(
@@ -205,14 +211,31 @@ def main() -> None:
         help="Freeze instruction constants during evolution (ablation: only memory design evolves)",
     )
     parser.add_argument(
+        "--freeze-code",
+        action="store_true",
+        default=False,
+        help="Freeze code structure during evolution (GEPA baseline: only instruction constants evolve)",
+    )
+    parser.add_argument(
         "--no-references",
         action="store_true",
         default=True,
         help="Disable cross-program reference context in reflection prompt (default: disabled)",
     )
+    parser.add_argument(
+        "--batch-concurrency",
+        type=int,
+        default=4,
+        help="Max concurrent LLM calls in batch evaluation (default: 4)",
+    )
     args, extra = parser.parse_known_args()
 
+    if args.freeze_instructions and args.freeze_code:
+        print("Error: --freeze-instructions and --freeze-code are mutually exclusive", file=sys.stderr)
+        sys.exit(1)
+
     random.seed(args.seed)
+    set_batch_pool_size(args.batch_concurrency)
 
     # Enable disk cache so repeated runs hit cache
     from programmaticmemory.cache import configure_cache
@@ -229,7 +252,11 @@ def main() -> None:
     # Build eval strategy
     from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
 
-    if args.eval_strategy == "full":
+    if args.eval_strategy == "none":
+        from programmaticmemory.evolution.strategies import NoEval
+
+        eval_strat = NoEval(test_train_ratio=args.test_train_ratio)
+    elif args.eval_strategy == "full":
         eval_strat = FullDataset(test_train_ratio=args.test_train_ratio)
     elif args.eval_strategy == "representative":
         eval_strat = FixedRepresentative(
@@ -284,12 +311,13 @@ def main() -> None:
 
     # Configure
     scorer = dataset.scorer or ExactMatchScorer()
-    toolkit_config = ToolkitConfig(llm_model=args.toolkit_model)
+    toolkit_config = ToolkitConfig(llm_model=args.toolkit_model, reasoning_effort=args.task_lm_thinking_effort)
     evaluator = MemoryEvaluator(
         scorer=scorer,
         task_model=args.task_model,
         toolkit_config=toolkit_config,
         val_scorer=dataset.val_scorer,
+        reasoning_effort=args.task_lm_thinking_effort,
     )
     prompt_config = ReflectionPromptConfig(
         max_failed_cases=args.reflection_max_failed_cases,
@@ -352,6 +380,7 @@ def main() -> None:
             output_manager=output_manager,
             eval_strategy=eval_strat,
             freeze_instructions=args.freeze_instructions,
+            freeze_code=args.freeze_code,
             use_references=not args.no_references,
             seed_commit_messages=seed_commit_messages,
         )

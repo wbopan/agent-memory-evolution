@@ -44,7 +44,23 @@ from programmaticmemory.logging.logger import get_logger
 # litellm disk-cache, and those connections are never explicitly closed when the
 # thread dies.  A long-lived pool means threads (and their cache connections)
 # are reused across calls.
-_BATCH_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=16)
+_BATCH_POOL: concurrent.futures.ThreadPoolExecutor | None = None
+_BATCH_POOL_SIZE = 10
+
+
+def _get_batch_pool() -> concurrent.futures.ThreadPoolExecutor:
+    global _BATCH_POOL
+    if _BATCH_POOL is None:
+        _BATCH_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=_BATCH_POOL_SIZE)
+    return _BATCH_POOL
+
+
+def set_batch_pool_size(size: int) -> None:
+    """Set max concurrency for batch LLM calls. Must be called before first evaluation."""
+    global _BATCH_POOL_SIZE, _BATCH_POOL
+    _BATCH_POOL_SIZE = size
+    _BATCH_POOL = None  # reset so next call creates a new pool
+
 
 # Shared pool for _guarded_write / _guarded_read timeout enforcement.
 _GUARD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
@@ -59,28 +75,42 @@ class RuntimeViolationError(Exception):
 
 def _guarded_write(kb: Any, item: Any, raw_text: str, timeout: float = MEMORY_OP_TIMEOUT) -> None:
     """Wrap kb.write(item, raw_text) with timeout and per-call LLM budget reset."""
+    import time as _time
+
     if hasattr(kb, "toolkit"):
         kb.toolkit.reset_llm_budget()
+    t0 = _time.monotonic()
     future = _GUARD_POOL.submit(kb.write, item, raw_text)
     try:
         future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
         future.cancel()
         raise RuntimeViolationError(f"kb.write() timed out after {timeout}s")
+    elapsed = _time.monotonic() - t0
+    if elapsed > 10.0:
+        logger = get_logger()
+        logger.log(f"Slow kb.write(): {elapsed:.1f}s", header="DEBUG")
 
 
 def _guarded_read(
     kb: Any, query: Any, timeout: float = MEMORY_OP_TIMEOUT, max_chars: int = MEMORY_READ_MAX_CHARS
 ) -> Any:
     """Wrap kb.read(query) with timeout, output length check, and per-call LLM budget reset."""
+    import time as _time
+
     if hasattr(kb, "toolkit"):
         kb.toolkit.reset_llm_budget()
+    t0 = _time.monotonic()
     future = _GUARD_POOL.submit(kb.read, query)
     try:
         result = future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
         future.cancel()
         raise RuntimeViolationError(f"kb.read() timed out after {timeout}s")
+    elapsed = _time.monotonic() - t0
+    if elapsed > 10.0:
+        logger = get_logger()
+        logger.log(f"Slow kb.read(): {elapsed:.1f}s", header="DEBUG")
     result_str = str(result) if result is not None else ""
     if len(result_str) > max_chars:
         raise RuntimeViolationError(f"kb.read() returned {len(result_str)} chars (limit: {max_chars})")
@@ -190,11 +220,13 @@ class MemoryEvaluator:
         task_model: str,
         toolkit_config: ToolkitConfig,
         val_scorer: ValScorer | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.scorer = scorer or ExactMatchScorer()
         self.task_model = task_model
         self.toolkit_config = toolkit_config
         self.val_scorer = val_scorer
+        self.reasoning_effort = reasoning_effort
         self.logger = get_logger()
 
     @weave.op()
@@ -404,7 +436,7 @@ class MemoryEvaluator:
             ]
             for item in train_data
         ]
-        responses = self._batch_llm_call(all_messages, json_mode=True)
+        responses = self._batch_llm_call(all_messages, json_mode=True, label="Train: KI generation")
 
         train_examples = []
         write_count = 0
@@ -540,7 +572,7 @@ class MemoryEvaluator:
             [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in train_data
         ]
-        round1_responses = self._batch_llm_call(round1_messages, json_mode=True)
+        round1_responses = self._batch_llm_call(round1_messages, json_mode=True, label="Train: query generation")
 
         # Parse queries + serial reads
         slots = self._parse_queries_and_read(
@@ -565,7 +597,7 @@ class MemoryEvaluator:
             ]
             for _i, s in valid
         ]
-        round2_responses = self._batch_llm_call(round2_messages)
+        round2_responses = self._batch_llm_call(round2_messages, label="Train: answer generation")
 
         # Score answers for feedback; build context for round 3
         round3_items: list[tuple[DataItem, list[dict], str]] = []
@@ -591,7 +623,7 @@ class MemoryEvaluator:
             ]
             for item, msgs_so_far, evaluation_result in round3_items
         ]
-        round3_responses = self._batch_llm_call(round3_messages, json_mode=True)
+        round3_responses = self._batch_llm_call(round3_messages, json_mode=True, label="Train: KI with feedback")
 
         # Serial writes + capture train examples
         train_examples: list[TrainExample] = []
@@ -628,32 +660,112 @@ class MemoryEvaluator:
         instruction_response: str = "",
         always_on_knowledge: str = "",
     ) -> list[_QuerySlot | None]:
-        """Parse batch query responses, read knowledge base for each. Returns slots aligned with data."""
-        slots: list[_QuerySlot | None] = []
+        """Parse batch query responses, read knowledge base in parallel. Returns slots aligned with data."""
+        import time as _time
+
+        from rich.progress import BarColumn, MofNCompleteColumn, Progress, TimeElapsedColumn
+
+        total = len(round1_messages)
+        self.logger.log(f"{log_prefix}: parsing queries & reading KB for {total} items", header="DEBUG")
+
+        # Phase 1: parse all queries (fast, no I/O)
+        parsed: list[tuple[str, str, Any] | None] = []  # (query_prompt, query_json, query_obj) or None
         for msgs, content in zip(round1_messages, responses, strict=True):
             query_prompt = msgs[0]["content"]
             if content is None:
                 logs.append(f"{log_prefix} query generation failed (batch error)")
-                slots.append(None)
+                parsed.append(None)
                 continue
             try:
                 query = query_cls(**_parse_json_from_llm(content))
+                parsed.append((query_prompt, content, query))
             except Exception as e:
                 logs.append(f"{log_prefix} query parse failed: {e}")
+                parsed.append(None)
+
+        # Phase 2: parallel KB reads for parsed queries
+        read_items = [(i, p) for i, p in enumerate(parsed) if p is not None]
+        if not read_items:
+            return [None] * total
+
+        def _do_read(query: Any) -> str:
+            """Execute a single KB read with timeout, return retrieved_str."""
+            if hasattr(kb, "toolkit"):
+                kb.toolkit.reset_llm_budget()
+            t0 = _time.monotonic()
+            # Call kb.read directly (we're already in a pool thread)
+            result = kb.read(query)
+            elapsed = _time.monotonic() - t0
+            if elapsed > 10.0:
+                self.logger.log(f"Slow kb.read(): {elapsed:.1f}s", header="DEBUG")
+            result_str = str(result) if result is not None else ""
+            if len(result_str) > MEMORY_READ_MAX_CHARS:
+                raise RuntimeViolationError(
+                    f"kb.read() returned {len(result_str)} chars (limit: {MEMORY_READ_MAX_CHARS})"
+                )
+            return result_str
+
+        read_pool = concurrent.futures.ThreadPoolExecutor(max_workers=_BATCH_POOL_SIZE)
+        read_futures = {read_pool.submit(_do_read, p[2]): i for i, p in read_items}
+        # read_results[original_index] = retrieved_str or Exception
+        read_results: dict[int, str | Exception] = {}
+        runtime_violation: RuntimeViolationError | None = None
+
+        self.logger.log(
+            f"{log_prefix}: submitted {len(read_futures)} KB reads (pool_size={_BATCH_POOL_SIZE})",
+            header="DEBUG",
+        )
+
+        with Progress(
+            "[progress.description]{task.description}",
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=self.logger.console,
+            transient=True,
+        ) as progress:
+            ptask = progress.add_task(f"{log_prefix}: KB read", total=len(read_futures))
+            for fut in concurrent.futures.as_completed(read_futures):
+                idx = read_futures[fut]
+                try:
+                    read_results[idx] = fut.result()
+                except RuntimeViolationError as e:
+                    runtime_violation = e
+                    # Cancel remaining futures
+                    for f in read_futures:
+                        f.cancel()
+                    break
+                except Exception as e:
+                    read_results[idx] = e
+                progress.advance(ptask)
+
+        read_pool.shutdown(wait=False)
+
+        if runtime_violation is not None:
+            raise runtime_violation
+
+        # Phase 3: assemble slots
+        slots: list[_QuerySlot | None] = []
+        for i in range(total):
+            p = parsed[i]
+            if p is None:
                 slots.append(None)
                 continue
-            try:
-                retrieved = _guarded_read(kb, query)
-                retrieved_str = str(retrieved) if retrieved is not None else ""
-            except RuntimeViolationError:
-                raise
-            except Exception as e:
-                retrieved_str = f"Read error: {e}"
-                logs.append(f"{log_prefix} read failed: {e}")
+            query_prompt, query_json, query = p
+            result = read_results.get(i)
+            if isinstance(result, Exception):
+                retrieved_str = f"Read error: {result}"
+                logs.append(f"{log_prefix} read failed: {result}")
+            elif result is None:
+                # Future was cancelled due to runtime violation of another read
+                retrieved_str = "Read cancelled"
+                logs.append(f"{log_prefix} read cancelled")
+            else:
+                retrieved_str = result
             retrieved_prompt = build_retrieved_memory_prompt(
                 retrieved_str, instruction_response, always_on_knowledge=always_on_knowledge
             )
-            slots.append(_QuerySlot(query, content, retrieved_str, query_prompt, retrieved_prompt))
+            slots.append(_QuerySlot(query, query_json, retrieved_str, query_prompt, retrieved_prompt))
         return slots
 
     @staticmethod
@@ -748,7 +860,7 @@ class MemoryEvaluator:
             [{"role": "user", "content": build_query_generation_prompt(item.question, query_schema, instruction_query)}]
             for item in val_data
         ]
-        round1_responses = self._batch_llm_call(round1_messages, json_mode=True)
+        round1_responses = self._batch_llm_call(round1_messages, json_mode=True, label="Val: query generation")
         return self._parse_queries_and_read(
             query_cls,
             kb,
@@ -781,7 +893,7 @@ class MemoryEvaluator:
             ]
             for _i, s in valid
         ]
-        round2_responses = self._batch_llm_call(round2_messages)
+        round2_responses = self._batch_llm_call(round2_messages, label="Val: answer generation")
 
         scores: list[float] = []
         outputs: list[str] = []
@@ -862,7 +974,12 @@ class MemoryEvaluator:
         retrieved = [s.retrieved_str if s is not None else "" for s in slots]
 
         results = self.val_scorer.score_batch(
-            val_data, retrieved, self.task_model, instruction_response, always_on_knowledge
+            val_data,
+            retrieved,
+            self.task_model,
+            instruction_response,
+            always_on_knowledge,
+            reasoning_effort=self.reasoning_effort,
         )
 
         scores: list[float] = []
@@ -901,7 +1018,9 @@ class MemoryEvaluator:
 
         return self._build_eval_result(scores, outputs, failed_cases, success_cases, logs)
 
-    def _batch_llm_call(self, all_messages: list[list[dict]], *, json_mode: bool = False) -> list[str | None]:
+    def _batch_llm_call(
+        self, all_messages: list[list[dict]], *, json_mode: bool = False, label: str = "LLM batch"
+    ) -> list[str | None]:
         """Fan out independent LLM calls using a shared thread pool.
 
         Uses the module-level ``_BATCH_POOL`` instead of ``litellm.batch_completion``
@@ -914,12 +1033,22 @@ class MemoryEvaluator:
         """
         if not all_messages:
             return []
+        import time as _time
+
         extra: dict = {}
         if json_mode:
             extra["response_format"] = {"type": "json_object"}
+        if self.reasoning_effort is not None:
+            extra["reasoning_effort"] = self.reasoning_effort
 
+        pool = _get_batch_pool()
+        self.logger.log(
+            f"{label}: submitting {len(all_messages)} calls (pool_size={_BATCH_POOL_SIZE})",
+            header="DEBUG",
+        )
+        t_submit = _time.monotonic()
         futures = [
-            _BATCH_POOL.submit(
+            pool.submit(
                 litellm.completion,
                 model=self.task_model,
                 messages=[{"role": "system", "content": " "}, *msgs],
@@ -928,13 +1057,63 @@ class MemoryEvaluator:
             )
             for msgs in all_messages
         ]
+        self.logger.log(
+            f"{label}: all {len(futures)} futures submitted in {_time.monotonic() - t_submit:.1f}s",
+            header="DEBUG",
+        )
 
-        results: list[str | None] = []
-        for future in futures:
+        results: list[str | None] = [None] * len(futures)
+        from rich.progress import BarColumn, MofNCompleteColumn, Progress, TimeElapsedColumn
+
+        stall_check_interval = 120.0  # log warning if no progress for 2 min
+        with Progress(
+            "[progress.description]{task.description}",
+            BarColumn(),
+            MofNCompleteColumn(),
+            TimeElapsedColumn(),
+            console=self.logger.console,
+            transient=True,
+        ) as progress:
+            task = progress.add_task(label, total=len(futures))
+            completed = 0
+            last_progress_time = _time.monotonic()
+
+            # Stall-detection thread: logs warnings when no futures complete for a while
+            import threading
+
+            stall_stop = threading.Event()
+
+            def _stall_watcher() -> None:
+                while not stall_stop.wait(stall_check_interval):
+                    elapsed = _time.monotonic() - last_progress_time
+                    if elapsed >= stall_check_interval:
+                        pending = [i for i, f in enumerate(futures) if not f.done()]
+                        self.logger.log(
+                            f"{label}: STALL — no progress for {elapsed:.0f}s, "
+                            f"{completed}/{len(futures)} done, pending indices: {pending[:10]}"
+                            f"{'...' if len(pending) > 10 else ''}",
+                            header="DEBUG",
+                        )
+
+            watcher = threading.Thread(target=_stall_watcher, daemon=True)
+            watcher.start()
+
             try:
-                resp = future.result()
-                results.append(resp.choices[0].message.content)
-            except Exception as exc:
-                self.logger.log(f"Batch LLM call failed: {exc}", header="EVAL")
-                results.append(None)
+                for future in concurrent.futures.as_completed(futures):
+                    idx = futures.index(future)
+                    try:
+                        resp = future.result()
+                        results[idx] = resp.choices[0].message.content
+                    except Exception as exc:
+                        self.logger.log(f"Batch LLM call failed (idx={idx}): {exc}", header="EVAL")
+                    completed += 1
+                    last_progress_time = _time.monotonic()
+                    progress.advance(task)
+            finally:
+                stall_stop.set()
+                watcher.join(timeout=1.0)
+        self.logger.log(
+            f"{label}: all {len(futures)} calls completed in {_time.monotonic() - t_submit:.1f}s",
+            header="DEBUG",
+        )
         return results

@@ -960,7 +960,9 @@ class TestValScorerIntegration:
         received_retrieved = []
 
         class CapturingScorer:
-            def score_batch(self, items, retrieved, task_model, instruction_response, always_on_knowledge):
+            def score_batch(
+                self, items, retrieved, task_model, instruction_response, always_on_knowledge, *, reasoning_effort=None
+            ):
                 received_items.extend(items)
                 received_retrieved.extend(retrieved)
                 return [("custom_answer", 0.75)] * len(items)
@@ -1004,7 +1006,9 @@ class TestValScorerIntegration:
         """ValScorer path should include retrieval conversation in failed_cases."""
 
         class FailingScorer:
-            def score_batch(self, items, retrieved, task_model, instruction_response, always_on_knowledge):
+            def score_batch(
+                self, items, retrieved, task_model, instruction_response, always_on_knowledge, *, reasoning_effort=None
+            ):
                 return [("episode transcript: FAIL", 0.0)] * len(items)
 
         batch_mock = _make_batch_mock(

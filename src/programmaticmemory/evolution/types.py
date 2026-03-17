@@ -30,6 +30,8 @@ class ValScorer(Protocol):
         task_model: str,
         instruction_response: str,
         always_on_knowledge: str,
+        *,
+        reasoning_effort: str | None = None,
     ) -> list[tuple[str, float]]: ...
 
 

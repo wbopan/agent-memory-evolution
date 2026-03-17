@@ -70,6 +70,7 @@ class EvolutionLoop:
         output_manager: RunOutputManager | None = None,
         eval_strategy: EvalStrategy | None = None,
         freeze_instructions: bool = False,
+        freeze_code: bool = False,
         use_references: bool = True,
         seed_commit_messages: list[str | None] | None = None,
     ) -> None:
@@ -84,6 +85,7 @@ class EvolutionLoop:
         self.output_manager = output_manager
         self.eval_strategy = eval_strategy or FullDataset()
         self.freeze_instructions = freeze_instructions
+        self.freeze_code = freeze_code
         self.use_references = use_references
         self.seed_commit_messages = seed_commit_messages
         self.logger = get_logger()
@@ -238,6 +240,34 @@ class EvolutionLoop:
                 smoke = smoke_test(frozen_source)
                 if not smoke.success:
                     self.logger.log(f"Frozen child failed smoke test: {smoke.error}", header="EVOLUTION")
+                    state.history.append(
+                        EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
+                    )
+                    state.total_iterations = i
+                    continue
+                child = KBProgram(
+                    source_code=frozen_source,
+                    generation=child.generation,
+                    parent_hash=child.parent_hash,
+                )
+
+            # Freeze code structure if requested (GEPA baseline: only instructions evolve)
+            if self.freeze_code:
+                # Swap args: extract instructions from child, graft onto parent's code
+                frozen_source = freeze_instruction_constants(child.source_code, parent.source_code)
+                compile_result = compile_kb_program(frozen_source)
+                if isinstance(compile_result, CompileError):
+                    self.logger.log(
+                        f"Frozen-code child failed compilation: {compile_result.message}", header="EVOLUTION"
+                    )
+                    state.history.append(
+                        EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
+                    )
+                    state.total_iterations = i
+                    continue
+                smoke = smoke_test(frozen_source)
+                if not smoke.success:
+                    self.logger.log(f"Frozen-code child failed smoke test: {smoke.error}", header="EVOLUTION")
                     state.history.append(
                         EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                     )
