@@ -319,6 +319,39 @@ from programmaticmemory.evolution.evaluator import ExactMatchScorer  # noqa: E40
 from programmaticmemory.evolution.types import DataItem, Dataset  # noqa: E402
 
 
+def _expected_from_eval(eval_cfg: dict) -> str:
+    """Derive a human-readable expected answer from the WebArena eval config.
+
+    This surfaces the ground-truth signal (reference answer, URL pattern, or
+    program_html conditions) in the ``<expected>`` field of the reflection prompt,
+    so the reflector can compare the agent's output against the actual success
+    criteria rather than just seeing "Task completed successfully".
+    """
+    eval_types = eval_cfg.get("eval_types", [])
+    ref = eval_cfg.get("reference_answers", {})
+    parts: list[str] = []
+
+    if "string_match" in eval_types and ref:
+        exact = ref.get("exact_match", "")
+        if exact:
+            parts.append(f"Expected answer: {exact}")
+        must = ref.get("must_include", [])
+        if must:
+            parts.append(f"Must include: {must}")
+
+    if "url_match" in eval_types:
+        url = eval_cfg.get("reference_url", "")
+        if url:
+            parts.append(f"URL must match: {url}")
+
+    if "program_html" in eval_types:
+        programs = eval_cfg.get("program_html", [])
+        if programs:
+            parts.append(f"Page must satisfy {len(programs)} HTML check(s)")
+
+    return "; ".join(parts) if parts else "Task completed successfully (reward=1.0)"
+
+
 @register_dataset("webarena")
 def load_webarena(
     *, category: str | None = None, seed: int = 42, traces_path: str | Path | None = None, **kwargs
@@ -371,11 +404,17 @@ def load_webarena(
 
         task_id = int(cfg.get("task_id", 0))
         intent = cfg.get("intent", "")
+        eval_cfg = cfg.get("eval", {})
 
         metadata = {
             "task_id": task_id,
             "sites": sites,
+            "eval": eval_cfg,
         }
+
+        # Build a meaningful expected_answer from the eval config so the
+        # reflection prompt can compare agent output vs. ground truth.
+        expected = _expected_from_eval(eval_cfg)
 
         if task_id in traced_task_ids:
             raw_text = trace_by_id.get(task_id, "")
@@ -385,7 +424,7 @@ def load_webarena(
                 DataItem(
                     raw_text="",
                     question=intent,
-                    expected_answer="Task completed successfully (reward=1.0)",
+                    expected_answer=expected,
                     metadata=metadata,
                 )
             )
@@ -623,6 +662,20 @@ def _run_episode(
                 pass
     except Exception as exc:
         trajectory_lines.append(f"Episode error: {exc}")
+
+    # Append terminal summary so the reflection prompt can see what the agent
+    # answered and whether it matched expectations.
+    agent_answer = ""
+    for line in reversed(trajectory_lines):
+        m = re.search(r'send_msg_to_user\(["\'](.+?)["\']\)', line)
+        if m:
+            agent_answer = m.group(1)
+            break
+    if agent_answer:
+        trajectory_lines.append(f"AGENT_ANSWER: {agent_answer}")
+    else:
+        trajectory_lines.append("AGENT_ANSWER: (never called send_msg_to_user)")
+    trajectory_lines.append(f"REWARD: {reward:.1f}")
 
     return ("\n".join(trajectory_lines), reward)
 
