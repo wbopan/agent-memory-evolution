@@ -4,6 +4,27 @@ import os
 from typing import Any, Literal
 
 
+def _patch_cache_preset_key_bug() -> None:
+    """Monkey-patch litellm Cache.get_cache_key to avoid 'multiple values for preset_cache_key' bug.
+
+    litellm passes **kwargs to _set_preset_cache_key_in_kwargs, but kwargs may already contain
+    preset_cache_key from a prior call, causing a TypeError. We pop it before the call.
+    See: https://github.com/BerriAI/litellm/issues/XXXX
+    """
+    from litellm.caching.caching import Cache
+
+    _original_get_cache_key = Cache.get_cache_key
+
+    def _patched_get_cache_key(self: Any, **kwargs: Any) -> str:
+        kwargs.pop("preset_cache_key", None)
+        return _original_get_cache_key(self, **kwargs)
+
+    Cache.get_cache_key = _patched_get_cache_key  # type: ignore[method-assign]
+
+
+_patch_cache_preset_key_bug()
+
+
 def configure_cache(
     backend: Literal["disk", "r2", "redis", "s3"] = "redis",
     **kwargs: Any,
