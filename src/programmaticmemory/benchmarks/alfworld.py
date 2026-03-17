@@ -384,7 +384,13 @@ def _probe_game_isolated(game_file: str) -> bool:
 
 
 def _run_episode(
-    game_file: str, objective: str, tips: str, task_model: str, max_steps: int, always_on_knowledge: str = ""
+    game_file: str,
+    objective: str,
+    tips: str,
+    task_model: str,
+    max_steps: int,
+    always_on_knowledge: str = "",
+    reasoning_effort: str | None = None,
 ) -> tuple[str, float]:
     """Run a single ALFWorld episode in its own process. Returns (transcript, score).
 
@@ -442,7 +448,14 @@ def _run_episode(
                 inventory = str(inv) if inv else ""
 
             action = _select_action(
-                objective, tips, "\n".join(trajectory_lines), inventory, admissible, task_model, always_on_knowledge
+                objective,
+                tips,
+                "\n".join(trajectory_lines),
+                inventory,
+                admissible,
+                task_model,
+                always_on_knowledge,
+                reasoning_effort=reasoning_effort,
             )
             trajectory_lines.append(f"ACTION: {action}")
 
@@ -478,6 +491,8 @@ def _select_action(
     admissible: list[str],
     task_model: str,
     always_on_knowledge: str = "",
+    *,
+    reasoning_effort: str | None = None,
 ) -> str:
     """Use LLM to select the next action from admissible commands."""
     lines = [
@@ -517,11 +532,15 @@ def _select_action(
 
     prompt = "\n".join(lines)
 
+    extra: dict = {}
+    if reasoning_effort is not None:
+        extra["reasoning_effort"] = reasoning_effort
     resp = litellm.completion(
         model=task_model,
         messages=[{"role": "user", "content": prompt}],
         max_tokens=64,
         caching=True,
+        **extra,
     )
     raw = resp.choices[0].message.content.strip()
     return _parse_action_response(raw, admissible)
@@ -547,6 +566,8 @@ class ALFWorldValScorer:
         task_model: str,
         instruction_response: str,
         always_on_knowledge: str = "",
+        *,
+        reasoning_effort: str | None = None,
     ) -> list[tuple[str, float]]:
         """Run one episode per item in parallel, return (transcript, score) pairs."""
         import concurrent.futures
@@ -567,6 +588,7 @@ class ALFWorldValScorer:
                         task_model,
                         self.max_steps,
                         always_on_knowledge,
+                        reasoning_effort,
                     )
                     for item, tips in zip(items, retrieved, strict=True)
                 ]
@@ -588,37 +610,43 @@ def load_alfworld(
     num_train: int | None = None,
     num_val: int | None = None,
     category: str | None = None,
+    eval_split: str = "unseen",
     seed: int = 42,
     data_dir: str | Path | None = None,
 ) -> Dataset:
     """Load ALFWorld benchmark.
 
     Train items come from the train split (structured training text as raw_text).
-    Val items come from valid_unseen split (task objectives with game_file metadata).
+    Val items come from valid_seen or valid_unseen split (task objectives with game_file metadata).
 
     Args:
         num_train: Number of training items.
         num_val: Number of validation items (None = all).
         category: Filter to a specific task type (e.g. "heat", "cool"). None = all.
+        eval_split: Which val split to use: "unseen" (default) or "seen".
         seed: Random seed for shuffling.
         data_dir: Override data directory.
 
     Returns:
         Dataset with ALFWorldValScorer.
     """
+    if eval_split not in ("seen", "unseen"):
+        raise ValueError(f"eval_split must be 'seen' or 'unseen', got {eval_split!r}")
+
     dest_dir = ensure_data(data_dir)
     json_dir = dest_dir / "json_2.1.1"
 
     # Load pre-computed expert trajectories (if available)
     train_trajectories = _load_trajectories(dest_dir, "train")
-    val_trajectories = _load_trajectories(dest_dir, "valid_unseen")
 
     # Parse train split for training items (with raw_text)
     train_dir = json_dir / "train"
     train_typed = _parse_trials(train_dir, for_train=True, trajectories=train_trajectories)
 
-    # Parse valid_unseen split for val items (with metadata)
-    valid_dir = json_dir / "valid_unseen"
+    # Parse val split
+    val_split_name = f"valid_{eval_split}"
+    val_trajectories = _load_trajectories(dest_dir, val_split_name)
+    valid_dir = json_dir / val_split_name
     val_typed = _parse_trials(valid_dir, for_train=False, trajectories=val_trajectories)
 
     # Available categories: union of task types from both splits

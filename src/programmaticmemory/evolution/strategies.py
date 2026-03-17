@@ -32,6 +32,36 @@ def _subset_train_for_eval(
     return [train[i] for i in indices]
 
 
+class NoEval:
+    """Skip per-iteration evaluation entirely. Only run test evaluation.
+
+    Use with ``--iterations 0`` for baselines where only the held-out test
+    score matters and seed-eval cost should be zero.
+    """
+
+    def __init__(self, test_train_ratio: int = -1) -> None:
+        self._test_train_ratio = test_train_ratio
+
+    def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
+        return [], []
+
+    def final_candidates(self, pool: ProgramPool) -> list[PoolEntry]:
+        return [pool.best]
+
+    def final_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        return None
+
+    def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
+        if not dataset.test:
+            return None
+        train = (
+            _subset_train_for_eval(dataset.train, dataset.test, self._test_train_ratio)
+            if self._test_train_ratio > 0
+            else dataset.train
+        )
+        return train, dataset.test
+
+
 class FullDataset:
     """Every iteration uses the full dataset. No final revalidation needed."""
 
@@ -168,7 +198,10 @@ class SplitValidation:
         # Pre-embed rotate pool for k-means sampling
         if self._rotate_pool:
             rotate_texts = [dataset.val[i].question for i in self._rotate_pool]
-            self._rotate_embs = _embed_texts(rotate_texts, model=embedding_model)
+            try:
+                self._rotate_embs = _embed_texts(rotate_texts, model=embedding_model)
+            except Exception:
+                self._rotate_embs = None
         else:
             self._rotate_embs = None
 
