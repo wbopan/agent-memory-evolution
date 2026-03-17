@@ -35,10 +35,10 @@ uv run python -m programmaticmemory.evolution --iterations 3 num_items=10
 # Run on mini_locomo (fast, single conversation, TokenF1Scorer)
 uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations 3 --no-weave
 # Benchmark-specific kwargs passed as positional key=value args
-# --eval-strategy full|representative|rotating (default: representative)
-# --eval-val-size N val subset size for representative/rotating (default: 30)
+# --eval-strategy full|split (default: split)
+# --eval-rotate-size N rotating val subset size (default: 15)
+# --eval-static-size N static val subset size (default: 5)
 # --eval-train-ratio N train items per val item (default: 5)
-# --eval-top-k N candidates for final revalidation in rotating (default: 3)
 # Weave/wandb tracing is ON by default; disable with --no-weave
 # --seed 42 (default), --weave-project programmaticmemory (default)
 # --dataset locomo/tau_bench/alfworld/mini_locomo for other benchmarks
