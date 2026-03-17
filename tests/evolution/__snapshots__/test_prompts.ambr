@@ -265,18 +265,47 @@
   Respond with the JSON only.
   '''
 # ---
+# name: TestBuildLineageLog.test_one_parent_three_children
+  '''
+  Lineage: seed_0 has no ancestors and 3 children (iter_1, iter_2, iter_3).
+  
+  ## Current — you are improving this
+  * current: seed_0  score=0.200
+    Title: Baseline
+    - Simple empty read
+  
+  
+  ## Children — mutations already tried from this program
+  commit iter_1  score=0.150 (Δ-0.050) ← REGRESSION  (parent: seed_0)
+    Title: Variant 0
+    - Change 0
+  
+  commit iter_2  score=0.250 (Δ+0.050)  (parent: seed_0)
+    Title: Variant 1
+    - Change 1
+  
+  commit iter_3  score=0.300 (Δ+0.100)  (parent: seed_0)
+    Title: Variant 2
+    - Change 2
+  
+  '''
+# ---
 # name: TestBuildLineageLog.test_snapshot
   '''
+  Lineage: seed_0 has no ancestors and 2 children (iter_1, iter_4).
   
-  * current: c0617023a8818a67 (seed_0) score=0.289  ← you are improving this
+  ## Current — you are improving this
+  * current: seed_0  score=0.289
     Title: LLM query-focused summarizer
     - Uses toolkit.llm_completion() in read()
   
-  commit 5d3d240240d24c46 (iter_1) score=0.171 (Δ-0.118) ← REGRESSION
+  
+  ## Children — mutations already tried from this program
+  commit iter_1  score=0.171 (Δ-0.118) ← REGRESSION  (parent: seed_0)
     Title: Replace LLM with token overlap
     - Removed llm_completion from read()
   
-  commit 6eb56dbd3e2d81c7 (iter_4) score=0.310 (Δ+0.021)
+  commit iter_4  score=0.310 (Δ+0.021)  (parent: seed_0)
     Title: Improve LLM prompt
     - Tuned summarization prompt for precision
   
@@ -835,7 +864,7 @@
   
   <evaluation_score>0.289</evaluation_score>
   
-  The following is the evolution history of the current program's lineage. Each entry shows what was changed, what functions were added/removed, and the resulting score. Pay close attention to REGRESSION markers — these indicate changes that hurt performance. Do NOT repeat changes that previously caused regressions.
+  The following is the evolution history of the current program's lineage. It shows the current program, any ancestors it evolved from, and any child mutations already attempted. Pay close attention to REGRESSION markers — these indicate changes that hurt performance. Do NOT repeat changes that previously caused regressions.
   
   <lineage_log>
   commit abc123 (seed_0) score=0.289
@@ -2055,20 +2084,24 @@
   
   <evaluation_score>0.289</evaluation_score>
   
-  The following is the evolution history of the current program's lineage. Each entry shows what was changed, what functions were added/removed, and the resulting score. Pay close attention to REGRESSION markers — these indicate changes that hurt performance. Do NOT repeat changes that previously caused regressions.
+  The following is the evolution history of the current program's lineage. It shows the current program, any ancestors it evolved from, and any child mutations already attempted. Pay close attention to REGRESSION markers — these indicate changes that hurt performance. Do NOT repeat changes that previously caused regressions.
   
   <lineage_log>
+  Lineage: seed_0 has no ancestors and 2 children (iter_1, iter_4).
   
-  * current: e858087160ed8dd1 (seed_0) score=0.289  ← you are improving this
+  ## Current — you are improving this
+  * current: seed_0  score=0.289
     Title: LLM query-focused summarizer
     - Stores raw text, uses toolkit.llm_completion() in read() for query-focused summarization
   
-  commit d2e07d632337f8c3 (iter_1) score=0.171 (Δ-0.118) ← REGRESSION
+  
+  ## Children — mutations already tried from this program
+  commit iter_1  score=0.171 (Δ-0.118) ← REGRESSION  (parent: seed_0)
     Title: Replace LLM with token overlap
     - Removed toolkit.llm_completion() to avoid hallucination, added deterministic token overlap
     + KnowledgeBase._token_overlap()
   
-  commit 231b46c77b8f3271 (iter_4) score=0.310 (Δ+0.021)
+  commit iter_4  score=0.310 (Δ+0.021)  (parent: seed_0)
     Title: Improve LLM summarization prompt
     - Tuned the LLM prompt for more precise, factual summarization
   </lineage_log>
@@ -2097,17 +2130,21 @@
 # ---
 # name: TestLineageLogEndToEnd.test_lineage_log_snapshot
   '''
+  Lineage: seed_0 has no ancestors and 2 children (iter_1, iter_4).
   
-  * current: e858087160ed8dd1 (seed_0) score=0.289  ← you are improving this
+  ## Current — you are improving this
+  * current: seed_0  score=0.289
     Title: LLM query-focused summarizer
     - Stores raw text, uses toolkit.llm_completion() in read() for query-focused summarization
   
-  commit d2e07d632337f8c3 (iter_1) score=0.171 (Δ-0.118) ← REGRESSION
+  
+  ## Children — mutations already tried from this program
+  commit iter_1  score=0.171 (Δ-0.118) ← REGRESSION  (parent: seed_0)
     Title: Replace LLM with token overlap
     - Removed toolkit.llm_completion() to avoid hallucination, added deterministic token overlap
     + KnowledgeBase._token_overlap()
   
-  commit 231b46c77b8f3271 (iter_4) score=0.310 (Δ+0.021)
+  commit iter_4  score=0.310 (Δ+0.021)  (parent: seed_0)
     Title: Improve LLM summarization prompt
     - Tuned the LLM prompt for more precise, factual summarization
   

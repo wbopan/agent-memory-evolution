@@ -524,7 +524,7 @@ class TestBuildLineageLog:
         pool, seed_entry = self._make_pool_with_lineage()
         log = build_lineage_log(pool, seed_entry)
         assert "* current:" in log
-        assert seed_entry.program.hash in log
+        assert "seed_0" in log
 
     def test_shows_children(self):
         pool, seed_entry = self._make_pool_with_lineage()
@@ -552,6 +552,43 @@ class TestBuildLineageLog:
     def test_snapshot(self, snapshot):
         pool, seed_entry = self._make_pool_with_lineage()
         log = build_lineage_log(pool, seed_entry)
+        assert log == snapshot
+
+    def test_has_section_headers(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "## Current" in log
+        assert "## Children" in log
+        assert "## Ancestors" not in log  # seed has no ancestors
+
+    def test_has_summary_line(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "Lineage:" in log
+        assert "no ancestors" in log
+        assert "2 children" in log
+
+    def test_children_have_parent_ref(self):
+        pool, seed_entry = self._make_pool_with_lineage()
+        log = build_lineage_log(pool, seed_entry)
+        assert "(parent: seed_0)" in log
+
+    def test_one_parent_three_children(self, snapshot):
+        pool = ProgramPool(strategy=SoftmaxSelection(temperature=0.15))
+        seed = KBProgram(source_code="def read(): return ''")
+        pool.add(seed, EvalResult(score=0.200), name="seed_0", commit_message="Title: Baseline\n- Simple empty read")
+        for i, (score, name) in enumerate([(0.150, "iter_1"), (0.250, "iter_2"), (0.300, "iter_3")]):
+            child = KBProgram(source_code=f"def read(): return 'v{i}'", generation=1, parent_hash=seed.hash)
+            pool.add(child, EvalResult(score=score), name=name, commit_message=f"Title: Variant {i}\n- Change {i}")
+        log = build_lineage_log(pool, pool.entries[0])
+        assert "* current: seed_0" in log
+        assert "## Children" in log
+        assert "iter_1" in log and "iter_2" in log and "iter_3" in log
+        assert "REGRESSION" in log  # iter_1 regressed from 0.200
+        assert "## Ancestors" not in log
+        assert "Lineage:" in log
+        assert "(parent: seed_0)" in log
+        assert "3 children" in log
         assert log == snapshot
 
 

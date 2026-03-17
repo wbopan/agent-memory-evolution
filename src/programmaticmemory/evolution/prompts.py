@@ -341,7 +341,7 @@ If the current program has a unique pattern absent from lower-scoring references
     if lineage_log:
         lineage_section = f"""
 The following is the evolution history of the current program's lineage. \
-Each entry shows what was changed, what functions were added/removed, and the resulting score. \
+It shows the current program, any ancestors it evolved from, and any child mutations already attempted. \
 Pay close attention to REGRESSION markers — these indicate changes that hurt performance. \
 Do NOT repeat changes that previously caused regressions.
 
@@ -412,7 +412,7 @@ to store and retrieve more useful information for the task agent.
 
 
 def build_lineage_log(pool: ProgramPool, entry: PoolEntry) -> str:
-    """Build a git-log-style lineage history for a program entry."""
+    """Build a structured lineage history for a program entry with labeled sections."""
     hash_to_entry = {e.program.hash: e for e in pool.entries}
 
     # Walk ancestor chain upward
@@ -429,20 +429,30 @@ def build_lineage_log(pool: ProgramPool, entry: PoolEntry) -> str:
 
     lines: list[str] = []
 
-    def _format_entry(e: PoolEntry, parent_entry: PoolEntry | None, is_current: bool = False) -> None:
-        if is_current:
-            lines.append(f"\n* current: {e.program.hash} ({e.name}) score={e.score:.3f}  \u2190 you are improving this")
-            msg = e.commit_message or "Initial seed program"
-            for msg_line in msg.splitlines():
-                lines.append(f"  {msg_line}")
-            lines.append("")
-            return
-        header = f"commit {e.program.hash} ({e.name}) score={e.score:.3f}"
+    # --- Summary line ---
+    parts = []
+    if ancestors:
+        anc_names = ", ".join(a.name for a in ancestors)
+        parts.append(f"{len(ancestors)} ancestor{'s' if len(ancestors) != 1 else ''} ({anc_names})")
+    else:
+        parts.append("no ancestors")
+    if children:
+        ch_names = ", ".join(c.name for c in children)
+        parts.append(f"{len(children)} {'children' if len(children) != 1 else 'child'} ({ch_names})")
+    else:
+        parts.append("no children yet")
+    lines.append(f"Lineage: {entry.name} has {' and '.join(parts)}.")
+    lines.append("")
+
+    def _format_commit(e: PoolEntry, parent_entry: PoolEntry | None, *, show_parent_ref: bool = False) -> None:
+        header = f"commit {e.name}  score={e.score:.3f}"
         if parent_entry is not None:
             delta = e.score - parent_entry.score
             header += f" (\u0394{delta:+.3f})"
             if delta < 0:
                 header += " \u2190 REGRESSION"
+        if show_parent_ref and parent_entry is not None:
+            header += f"  (parent: {parent_entry.name})"
         lines.append(header)
         msg = e.commit_message or "Initial seed program"
         for msg_line in msg.splitlines():
@@ -455,15 +465,34 @@ def build_lineage_log(pool: ProgramPool, entry: PoolEntry) -> str:
                 lines.append(f"  - {', '.join(f'{n}()' for n in removed)}")
         lines.append("")
 
-    prev: PoolEntry | None = None
-    for anc in ancestors:
-        _format_entry(anc, prev)
-        prev = anc
+    # --- Ancestors section ---
+    if ancestors:
+        lines.append("## Ancestors \u2014 programs this evolved from (oldest first)")
+        prev: PoolEntry | None = None
+        for anc in ancestors:
+            _format_commit(anc, prev)
+            prev = anc
+        lines.append("")
 
-    _format_entry(entry, prev, is_current=True)
+    # --- Current section ---
+    lines.append("## Current \u2014 you are improving this")
+    parent_of_current = ancestors[-1] if ancestors else None
+    header = f"* current: {entry.name}  score={entry.score:.3f}"
+    if parent_of_current is not None:
+        delta = entry.score - parent_of_current.score
+        header += f" (\u0394{delta:+.3f} from {parent_of_current.name})"
+    lines.append(header)
+    msg = entry.commit_message or "Initial seed program"
+    for msg_line in msg.splitlines():
+        lines.append(f"  {msg_line}")
+    lines.append("")
 
-    for child in children:
-        _format_entry(child, entry)
+    # --- Children section ---
+    if children:
+        lines.append("")
+        lines.append("## Children \u2014 mutations already tried from this program")
+        for child in children:
+            _format_commit(child, entry, show_parent_ref=True)
 
     return "\n".join(lines)
 
