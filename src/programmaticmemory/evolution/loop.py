@@ -48,6 +48,7 @@ def _serialize_failed_cases(failed_cases: list[FailedCase]) -> list[dict]:
             "output": fc.output,
             "expected": fc.expected,
             "score": fc.score,
+            "conversation_history": fc.conversation_history,
             "memory_logs": fc.memory_logs,
         }
         for fc in failed_cases
@@ -221,6 +222,16 @@ class EvolutionLoop:
                     EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                 )
                 state.total_iterations = i
+                if self.tracker:
+                    self.tracker.log_metrics(
+                        {
+                            "score": parent_entry.score,
+                            "best_score": state.best_score,
+                            "pool_size": len(pool),
+                            "skipped": True,
+                        },
+                        iteration=i,
+                    )
                 continue
 
             child = result.program
@@ -236,6 +247,16 @@ class EvolutionLoop:
                         EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                     )
                     state.total_iterations = i
+                    if self.tracker:
+                        self.tracker.log_metrics(
+                            {
+                                "score": parent_entry.score,
+                                "best_score": state.best_score,
+                                "pool_size": len(pool),
+                                "skipped": True,
+                            },
+                            iteration=i,
+                        )
                     continue
                 smoke = smoke_test(frozen_source)
                 if not smoke.success:
@@ -244,6 +265,16 @@ class EvolutionLoop:
                         EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                     )
                     state.total_iterations = i
+                    if self.tracker:
+                        self.tracker.log_metrics(
+                            {
+                                "score": parent_entry.score,
+                                "best_score": state.best_score,
+                                "pool_size": len(pool),
+                                "skipped": True,
+                            },
+                            iteration=i,
+                        )
                     continue
                 child = KBProgram(
                     source_code=frozen_source,
@@ -264,6 +295,16 @@ class EvolutionLoop:
                         EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                     )
                     state.total_iterations = i
+                    if self.tracker:
+                        self.tracker.log_metrics(
+                            {
+                                "score": parent_entry.score,
+                                "best_score": state.best_score,
+                                "pool_size": len(pool),
+                                "skipped": True,
+                            },
+                            iteration=i,
+                        )
                     continue
                 smoke = smoke_test(frozen_source)
                 if not smoke.success:
@@ -272,6 +313,16 @@ class EvolutionLoop:
                         EvolutionRecord(iteration=i, program=parent, score=parent_entry.score, parent_hash=parent.hash)
                     )
                     state.total_iterations = i
+                    if self.tracker:
+                        self.tracker.log_metrics(
+                            {
+                                "score": parent_entry.score,
+                                "best_score": state.best_score,
+                                "pool_size": len(pool),
+                                "skipped": True,
+                            },
+                            iteration=i,
+                        )
                     continue
                 child = KBProgram(
                     source_code=frozen_source,

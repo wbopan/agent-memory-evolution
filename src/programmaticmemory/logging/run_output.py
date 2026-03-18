@@ -192,8 +192,8 @@ class RunOutputManager:
             program_path = programs_dir / f"{name}.py"
             program_path.write_text(header + source_code, encoding="utf-8")
             get_logger().log(f"Saved program ({label}) → {program_path}", header="OUTPUT")
-        except Exception:
-            pass  # logging must never crash the evolution loop
+        except Exception as e:
+            get_logger().log(f"Failed to save program to disk: {e}", header="OUTPUT")
 
     def _iter_dir(self, iteration: int) -> Path:
         """Return (and create) the llm_calls/iter_N/ directory for the given iteration."""
@@ -210,8 +210,8 @@ class RunOutputManager:
             out_path = self._iter_dir(iteration) / "failed_cases.json"
             out_path.write_text(json.dumps(cases, indent=2, default=str), encoding="utf-8")
             get_logger().log(f"Saved {len(cases)} failed cases → {out_path}", header="OUTPUT")
-        except Exception:
-            pass  # logging must never crash the evolution loop
+        except Exception as e:
+            get_logger().log(f"Failed to save failed cases to disk: {e}", header="OUTPUT")
 
     def write_eval_cases(self, label: str, cases: list[dict]) -> None:
         """Save evaluation cases to llm_calls/{label}/failed_cases.json.
@@ -226,8 +226,8 @@ class RunOutputManager:
             out_path = d / "failed_cases.json"
             out_path.write_text(json.dumps(cases, indent=2, default=str), encoding="utf-8")
             get_logger().log(f"Saved {len(cases)} failed cases → {out_path}", header="OUTPUT")
-        except Exception:
-            pass
+        except Exception as e:
+            get_logger().log(f"Failed to save eval cases to disk: {e}", header="OUTPUT")
 
     def get_log_path(self) -> Path:
         """Return the path for the run's log file."""

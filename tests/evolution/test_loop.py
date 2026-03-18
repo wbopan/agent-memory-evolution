@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
@@ -11,7 +11,7 @@ from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvalu
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import ReflectionResult, Reflector
-from programmaticmemory.evolution.sandbox import compile_kb_program
+from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program
 from programmaticmemory.evolution.strategies import FullDataset, RotatingBatch
 from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, KBProgram
 
@@ -147,6 +147,35 @@ class TestEvolutionLoop:
         assert reflector.reflect_and_mutate.call_count == 2
         assert state.total_iterations == 2
         assert len(state.pool) == 1  # No children added
+
+    def test_reflection_failure_skips_iteration_and_logs_tracker(self):
+        """Skipped iterations should be logged with skipped=True in tracker metrics."""
+        dataset = _make_dataset()
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.return_value = EvalResult(score=0.5, failed_cases=[])
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = None
+        tracker = MagicMock()
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=dataset,
+            max_iterations=2,
+            tracker=tracker,
+        )
+        loop.run()
+
+        assert tracker.log_metrics.call_count >= 3
+        tracker.log_metrics.assert_any_call(
+            {
+                "score": 0.5,
+                "best_score": 0.5,
+                "pool_size": 1,
+                "skipped": True,
+            },
+            iteration=1,
+        )
 
     def test_stop_condition_halts_loop(self):
         """Stop condition should terminate the loop early."""
@@ -543,6 +572,77 @@ class TestFreezeInstructions:
         parent_compiled = compile_kb_program(INITIAL_KB_PROGRAM)
         assert child_compiled.instruction_knowledge_item == parent_compiled.instruction_knowledge_item
         assert "CHANGED BY REFLECTOR" not in children[0].program.source_code
+
+
+class TestLoopSkipMetrics:
+    @patch("programmaticmemory.evolution.loop.compile_kb_program")
+    def test_freeze_instructions_failure_logs_skipped(self, mock_compile):
+        """freeze_instructions compile failure should be logged as skipped iteration."""
+        mock_compile.return_value = CompileError("Compile failed", "bad patch")
+
+        child = KBProgram(source_code="child", generation=1)
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.side_effect = [
+            EvalResult(score=0.5, failed_cases=[]),
+            EvalResult(score=0.7, failed_cases=[]),
+        ]
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
+        reflector.max_fix_attempts = 3
+        tracker = MagicMock()
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=_make_dataset(),
+            max_iterations=1,
+            tracker=tracker,
+            freeze_instructions=True,
+        )
+        loop.run()
+
+        tracker.log_metrics.assert_any_call(
+            {
+                "score": 0.5,
+                "best_score": 0.5,
+                "pool_size": 1,
+                "skipped": True,
+            },
+            iteration=1,
+        )
+
+    @patch("programmaticmemory.evolution.loop.compile_kb_program")
+    def test_freeze_code_failure_logs_skipped(self, mock_compile):
+        """freeze_code compile failure should be logged as skipped iteration."""
+        mock_compile.return_value = CompileError("Compile failed", "bad patch")
+
+        child = KBProgram(source_code=INITIAL_KB_PROGRAM, generation=1)
+        evaluator = MagicMock(spec=MemoryEvaluator)
+        evaluator.evaluate.return_value = EvalResult(score=0.5, failed_cases=[])
+        reflector = MagicMock(spec=Reflector)
+        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
+        reflector.max_fix_attempts = 3
+        tracker = MagicMock()
+
+        loop = EvolutionLoop(
+            evaluator=evaluator,
+            reflector=reflector,
+            dataset=_make_dataset(),
+            max_iterations=1,
+            tracker=tracker,
+            freeze_code=True,
+        )
+        loop.run()
+
+        tracker.log_metrics.assert_any_call(
+            {
+                "score": 0.5,
+                "best_score": 0.5,
+                "pool_size": 1,
+                "skipped": True,
+            },
+            iteration=1,
+        )
 
 
 class TestExtraScorers:

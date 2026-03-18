@@ -367,6 +367,52 @@ class KnowledgeBase:
         assert "Preserve the behavior" in user_content
         assert captured_messages == snapshot
 
+    @patch("programmaticmemory.evolution.reflector.apply_patch")
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_reflect_and_mutate_empty_choices_returns_none(
+        self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch
+    ):
+        """Empty response choices return None with safe handling."""
+        mock_apply_patch.return_value = "class KnowledgeBase: pass"
+        mock_compile.return_value = MagicMock()
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        mock_litellm.completion.return_value = MagicMock(choices=[])
+
+        reflector = Reflector(model="mock/model")
+        result = reflector.reflect_and_mutate(
+            KBProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert result is None
+
+    @patch("programmaticmemory.evolution.reflector.apply_patch")
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_reflect_and_mutate_none_content_returns_none(
+        self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch
+    ):
+        """None response content returns None with safe handling."""
+        mock_apply_patch.return_value = "class KnowledgeBase: pass"
+        mock_compile.return_value = MagicMock()
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        mock_litellm.completion.return_value = MagicMock(choices=[MagicMock(message=MagicMock(content=None))])
+
+        reflector = Reflector(model="mock/model")
+        result = reflector.reflect_and_mutate(
+            KBProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert result is None
+
 
 class TestReflectorCompileFixLoop:
     _PATCH_RESPONSE = "*** Begin Patch\n*** Update File: program.py\n@@ change\n-old\n+new\n*** End Patch"

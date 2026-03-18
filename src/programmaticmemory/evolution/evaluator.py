@@ -459,6 +459,11 @@ class MemoryEvaluator:
                 fail_count += 1
 
         self.logger.log(f"Train: write phase complete — {write_count} written, {fail_count} failed", header="EVAL")
+        if fail_count > 0:
+            self.logger.log(
+                f"WARNING: {fail_count}/{fail_count + write_count} train items failed — KB partially populated",
+                header="EVAL",
+            )
         return train_examples, logs
 
     def _evaluate_offline(
@@ -566,6 +571,7 @@ class MemoryEvaluator:
         """Online train batched: 3 rounds of batch_completion, then serial writes."""
         if not train_data:
             return []
+        fail_count = 0
 
         # Round 1: query generation for all items
         round1_messages = [
@@ -604,6 +610,7 @@ class MemoryEvaluator:
         for (i, _s), r2_msgs, answer in zip(valid, round2_messages, round2_responses, strict=True):
             if answer is None:
                 logs.append("Train answer generation failed (batch error)")
+                fail_count += 1
                 continue
             score = self.scorer(answer, train_data[i].expected_answer)
             evaluation_result = f"Score: {score:.1f} ({'correct' if score >= 1.0 else 'incorrect'})"
@@ -632,6 +639,7 @@ class MemoryEvaluator:
         ):
             if ki_content is None:
                 logs.append("Train knowledge item generation failed (batch error)")
+                fail_count += 1
                 continue
             if len(train_examples) < 3:
                 train_examples.append(TrainExample(messages=[*r3_msgs, {"role": "assistant", "content": ki_content}]))
@@ -642,6 +650,18 @@ class MemoryEvaluator:
                 raise
             except Exception as e:
                 logs.append(f"Train knowledge item parse/write failed: {e}")
+                fail_count += 1
+
+        if fail_count > 0:
+            write_count = len(train_examples)
+            self.logger.log(
+                f"Train: write phase complete — {write_count} written, {fail_count} failed",
+                header="EVAL",
+            )
+            self.logger.log(
+                f"WARNING: {fail_count}/{fail_count + write_count} train items failed — KB partially populated",
+                header="EVAL",
+            )
 
         return train_examples
 
@@ -754,6 +774,7 @@ class MemoryEvaluator:
             query_prompt, query_json, query = p
             result = read_results.get(i)
             if isinstance(result, Exception):
+                self.logger.log(f"{log_prefix} kb.read() raised {type(result).__name__}: {result}", header="EVAL")
                 retrieved_str = f"Read error: {result}"
                 logs.append(f"{log_prefix} read failed: {result}")
             elif result is None:
@@ -923,6 +944,11 @@ class MemoryEvaluator:
 
             if answer is None:
                 logs.append("Val answer generation failed (batch error)")
+                conv = [
+                    {"role": "user", "content": slot.query_prompt},
+                    {"role": "assistant", "content": slot.query_json},
+                    {"role": "user", "content": slot.retrieved_prompt},
+                ]
                 scores.append(0.0)
                 outputs.append("")
                 failed_cases.append(
@@ -931,6 +957,7 @@ class MemoryEvaluator:
                         output="",
                         expected=item.expected_answer,
                         score=0.0,
+                        conversation_history=conv,
                         memory_logs=log_snapshot,
                     )
                 )
@@ -1047,6 +1074,7 @@ class MemoryEvaluator:
             header="DEBUG",
         )
         t_submit = _time.monotonic()
+        fail_count = 0
         futures = [
             pool.submit(
                 litellm.completion,
@@ -1106,12 +1134,15 @@ class MemoryEvaluator:
                         results[idx] = resp.choices[0].message.content
                     except Exception as exc:
                         self.logger.log(f"Batch LLM call failed (idx={idx}): {exc}", header="EVAL")
+                        fail_count += 1
                     completed += 1
                     last_progress_time = _time.monotonic()
                     progress.advance(task)
             finally:
                 stall_stop.set()
                 watcher.join(timeout=1.0)
+        if fail_count > 0:
+            self.logger.log(f"{label}: {fail_count}/{len(futures)} calls failed", header="EVAL")
         self.logger.log(
             f"{label}: all {len(futures)} calls completed in {_time.monotonic() - t_submit:.1f}s",
             header="DEBUG",

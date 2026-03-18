@@ -98,6 +98,9 @@ class Reflector:
             caching=True,
             reasoning_effort="high",
         )
+        if not response.choices or response.choices[0].message.content is None:
+            self.logger.log("LLM returned empty/None response", header="REFLECT")
+            return None
         output = response.choices[0].message.content
 
         patch = _extract_patch(output)
@@ -106,8 +109,8 @@ class Reflector:
 
         try:
             return apply_patch(code, patch)
-        except RuntimeError:
-            self.logger.log("Failed to apply patch from fix LLM", header="REFLECT")
+        except Exception as exc:
+            self.logger.log(f"Failed to apply patch from fix LLM: {exc}", header="REFLECT")
             return None
 
     @weave.op()
@@ -176,6 +179,9 @@ class Reflector:
             caching=True,
             reasoning_effort="high",
         )
+        if not response.choices or response.choices[0].message.content is None:
+            self.logger.log("LLM returned empty/None response", header="REFLECT")
+            return None
         output = response.choices[0].message.content
 
         # Extract commit message once (used by both return paths)
@@ -189,7 +195,7 @@ class Reflector:
 
         try:
             new_code = apply_patch(current.source_code, patch)
-        except RuntimeError as exc:
+        except Exception as exc:
             self.logger.log(f"Failed to apply patch: {exc}", header="REFLECT")
             return None
 

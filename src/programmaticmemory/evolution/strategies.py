@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import random
+
 import numpy as np
 
 from programmaticmemory.evolution.batching import (
@@ -201,6 +203,12 @@ class SplitValidation:
             try:
                 self._rotate_embs = _embed_texts(rotate_texts, model=embedding_model)
             except Exception:
+                from programmaticmemory.logging.logger import get_logger
+
+                get_logger().log(
+                    f"Rotate pool embedding failed, falling back to random sampling ({len(self._rotate_pool)} items)",
+                    header="CONFIG",
+                )
                 self._rotate_embs = None
         else:
             self._rotate_embs = None
@@ -213,11 +221,18 @@ class SplitValidation:
 
     def select_reflection_val(self, dataset: Dataset, iteration: int) -> list[DataItem]:
         """Return rotate val items for reflection (k-means sampled, varies by iteration)."""
-        if not self._rotate_pool or self._rotate_embs is None:
+        if not self._rotate_pool:
             return []
         k = min(self._rotate_size, len(self._rotate_pool))
         if k >= len(self._rotate_pool):
             return [dataset.val[i] for i in self._rotate_pool]
+
+        # Fallback to random sampling when embeddings are unavailable
+        if self._rotate_embs is None:
+            rng = random.Random(42 + iteration)
+            selected = rng.sample(self._rotate_pool, k)
+            return [dataset.val[i] for i in selected]
+
         # K-means with iteration-varying seed for diverse samples
         labels = _kmeans(self._rotate_embs, k=k, seed=42 + iteration)
         selected: list[int] = []

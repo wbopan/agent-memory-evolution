@@ -717,6 +717,36 @@ class TestEvaluatorEdgeCases:
         assert len(result.failed_cases) == 1
         assert batch_mock.captured_calls == snapshot
 
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_answer_none_includes_retrieval_conversation(self, mock_litellm):
+        """Failure to produce a val answer keeps retrieval-only conversation history."""
+        responses = [
+            {"content": '{"summary": "fact"}'},
+            {"content": '{"raw": "query"}'},
+            {"content": None},
+        ]
+
+        def completion_side_effect(*args, **kwargs):
+            content = responses.pop(0)["content"]
+            resp = MagicMock()
+            resp.choices = [MagicMock()]
+            resp.choices[0].message.content = content
+            return resp
+
+        mock_litellm.completion.side_effect = completion_side_effect
+
+        program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+        train = [DataItem(raw_text="fact", question="q", expected_answer="e")]
+        val = [DataItem(raw_text="x", question="What is it?", expected_answer="fact")]
+
+        evaluator = MemoryEvaluator(task_model="mock/model", toolkit_config=_TEST_TOOLKIT_CONFIG)
+        result = evaluator.evaluate(program, train, val)
+
+        assert len(result.failed_cases) == 1
+        fc = result.failed_cases[0]
+        assert len(fc.conversation_history) == 3
+        assert [m["role"] for m in fc.conversation_history] == ["user", "assistant", "user"]
+
     def test_empty_val_data(self, snapshot: SnapshotAssertion):
         """Empty val data should return score 0 without crashing."""
         program = KBProgram(source_code=INITIAL_KB_PROGRAM)

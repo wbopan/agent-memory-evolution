@@ -318,18 +318,24 @@ def select_representative_subset(
 
     train_texts = [item.raw_text if item.raw_text else item.question for item in train_data]
     if train_texts:
-        logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
-        train_embs = _embed_texts(train_texts, model=embedding_model)
-
-        val_texts_for_embed = [item.question for item in val_data]
-        if val_size < len(val_data):
-            subset_val_embs = val_embs[val_indices]
-        else:
-            val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
-            subset_val_embs = val_embs_full[val_indices]
-
         budget = len(train_data) if train_val_ratio < 0 else train_val_ratio * len(val_indices)
-        train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
+        logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
+        try:
+            train_embs = _embed_texts(train_texts, model=embedding_model)
+
+            val_texts_for_embed = [item.question for item in val_data]
+            if val_size < len(val_data):
+                subset_val_embs = val_embs[val_indices]
+            else:
+                val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
+                subset_val_embs = val_embs_full[val_indices]
+
+            train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
+        except Exception as e:
+            logger.log(f"Train embedding failed ({e}), falling back to random selection", header="SUBSET")
+            rng = np.random.RandomState(42)
+            train_indices = rng.choice(len(train_data), size=min(int(budget), len(train_data)), replace=False).tolist()
+            coverage = 0.0
     else:
         train_indices: list[int] = []
         coverage = 0.0

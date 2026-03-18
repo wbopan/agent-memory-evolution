@@ -300,6 +300,12 @@ def _load_task_configs() -> list[dict]:
             for cfg in all_configs
         ]
     except Exception:
+        from programmaticmemory.logging.logger import get_logger
+
+        get_logger().log(
+            "WARNING: _load_task_configs failed — WebArena benchmark will be empty",
+            header="WEBARENA",
+        )
         return []
 
 
@@ -733,7 +739,13 @@ class WebArenaValScorer:
                         results.append(f.result(timeout=self.episode_timeout))
                     except Exception as exc:
                         results.append((f"Episode failed: {exc}", 0.0))
-        except Exception:
+        except Exception as e:
+            from programmaticmemory.logging.logger import get_logger
+
+            get_logger().log(
+                f"WebArena process pool broke: {e} — filling {len(items) - len(results)} remaining with 0.0",
+                header="WEBARENA",
+            )
             while len(results) < len(items):
                 results.append(("Episode failed: broken process pool", 0.0))
         return results

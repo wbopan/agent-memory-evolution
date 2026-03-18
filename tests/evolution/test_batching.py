@@ -459,3 +459,27 @@ class TestSelectRepresentativeSubset:
             train_idx, val_idx = select_representative_subset(train, val, val_size=10, train_val_ratio=2)
 
         assert sorted(val_idx) == list(range(5))
+
+    def test_train_embedding_failure_falls_back_to_random(self):
+        """Train embedding failure should fall back to a random selection and avoid raising."""
+        train = self._make_data(20)
+        val = self._make_data(10)
+
+        with patch("programmaticmemory.evolution.batching._embed_texts") as mock_embed:
+            mock_embed.side_effect = [
+                self._mock_embed(10),  # val embedding
+                RuntimeError("embedding failed"),
+            ]
+
+            train_idx, val_idx = select_representative_subset(
+                train,
+                val,
+                val_size=3,
+                train_val_ratio=4,
+            )
+
+        assert len(val_idx) == 3
+        assert len(train_idx) == 12
+        assert len(set(train_idx)) == len(train_idx)
+        assert all(0 <= idx < len(train) for idx in train_idx)
+        assert all(0 <= idx < len(val) for idx in val_idx)

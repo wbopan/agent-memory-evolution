@@ -354,7 +354,10 @@ def _probe_game(game_file: str) -> bool:
                 env.close()
             except Exception:
                 pass
-    except Exception:
+    except Exception as e:
+        import logging as _logging
+
+        _logging.getLogger(__name__).debug("_probe_game(%s) failed: %s", game_file, e)
         valid = False
 
     _VALID_GAME_CACHE[game_file] = valid
@@ -379,7 +382,10 @@ def _probe_game_isolated(game_file: str) -> bool:
             timeout=60,
         )
         return result.returncode == 0
-    except Exception:
+    except Exception as e:
+        import logging as _logging
+
+        _logging.getLogger(__name__).debug("_probe_game_isolated(%s) failed: %s", game_file, e)
         return False
 
 
@@ -597,8 +603,14 @@ class ALFWorldValScorer:
                         results.append(f.result(timeout=self.episode_timeout))
                     except Exception as exc:
                         results.append((f"Episode failed: {exc}", 0.0))
-        except Exception:
+        except Exception as e:
             # Pool broke — fill remaining items with 0.0
+            from programmaticmemory.logging.logger import get_logger
+
+            get_logger().log(
+                f"ALFWorld process pool broke: {e} — filling {len(items) - len(results)} remaining with 0.0",
+                header="ALFWORLD",
+            )
             while len(results) < len(items):
                 results.append(("Episode failed: broken process pool", 0.0))
         return results
@@ -712,7 +724,9 @@ def load_alfworld(
             try:
                 cache_path.write_text(json.dumps(_VALID_GAME_CACHE))
             except OSError:
-                pass
+                from programmaticmemory.logging.logger import get_logger
+
+                get_logger().log("Failed to persist ALFWorld valid game cache", header="ALFWORLD")
 
         val = [item for item in val if _VALID_GAME_CACHE.get(item.metadata["game_file"], False)]
         if len(val) < pre_filter:
@@ -725,6 +739,10 @@ def load_alfworld(
 
         val_scorer = ALFWorldValScorer(max_steps=50)
     except ImportError:
+        import logging as _logging
+
+        _logging.getLogger(__name__).debug("alfworld not installed, using LLM answer path")
+
         pass  # Fall back to default LLM answer path if alfworld not installed
 
     return Dataset(
