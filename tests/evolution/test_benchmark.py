@@ -433,6 +433,16 @@ class TestALFWorldTrainingText:
 
 
 class TestALFWorldBenchmark:
+    @pytest.fixture(autouse=True)
+    def _skip_game_probe(self):
+        """Fixture game files are stubs — skip real TextWorld probing."""
+        import programmaticmemory.benchmarks.alfworld as _aw
+
+        _aw._VALID_GAME_CACHE.clear()
+        with patch("programmaticmemory.benchmarks.alfworld._probe_game_isolated", return_value=True):
+            yield
+        _aw._VALID_GAME_CACHE.clear()
+
     @pytest.fixture()
     def alfworld_data_dir(self, tmp_path):
         return _make_alfworld_fixture(tmp_path)
@@ -677,11 +687,15 @@ class TestALFWorldValScorer:
         ]
         retrieved = ["tips1", "tips2"]
 
-        # Use ThreadPoolExecutor so the _run_episode mock is visible in the same process.
+        # ThreadPoolExecutor doesn't accept mp_context, so use a thin wrapper.
         import concurrent.futures
 
+        class _FakeProcessPool(concurrent.futures.ThreadPoolExecutor):
+            def __init__(self, max_workers=None, mp_context=None, **kw):
+                super().__init__(max_workers=max_workers, **kw)
+
         with (
-            patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor),
+            patch("concurrent.futures.ProcessPoolExecutor", _FakeProcessPool),
             patch("programmaticmemory.benchmarks.alfworld._run_episode", return_value=("transcript", 1.0)) as mock_run,
         ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
@@ -702,8 +716,12 @@ class TestALFWorldValScorer:
 
         import concurrent.futures
 
+        class _FakeProcessPool(concurrent.futures.ThreadPoolExecutor):
+            def __init__(self, max_workers=None, mp_context=None, **kw):
+                super().__init__(max_workers=max_workers, **kw)
+
         with (
-            patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor),
+            patch("concurrent.futures.ProcessPoolExecutor", _FakeProcessPool),
             patch("programmaticmemory.benchmarks.alfworld._run_episode", side_effect=RuntimeError("env crashed")),
         ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
