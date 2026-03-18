@@ -13,6 +13,7 @@ from programmaticmemory.evolution.prompts import (
     ReferenceProgram,
     ReflectionPromptConfig,
     build_compile_fix_prompt,
+    build_patch_format_fix_prompt,
     build_reflection_user_prompt,
 )
 from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program, smoke_test
@@ -31,6 +32,18 @@ def _extract_patch(text: str) -> str | None:
     matches = re.findall(r"\*\*\* Begin Patch\n(.*?)\*\*\* End Patch", text, re.DOTALL)
     if matches:
         return matches[-1]
+    return None
+
+
+def _extract_full_code(text: str) -> str | None:
+    """Extract the last ```python code block as a full program replacement.
+
+    Used as fallback when V4A patch extraction fails but the LLM
+    output contains a complete program in a fenced code block.
+    """
+    matches = re.findall(r"```python\n(.*?)```", text, re.DOTALL)
+    if matches:
+        return matches[-1].strip()
     return None
 
 
@@ -86,7 +99,10 @@ class Reflector:
 
     def _try_fix(self, code: str, error_type: str, error_details: str) -> str | None:
         """Ask LLM to fix broken code. Return fixed code or None."""
-        user_prompt = build_compile_fix_prompt(code=code, error_type=error_type, error_details=error_details)
+        if error_type == "Patch format error":
+            user_prompt = build_patch_format_fix_prompt(code=code)
+        else:
+            user_prompt = build_compile_fix_prompt(code=code, error_type=error_type, error_details=error_details)
 
         response = litellm.completion(
             model=self.model,
@@ -104,14 +120,19 @@ class Reflector:
         output = response.choices[0].message.content
 
         patch = _extract_patch(output)
-        if patch is None:
-            return None
+        if patch is not None:
+            try:
+                return apply_patch(code, patch)
+            except Exception as exc:
+                self.logger.log(f"Failed to apply patch from fix LLM: {exc}", header="REFLECT")
 
-        try:
-            return apply_patch(code, patch)
-        except Exception as exc:
-            self.logger.log(f"Failed to apply patch from fix LLM: {exc}", header="REFLECT")
-            return None
+        # Fallback: try extracting a full code block
+        full_code = _extract_full_code(output)
+        if full_code is not None:
+            self.logger.log("Fix LLM: using full code block fallback", header="REFLECT")
+            return full_code
+
+        return None
 
     @weave.op()
     def reflect_and_mutate(
@@ -121,6 +142,7 @@ class Reflector:
         iteration: int,
         references: list[ReferenceProgram] | None = None,
         lineage_log: str | None = None,
+        score_override: float | None = None,
     ) -> ReflectionResult | None:
         """Reflect on failures and produce a mutated Knowledge Base Program.
 
@@ -155,9 +177,10 @@ class Reflector:
                 }
             )
 
+        prompt_score = score_override if score_override is not None else eval_result.score
         user_prompt = build_reflection_user_prompt(
             code=current.source_code,
-            score=eval_result.score,
+            score=prompt_score,
             failed_cases=failed_dicts,
             iteration=iteration,
             train_examples=eval_result.train_examples or None,
@@ -167,7 +190,7 @@ class Reflector:
             lineage_log=lineage_log,
         )
 
-        self.logger.log(f"Reflecting on iteration {iteration}, score={eval_result.score:.3f}", header="REFLECT")
+        self.logger.log(f"Reflecting on iteration {iteration}, score={prompt_score:.3f}", header="REFLECT")
 
         response = litellm.completion(
             model=self.model,
@@ -187,30 +210,43 @@ class Reflector:
         # Extract commit message once (used by both return paths)
         commit_message = _extract_commit_message(output)
 
-        # Extract and apply patch
+        # Try to produce new code from LLM output (patch → full-code fallback)
+        new_code = None
         patch = _extract_patch(output)
-        if patch is None:
-            self.logger.log("Failed to extract patch from reflection output", header="REFLECT")
-            return None
+        if patch is not None:
+            try:
+                new_code = apply_patch(current.source_code, patch)
+            except Exception as exc:
+                self.logger.log(f"Failed to apply patch: {exc}", header="REFLECT")
 
-        try:
-            new_code = apply_patch(current.source_code, patch)
-        except Exception as exc:
-            self.logger.log(f"Failed to apply patch: {exc}", header="REFLECT")
-            return None
+        if new_code is None:
+            full_code = _extract_full_code(output)
+            if full_code is not None:
+                self.logger.log("Patch extraction failed, using full code block fallback", header="REFLECT")
+                new_code = full_code
 
-        # Validate and fix loop
-        validation_error = self._validate_code(new_code)
-        if validation_error is None:
-            return ReflectionResult(
-                program=KBProgram(
-                    source_code=new_code,
-                    generation=current.generation + 1,
-                    parent_hash=current.hash,
-                ),
-                commit_message=commit_message,
+        # Determine initial error state for the fix loop
+        if new_code is not None:
+            validation_error = self._validate_code(new_code)
+            if validation_error is None:
+                return ReflectionResult(
+                    program=KBProgram(
+                        source_code=new_code,
+                        generation=current.generation + 1,
+                        parent_hash=current.hash,
+                    ),
+                    commit_message=commit_message,
+                )
+        else:
+            self.logger.log("Failed to extract patch or code from reflection output", header="REFLECT")
+            validation_error = (
+                "Patch format error",
+                "The reflection output did not contain a valid V4A patch or Python code block. "
+                "Please output your changes as a V4A patch with *** Begin Patch / *** End Patch markers.",
             )
+            new_code = current.source_code
 
+        # Unified fix loop — handles compile errors, smoke-test failures, and patch format errors
         for attempt in range(1, self.max_fix_attempts + 1):
             error_type, error_details = validation_error
             self.logger.log(f"Fix attempt {attempt}/{self.max_fix_attempts}: {error_details}", header="REFLECT")

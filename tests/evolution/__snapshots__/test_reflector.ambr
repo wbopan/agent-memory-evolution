@@ -73,17 +73,17 @@
           <patch_format>
           Before the patch, output a commit message summarizing your changes:
           
-          ```
           *** Commit Message
           Title: <one-line summary of what you changed and why>
           - <root cause / diagnosis>
           - <what you changed>
-          ```
           
           Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
           
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
           Format:
-          ```
+          
           *** Begin Patch
           *** Update File: program.py
           @@ <optional context hint>
@@ -92,7 +92,6 @@
           +added line
            context line (1-2 lines after change)
           *** End Patch
-          ```
           
           Rules:
           - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -100,7 +99,7 @@
           - Multiple hunks are allowed within one `*** Update File` block.
           
           Example — replacing a return value:
-          ```
+          
           *** Commit Message
           Title: Truncate read output to respect 3000-char limit
           - read() returned all stored text, exceeding the limit
@@ -113,7 +112,6 @@
           -    return "\n".join(self.store)
           +    return "\n".join(self.store[-5:])
           *** End Patch
-          ```
           </patch_format>
           
           <current_program iteration="1">
@@ -151,6 +149,345 @@
              (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
           3. Output your changes as a patch.
           </task>
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
         ''',
         'role': 'user',
       }),
@@ -230,17 +567,17 @@
         <patch_format>
         Before the patch, output a commit message summarizing your changes:
         
-        ```
         *** Commit Message
         Title: <one-line summary of what you changed and why>
         - <root cause / diagnosis>
         - <what you changed>
-        ```
         
         Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
         
+        IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+        
         Format:
-        ```
+        
         *** Begin Patch
         *** Update File: program.py
         @@ <optional context hint>
@@ -249,7 +586,6 @@
         +added line
          context line (1-2 lines after change)
         *** End Patch
-        ```
         
         Rules:
         - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -257,7 +593,7 @@
         - Multiple hunks are allowed within one `*** Update File` block.
         
         Example — replacing a return value:
-        ```
+        
         *** Commit Message
         Title: Truncate read output to respect 3000-char limit
         - read() returned all stored text, exceeding the limit
@@ -270,7 +606,6 @@
         -    return "\n".join(self.store)
         +    return "\n".join(self.store[-5:])
         *** End Patch
-        ```
         </patch_format>
         
         <current_program iteration="1">
@@ -374,17 +709,17 @@
           <patch_format>
           Before the patch, output a commit message summarizing your changes:
           
-          ```
           *** Commit Message
           Title: <one-line summary of what you changed and why>
           - <root cause / diagnosis>
           - <what you changed>
-          ```
           
           Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
           
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
           Format:
-          ```
+          
           *** Begin Patch
           *** Update File: program.py
           @@ <optional context hint>
@@ -393,7 +728,6 @@
           +added line
            context line (1-2 lines after change)
           *** End Patch
-          ```
           
           Rules:
           - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -401,7 +735,7 @@
           - Multiple hunks are allowed within one `*** Update File` block.
           
           Example — replacing a return value:
-          ```
+          
           *** Commit Message
           Title: Truncate read output to respect 3000-char limit
           - read() returned all stored text, exceeding the limit
@@ -414,7 +748,6 @@
           -    return "\n".join(self.store)
           +    return "\n".join(self.store[-5:])
           *** End Patch
-          ```
           </patch_format>
           
           <current_program iteration="5">
@@ -445,6 +778,345 @@
              (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
           3. Output your changes as a patch.
           </task>
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
         ''',
         'role': 'user',
       }),
@@ -525,17 +1197,17 @@
           <patch_format>
           Before the patch, output a commit message summarizing your changes:
           
-          ```
           *** Commit Message
           Title: <one-line summary of what you changed and why>
           - <root cause / diagnosis>
           - <what you changed>
-          ```
           
           Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
           
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
           Format:
-          ```
+          
           *** Begin Patch
           *** Update File: program.py
           @@ <optional context hint>
@@ -544,7 +1216,6 @@
           +added line
            context line (1-2 lines after change)
           *** End Patch
-          ```
           
           Rules:
           - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -552,7 +1223,7 @@
           - Multiple hunks are allowed within one `*** Update File` block.
           
           Example — replacing a return value:
-          ```
+          
           *** Commit Message
           Title: Truncate read output to respect 3000-char limit
           - read() returned all stored text, exceeding the limit
@@ -565,7 +1236,6 @@
           -    return "\n".join(self.store)
           +    return "\n".join(self.store[-5:])
           *** End Patch
-          ```
           </patch_format>
           
           <current_program iteration="3">
@@ -611,6 +1281,345 @@
              (B) **Memory Design**: How should the schemas or storage/retrieval logic change to provide more useful information?
           3. Output your changes as a patch.
           </task>
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          code here
+          ```
+          
+          Output your changes as a V4A patch.
         ''',
         'role': 'user',
       }),
@@ -691,17 +1700,17 @@
           <patch_format>
           Before the patch, output a commit message summarizing your changes:
           
-          ```
           *** Commit Message
           Title: <one-line summary of what you changed and why>
           - <root cause / diagnosis>
           - <what you changed>
-          ```
           
           Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
           
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
           Format:
-          ```
+          
           *** Begin Patch
           *** Update File: program.py
           @@ <optional context hint>
@@ -710,7 +1719,6 @@
           +added line
            context line (1-2 lines after change)
           *** End Patch
-          ```
           
           Rules:
           - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -718,7 +1726,7 @@
           - Multiple hunks are allowed within one `*** Update File` block.
           
           Example — replacing a return value:
-          ```
+          
           *** Commit Message
           Title: Truncate read output to respect 3000-char limit
           - read() returned all stored text, exceeding the limit
@@ -731,7 +1739,6 @@
           -    return "\n".join(self.store)
           +    return "\n".join(self.store[-5:])
           *** End Patch
-          ```
           </patch_format>
           
           <current_program iteration="1">
@@ -835,17 +1842,17 @@
         <patch_format>
         Before the patch, output a commit message summarizing your changes:
         
-        ```
         *** Commit Message
         Title: <one-line summary of what you changed and why>
         - <root cause / diagnosis>
         - <what you changed>
-        ```
         
         Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
         
+        IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+        
         Format:
-        ```
+        
         *** Begin Patch
         *** Update File: program.py
         @@ <optional context hint>
@@ -854,7 +1861,6 @@
         +added line
          context line (1-2 lines after change)
         *** End Patch
-        ```
         
         Rules:
         - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -862,7 +1868,7 @@
         - Multiple hunks are allowed within one `*** Update File` block.
         
         Example — replacing a return value:
-        ```
+        
         *** Commit Message
         Title: Truncate read output to respect 3000-char limit
         - read() returned all stored text, exceeding the limit
@@ -875,7 +1881,6 @@
         -    return "\n".join(self.store)
         +    return "\n".join(self.store[-5:])
         *** End Patch
-        ```
         </patch_format>
         
         <current_program iteration="3">

@@ -7,7 +7,12 @@ from unittest.mock import MagicMock, patch
 from syrupy.assertion import SnapshotAssertion
 
 from programmaticmemory.evolution.prompts import ReflectionPromptConfig
-from programmaticmemory.evolution.reflector import Reflector, _extract_commit_message, _extract_patch
+from programmaticmemory.evolution.reflector import (
+    Reflector,
+    _extract_commit_message,
+    _extract_full_code,
+    _extract_patch,
+)
 from programmaticmemory.evolution.sandbox import CompileError, SmokeTestResult
 from programmaticmemory.evolution.types import EvalResult, FailedCase, KBProgram
 
@@ -81,6 +86,33 @@ class TestExtractPatch:
     def test_non_patch_block_ignored(self):
         text = "```python\nclass A: pass\n```"
         assert _extract_patch(text) is None
+
+
+class TestExtractFullCode:
+    def test_extracts_last_python_block(self):
+        text = (
+            "Here is the improved program:\n\n"
+            "```python\nclass First: pass\n```\n\n"
+            "Actually, better version:\n\n"
+            "```python\nclass Second: pass\n```\n"
+        )
+        code = _extract_full_code(text)
+        assert code is not None
+        assert "class Second" in code
+        assert "class First" not in code
+
+    def test_no_code_block_returns_none(self):
+        assert _extract_full_code("No code here, just text.") is None
+
+    def test_non_python_block_ignored(self):
+        text = '```json\n{"key": "value"}\n```'
+        assert _extract_full_code(text) is None
+
+    def test_strips_whitespace(self):
+        text = "```python\n\n  class Foo: pass\n\n```"
+        code = _extract_full_code(text)
+        assert code is not None
+        assert code == "class Foo: pass"
 
 
 class TestExtractCommitMessage:
@@ -190,7 +222,7 @@ class KnowledgeBase:
 
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_reflection_no_code_block_returns_none(self, mock_litellm, snapshot: SnapshotAssertion):
-        """If LLM output has no code block, return None."""
+        """If LLM output has no code block, enters fix loop then returns None."""
         mock_resp = MagicMock()
         mock_resp.choices = [MagicMock()]
         mock_resp.choices[0].message.content = "I analyzed the code but can't suggest improvements."
@@ -203,7 +235,10 @@ class KnowledgeBase:
         child = reflector.reflect_and_mutate(current, eval_result, iteration=1)
 
         assert child is None
-        assert mock_litellm.completion.call_args.kwargs["messages"] == snapshot
+        # 1 reflection + 3 fix attempts (all return no patch)
+        assert mock_litellm.completion.call_count == 4
+        # Snapshot the first (reflection) call's messages
+        assert mock_litellm.completion.call_args_list[0].kwargs["messages"] == snapshot
 
     @patch("programmaticmemory.evolution.reflector.litellm")
     def test_reflection_passes_failed_cases(self, mock_litellm, snapshot: SnapshotAssertion):
@@ -236,8 +271,9 @@ class KnowledgeBase:
         reflector = Reflector(model="mock/model")
         reflector.reflect_and_mutate(current, eval_result, iteration=5)
 
-        assert len(captured_messages) == 1
-        messages = captured_messages[0]
+        # 1 reflection + 3 fix attempts (all return "No code.")
+        assert len(captured_messages) == 4
+        messages = captured_messages[0]  # Check the reflection call
         # System placeholder + user message containing everything (interface spec + code + failed cases)
         assert len(messages) == 2
         assert messages[0]["role"] == "system"
@@ -315,8 +351,9 @@ class KnowledgeBase:
         reflector = Reflector(model="mock/model", prompt_config=config)
         reflector.reflect_and_mutate(current, eval_result, iteration=1)
 
-        assert len(captured_messages) == 1
-        messages = captured_messages[0]
+        # 1 reflection + 3 fix attempts
+        assert len(captured_messages) == 4
+        messages = captured_messages[0]  # Check the reflection call
         user_content = messages[1]["content"]
         # Weighted sampling selects exactly 2 from 6 (not all 6)
         case_count = user_content.count("<case id=")
@@ -360,8 +397,9 @@ class KnowledgeBase:
         reflector = Reflector(model="mock/model")
         reflector.reflect_and_mutate(current, eval_result, iteration=3)
 
-        assert len(captured_messages) == 1
-        user_content = captured_messages[0][1]["content"]
+        # 1 reflection + 3 fix attempts
+        assert len(captured_messages) == 4
+        user_content = captured_messages[0][1]["content"]  # Check reflection call
         assert "<success_cases>" in user_content
         assert "What is Y?" in user_content
         assert "Preserve the behavior" in user_content
@@ -412,6 +450,134 @@ class KnowledgeBase:
         )
 
         assert result is None
+
+
+class TestReflectorPatchFormatRecovery:
+    """Tests for patch format failure recovery via the fix loop."""
+
+    @patch("programmaticmemory.evolution.reflector.apply_patch")
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_no_patch_enters_fix_loop_and_succeeds(self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch):
+        """When reflection output has no patch, fix loop retries and succeeds."""
+        good_code = "class KnowledgeItem: pass\nclass Query: pass\nclass KnowledgeBase: pass"
+        mock_apply_patch.return_value = good_code
+        mock_compile.return_value = MagicMock()
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        # First call: reflection output with no patch markers
+        no_patch_resp = MagicMock()
+        no_patch_resp.choices = [MagicMock()]
+        no_patch_resp.choices[0].message.content = "I improved the code but forgot the patch format."
+
+        # Second call: fix LLM returns proper patch
+        fix_resp = MagicMock()
+        fix_resp.choices = [MagicMock()]
+        fix_resp.choices[
+            0
+        ].message.content = "*** Begin Patch\n*** Update File: program.py\n@@ change\n-old\n+new\n*** End Patch"
+
+        mock_litellm.completion.side_effect = [no_patch_resp, fix_resp]
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            KBProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert mock_litellm.completion.call_count == 2  # reflection + 1 fix
+
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_full_code_fallback_skips_fix_loop(self, mock_litellm, mock_compile, mock_smoke):
+        """When reflection output has no patch but has a ```python block, use it directly."""
+        good_code = (
+            "from dataclasses import dataclass\n\n"
+            "@dataclass\nclass KnowledgeItem:\n    raw: str\n\n"
+            "@dataclass\nclass Query:\n    raw: str\n\n"
+            "class KnowledgeBase:\n"
+            "    def __init__(self, toolkit): pass\n"
+            "    def write(self, item, raw_text=''): pass\n"
+            "    def read(self, query): return ''"
+        )
+
+        mock_compile.return_value = MagicMock()
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        resp = MagicMock()
+        resp.choices = [MagicMock()]
+        resp.choices[0].message.content = f"Here is the improved program:\n\n```python\n{good_code}\n```"
+        mock_litellm.completion.return_value = resp
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            KBProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert child.program.source_code == good_code
+        assert mock_litellm.completion.call_count == 1  # Only reflection, no fix needed
+
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_no_patch_no_code_exhausts_fix_loop(self, mock_litellm):
+        """When reflection and all fix attempts produce no valid output, return None."""
+        bad_resp = MagicMock()
+        bad_resp.choices = [MagicMock()]
+        bad_resp.choices[0].message.content = "I cannot produce a patch."
+        mock_litellm.completion.return_value = bad_resp
+
+        reflector = Reflector(model="mock/model", max_fix_attempts=2)
+        child = reflector.reflect_and_mutate(
+            KBProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is None
+        assert mock_litellm.completion.call_count == 3  # 1 reflection + 2 fix attempts
+
+    @patch("programmaticmemory.evolution.reflector.apply_patch")
+    @patch("programmaticmemory.evolution.reflector.smoke_test")
+    @patch("programmaticmemory.evolution.reflector.compile_kb_program")
+    @patch("programmaticmemory.evolution.reflector.litellm")
+    def test_apply_patch_failure_enters_fix_loop(self, mock_litellm, mock_compile, mock_smoke, mock_apply_patch):
+        """When apply_patch raises, fall through to fix loop instead of returning None."""
+        good_code = "class KnowledgeItem: pass\nclass Query: pass\nclass KnowledgeBase: pass"
+
+        # First apply_patch (from reflect) raises, second (from fix) succeeds
+        mock_apply_patch.side_effect = [RuntimeError("context mismatch"), good_code]
+        mock_compile.return_value = MagicMock()
+        mock_smoke.return_value = SmokeTestResult(success=True)
+
+        reflect_resp = MagicMock()
+        reflect_resp.choices = [MagicMock()]
+        reflect_resp.choices[
+            0
+        ].message.content = "*** Begin Patch\n*** Update File: program.py\n@@ change\n-old\n+new\n*** End Patch"
+
+        fix_resp = MagicMock()
+        fix_resp.choices = [MagicMock()]
+        fix_resp.choices[
+            0
+        ].message.content = "*** Begin Patch\n*** Update File: program.py\n@@ change\n-old\n+new\n*** End Patch"
+
+        mock_litellm.completion.side_effect = [reflect_resp, fix_resp]
+
+        reflector = Reflector(model="mock/model")
+        child = reflector.reflect_and_mutate(
+            KBProgram(source_code="old", generation=0),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            iteration=1,
+        )
+
+        assert child is not None
+        assert mock_litellm.completion.call_count == 2
 
 
 class TestReflectorCompileFixLoop:

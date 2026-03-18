@@ -57,17 +57,17 @@
   
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -76,7 +76,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -84,7 +83,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -97,7 +96,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   
   ## Broken Code
   
@@ -170,17 +168,17 @@
   
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -189,7 +187,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -197,7 +194,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -210,7 +207,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   
   ## Broken Code
   
@@ -391,17 +387,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -410,7 +406,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -418,7 +413,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -431,7 +426,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -531,17 +525,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -550,7 +544,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -558,7 +551,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -571,7 +564,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="3">
@@ -665,17 +657,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -684,7 +676,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -692,7 +683,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -705,7 +696,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -813,17 +803,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -832,7 +822,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -840,7 +829,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -853,7 +842,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="3">
@@ -967,17 +955,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -986,7 +974,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -994,7 +981,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1007,7 +994,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="5">
@@ -1125,17 +1111,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -1144,7 +1130,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -1152,7 +1137,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1165,7 +1150,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -1280,17 +1264,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -1299,7 +1283,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -1307,7 +1290,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1320,7 +1303,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -1425,17 +1407,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -1444,7 +1426,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -1452,7 +1433,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1465,7 +1446,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -1559,17 +1539,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -1578,7 +1558,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -1586,7 +1565,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1599,7 +1578,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -1693,17 +1671,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -1712,7 +1690,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -1720,7 +1697,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1733,7 +1710,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -1840,17 +1816,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -1859,7 +1835,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -1867,7 +1842,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -1880,7 +1855,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -2024,17 +1998,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -2043,7 +2017,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -2051,7 +2024,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -2064,7 +2037,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="5">
@@ -2156,8 +2128,8 @@
       1. seed_0  
       2. iter_1, iter_4  
       3. iter_1  
-      4. Removing `toolkit.llm_completion()` in `read()` and replacing it with deterministic token-overlap retrieval.  
-      5. Avoid replacing LLM-based query-focused summarization with pure token-overlap/deterministic matching.
+      4. Removed `toolkit.llm_completion()` and replaced it with deterministic token-overlap retrieval (`KnowledgeBase._token_overlap()`).  
+      5. Avoid removing LLM-based query-focused summarization in `read()` and replacing it with pure deterministic token-overlap logic.
     ''',
     'prompt': '''
       You are analyzing a reflection prompt for a code evolution system. Read the <lineage_log> section carefully and answer these questions. Answer each with ONLY the requested information, no explanation.
@@ -2197,7 +2169,7 @@
       
       These limits are enforced during evaluation. Violating them results in score = 0.
       
-      - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+      - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
       - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
       - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
       
@@ -2218,7 +2190,7 @@
       1. Output your diagnosis first, then your changes as a patch using the format below.
       2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
       3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-      4. `read()` must return at most 1000 characters — do not return all stored text.
+      4. `read()` must return at most 3000 characters — do not return all stored text.
       5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
       6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
       7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -2228,17 +2200,17 @@
       <patch_format>
       Before the patch, output a commit message summarizing your changes:
       
-      ```
       *** Commit Message
       Title: <one-line summary of what you changed and why>
       - <root cause / diagnosis>
       - <what you changed>
-      ```
       
       Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
       
+      IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+      
       Format:
-      ```
+      
       *** Begin Patch
       *** Update File: program.py
       @@ <optional context hint>
@@ -2247,7 +2219,6 @@
       +added line
        context line (1-2 lines after change)
       *** End Patch
-      ```
       
       Rules:
       - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -2255,11 +2226,11 @@
       - Multiple hunks are allowed within one `*** Update File` block.
       
       Example — replacing a return value:
-      ```
+      
       *** Commit Message
-      Title: Truncate read output to respect 1000-char limit
+      Title: Truncate read output to respect 3000-char limit
       - read() returned all stored text, exceeding the limit
-      - Added [:1000] truncation to the return value
+      - Added [:3000] truncation to the return value
       
       *** Begin Patch
       *** Update File: program.py
@@ -2268,7 +2239,6 @@
       -    return "\n".join(self.store)
       +    return "\n".join(self.store[-5:])
       *** End Patch
-      ```
       </patch_format>
       
       <current_program iteration="5">
@@ -2281,27 +2251,31 @@
       class KnowledgeBase:
           def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []
           def write(self, item, raw_text): self.raw_texts.append(raw_text)
-          def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:1000]
+          def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:3000]
       
       ```
       </current_program>
       
       <evaluation_score>0.289</evaluation_score>
       
-      The following is the evolution history of the current program's lineage. Each entry shows what was changed, what functions were added/removed, and the resulting score. Pay close attention to REGRESSION markers — these indicate changes that hurt performance. Do NOT repeat changes that previously caused regressions.
+      The following is the evolution history of the current program's lineage. It shows the current program, any ancestors it evolved from, and any child mutations already attempted. Pay close attention to REGRESSION markers — these indicate changes that hurt performance. Do NOT repeat changes that previously caused regressions.
       
       <lineage_log>
+      Lineage: seed_0 has no ancestors and 2 children (iter_1, iter_4).
       
-      * current: e858087160ed8dd1 (seed_0) score=0.289  ← you are improving this
+      ## Current — you are improving this
+      * current: seed_0  score=0.289
         Title: LLM query-focused summarizer
         - Stores raw text, uses toolkit.llm_completion() in read() for query-focused summarization
       
-      commit d2e07d632337f8c3 (iter_1) score=0.171 (Δ-0.118) ← REGRESSION
+      
+      ## Children — mutations already tried from this program
+      commit iter_1  score=0.171 (Δ-0.118) ← REGRESSION  (parent: seed_0)
         Title: Replace LLM with token overlap
         - Removed toolkit.llm_completion() to avoid hallucination, added deterministic token overlap
         + KnowledgeBase._token_overlap()
       
-      commit 231b46c77b8f3271 (iter_4) score=0.310 (Δ+0.021)
+      commit iter_4  score=0.310 (Δ+0.021)  (parent: seed_0)
         Title: Improve LLM summarization prompt
         - Tuned the LLM prompt for more precise, factual summarization
       </lineage_log>
@@ -2404,17 +2378,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -2423,7 +2397,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -2431,7 +2404,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -2444,7 +2417,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -2544,17 +2516,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -2563,7 +2535,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -2571,7 +2542,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -2584,7 +2555,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -2691,17 +2661,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -2710,7 +2680,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -2718,7 +2687,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -2731,7 +2700,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -2831,17 +2799,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -2850,7 +2818,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -2858,7 +2825,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -2871,7 +2838,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">
@@ -2982,17 +2948,17 @@
   <patch_format>
   Before the patch, output a commit message summarizing your changes:
   
-  ```
   *** Commit Message
   Title: <one-line summary of what you changed and why>
   - <root cause / diagnosis>
   - <what you changed>
-  ```
   
   Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
   
+  IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+  
   Format:
-  ```
+  
   *** Begin Patch
   *** Update File: program.py
   @@ <optional context hint>
@@ -3001,7 +2967,6 @@
   +added line
    context line (1-2 lines after change)
   *** End Patch
-  ```
   
   Rules:
   - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -3009,7 +2974,7 @@
   - Multiple hunks are allowed within one `*** Update File` block.
   
   Example — replacing a return value:
-  ```
+  
   *** Commit Message
   Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
@@ -3022,7 +2987,6 @@
   -    return "\n".join(self.store)
   +    return "\n".join(self.store[-5:])
   *** End Patch
-  ```
   </patch_format>
   
   <current_program iteration="1">

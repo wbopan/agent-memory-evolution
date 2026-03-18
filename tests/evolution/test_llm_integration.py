@@ -861,3 +861,88 @@ def test_commit_message_generation(snapshot: SnapshotAssertion):
         "commit_message": commit_message,
         "patched_code": patched_code,
     } == snapshot
+
+
+# ---------------------------------------------------------------------------
+# 3o. Patch Format Recovery — format error → fix LLM → valid patch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.llm
+def test_patch_format_recovery(snapshot: SnapshotAssertion):
+    """End-to-end: reflection output has no valid patch → fix loop calls real LLM → recovers.
+
+    Mocks only the FIRST litellm.completion call to return a malformed output
+    (no V4A patch markers, no code block). All subsequent calls (the fix loop)
+    go to the real LLM. Verifies that reflect_and_mutate produces a valid,
+    compilable KBProgram despite the initial format failure.
+    """
+    from unittest.mock import MagicMock
+    from unittest.mock import patch as mock_patch
+
+    from programmaticmemory.evolution.types import EvalResult, FailedCase
+
+    program = KBProgram(source_code=INITIAL_KB_PROGRAM)
+    eval_result = EvalResult(
+        score=0.2,
+        failed_cases=[
+            FailedCase(
+                question="What is Alice's favorite color?",
+                output="I don't know",
+                expected="blue",
+                score=0.0,
+                conversation_history=[
+                    {"role": "user", "content": "What is Alice's favorite color?"},
+                    {"role": "assistant", "content": "I don't know"},
+                ],
+            ),
+        ],
+    )
+
+    # Intercept first call to return malformed output, then pass through to real LLM
+    real_completion = litellm.completion
+    call_count = 0
+    fix_prompts: list[list[dict]] = []  # capture fix loop prompts for snapshot review
+
+    def first_call_malformed(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            # Simulate LLM returning analysis without proper patch format
+            resp = MagicMock()
+            resp.choices = [MagicMock()]
+            resp.choices[0].message.content = (
+                "Analysis: The read() method returns all stored text without filtering.\n\n"
+                "I would improve the KnowledgeBase by adding semantic search.\n"
+                "The KnowledgeItem should capture entities and relationships.\n"
+                "No patch output here — just my analysis."
+            )
+            return resp
+        # All subsequent calls (fix loop) go to real LLM — capture prompts
+        fix_prompts.append(kwargs.get("messages", []))
+        return real_completion(*args, **kwargs)
+
+    reflector = Reflector(model=REFLECT_MODEL, max_fix_attempts=3)
+
+    with mock_patch.object(litellm, "completion", side_effect=first_call_malformed):
+        result = reflector.reflect_and_mutate(program, eval_result, iteration=1)
+
+    assert result is not None, (
+        f"reflect_and_mutate returned None — fix loop failed to recover. Total LLM calls: {call_count}"
+    )
+    assert call_count >= 2, f"Expected fix loop to retry, but only {call_count} calls made"
+
+    # The recovered program must compile with all required classes
+    compile_result = compile_kb_program(result.program.source_code)
+    assert isinstance(compile_result, CompiledProgram), f"Recovered code fails to compile: {compile_result}"
+    assert compile_result.ki_cls.__name__ == "KnowledgeItem"
+    assert compile_result.query_cls.__name__ == "Query"
+    assert compile_result.kb_cls.__name__ == "KnowledgeBase"
+
+    assert len(fix_prompts) >= 1, "Expected at least one fix loop prompt to be captured"
+
+    assert {
+        "total_llm_calls": call_count,
+        "recovered_code": result.program.source_code,
+        "fix_prompt_messages": fix_prompts[0],  # first fix attempt's full messages
+    } == snapshot

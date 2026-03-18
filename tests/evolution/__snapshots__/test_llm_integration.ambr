@@ -778,6 +778,562 @@
     ''',
   })
 # ---
+# name: test_patch_format_recovery
+  dict({
+    'fix_prompt_messages': list([
+      dict({
+        'content': ' ',
+        'role': 'system',
+      }),
+      dict({
+        'content': '''
+          You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+          The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+          
+          You are designing a Knowledge Base Program that implements three classes:
+          
+          1. **KnowledgeItem** (dataclass): Defines what information is captured as knowledge items when writing to the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - **Field types MUST be JSON-compatible**: use only str, int, float, bool, list[str], Optional[str]
+             - Do NOT use datetime, tuple, bytes, or custom objects — JSON cannot represent them
+             - Use `field(metadata={"description": "..."})` to describe fields — descriptions are shown to the LLM that populates instances
+          
+          2. **Query** (dataclass): Defines what parameters are used when reading from the knowledge base.
+             - Must be a @dataclass with typed fields
+             - An external LLM will populate instances by generating JSON matching your field definitions
+             - Same JSON-compatible type restriction and field description support as KnowledgeItem
+          
+          3. **KnowledgeBase** (class): The core knowledge base system.
+             - `__init__(self, toolkit)`: Receives a Toolkit with:
+               - `toolkit.db`: sqlite3.Connection (in-memory SQLite)
+               - `toolkit.chroma`: chromadb ephemeral client
+               - `toolkit.llm_completion(messages, **kwargs) -> str`: LLM for reasoning, summarization, and information extraction (1 call per write/read invocation)
+               - `toolkit.logger.debug(message)`: Debug logging (use liberally — logs are visible during diagnosis and help guide future fixes)
+             - `write(self, item: KnowledgeItem, raw_text: str) -> None`: Store information. `raw_text` is the original source text that produced the knowledge item.
+             - `read(self, query: Query) -> str`: Retrieve relevant information as a string
+          
+          Allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb
+          
+          ## Runtime Constraints
+          
+          These limits are enforced during evaluation. Violating them results in score = 0.
+          
+          - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
+          - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
+          - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
+          
+          ## Instruction Constants (required)
+          
+          Four module-level string constants provide the natural-language instructions used in task agent prompts:
+          
+          - INSTRUCTION_KNOWLEDGE_ITEM: Instruction for knowledge item generation. Tells the task LLM what to extract and how to structure it. The KnowledgeItem schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_QUERY: Instruction for query generation. Tells the task LLM how to formulate retrieval queries. The Query schema is provided separately — no need to describe field names or types here.
+          - INSTRUCTION_RESPONSE: Instruction for answer generation. Controls answer format, length, and style.
+          - ALWAYS_ON_KNOWLEDGE: Persistent knowledge injected into every task agent prompt. Use this to steer the task agent's behavior and decision-making. Unlike INSTRUCTION_* (output format), this provides always-on context. Can be empty.
+          
+          INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, and INSTRUCTION_RESPONSE must not be empty. ALWAYS_ON_KNOWLEDGE can be empty.
+          
+          
+          Rules:
+          1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+          2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+          3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+          
+          Before the patch, output a commit message summarizing your changes:
+          
+          *** Commit Message
+          Title: <one-line summary of what you changed and why>
+          - <root cause / diagnosis>
+          - <what you changed>
+          
+          Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
+          
+          IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+          
+          Format:
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ <optional context hint>
+           context line (1-2 lines before change)
+          -removed line
+          +added line
+           context line (1-2 lines after change)
+          *** End Patch
+          
+          Rules:
+          - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
+          - Include 1-2 context lines before and after each change for anchoring.
+          - Multiple hunks are allowed within one `*** Update File` block.
+          
+          Example — replacing a return value:
+          
+          *** Commit Message
+          Title: Truncate read output to respect 3000-char limit
+          - read() returned all stored text, exceeding the limit
+          - Added [:3000] truncation to the return value
+          
+          *** Begin Patch
+          *** Update File: program.py
+          @@ return statement
+           def read(self, query: Query) -> str:
+          -    return "\n".join(self.store)
+          +    return "\n".join(self.store[-5:])
+          *** End Patch
+          
+          ## Current Code
+          
+          ```python
+          from dataclasses import dataclass, field
+          
+          INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
+          INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
+          INSTRUCTION_RESPONSE = "Based on the above knowledge and the original question, provide a short answer without explanation."
+          ALWAYS_ON_KNOWLEDGE = ""
+          
+          
+          @dataclass
+          class KnowledgeItem:
+              """A summary of what was learnt from the source text."""
+              summary: str = field(metadata={"description": "What you have learnt from the text"})
+          
+          
+          @dataclass
+          class Query:
+              """Raw text query to retrieve from the knowledge base."""
+              raw: str = field(metadata={"description": "The query text to search for"})
+          
+          
+          class KnowledgeBase:
+              """Simple append-all / return-all knowledge base."""
+          
+              def __init__(self, toolkit):
+                  self.toolkit = toolkit
+                  self.summaries: list[str] = []
+                  self.observations: list[str] = []
+          
+              def write(self, item: KnowledgeItem, raw_text: str) -> None:
+                  self.summaries.append(item.summary)
+                  self.observations.append(raw_text)
+                  self.toolkit.logger.debug(f"Stored summary: {item.summary}")
+          
+              def read(self, query: Query) -> str:
+                  self.toolkit.logger.debug(f"Query: {query.raw}, summaries: {len(self.summaries)}, observations: {len(self.observations)}")
+                  if not self.summaries and not self.observations:
+                      return "No information stored."
+                  summary_text = "\n".join(self.summaries)[:500]
+                  observation_text = "\n".join(self.observations)[:500]
+                  result = summary_text + "\n" + observation_text
+                  return result[:3000]
+          
+          ```
+          
+          Output your changes as a V4A patch.
+        ''',
+        'role': 'user',
+      }),
+    ]),
+    'recovered_code': '''
+      import json
+      import re
+      import datetime
+      import sqlite3
+      import chromadb
+      from dataclasses import dataclass, field
+      from typing import Optional
+      
+      INSTRUCTION_KNOWLEDGE_ITEM = (
+          "Extract durable, reusable knowledge from the source text. Capture concrete facts, "
+          "key claims, constraints, and terminology that will help answer future questions."
+      )
+      INSTRUCTION_QUERY = (
+          "Create a focused retrieval query from the user's request. Include the core intent, "
+          "important constraints, and optional source/category preferences when present."
+      )
+      INSTRUCTION_RESPONSE = (
+          "Answer using only retrieved knowledge. Be concise, directly address the question, "
+          "and say when evidence is insufficient."
+      )
+      ALWAYS_ON_KNOWLEDGE = (
+          "Prefer grounded answers. Prioritize high-importance and high-relevance knowledge. "
+          "Do not invent facts that are not supported by retrieved items."
+      )
+      
+      
+      @dataclass
+      class KnowledgeItem:
+          """Structured knowledge extracted from source text."""
+          title: str = field(metadata={"description": "Short title describing this knowledge item"})
+          summary: str = field(metadata={"description": "Concise statement of the key fact or idea"})
+          details: str = field(metadata={"description": "Additional important details, caveats, or context"})
+          keywords: list[str] = field(
+              metadata={"description": "Relevant search keywords, entities, or terms for retrieval"}
+          )
+          source: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional source identifier such as document name, URL, or system"}
+          )
+          category: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional topical category like policy, product, incident, or research"}
+          )
+          importance: int = field(
+              default=3,
+              metadata={"description": "Importance from 1 (low) to 5 (critical) for ranking during retrieval"}
+          )
+      
+      
+      @dataclass
+      class Query:
+          """Parameters used when retrieving knowledge."""
+          question: str = field(metadata={"description": "User question or retrieval intent in plain language"})
+          top_k: int = field(
+              default=6,
+              metadata={"description": "Maximum number of candidate knowledge items to use (recommended 3-10)"}
+          )
+          category: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional category filter to restrict retrieval scope"}
+          )
+          source: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional source filter to restrict retrieval to a specific origin"}
+          )
+          focus: Optional[str] = field(
+              default=None,
+              metadata={"description": "Optional phrase that highlights what aspect should be prioritized"}
+          )
+      
+      
+      class KnowledgeBase:
+          """SQLite-backed knowledge base with lexical + vector retrieval and LLM synthesis."""
+      
+          def __init__(self, toolkit):
+              self.toolkit = toolkit
+              self.db: sqlite3.Connection = toolkit.db
+              self.chroma_client = toolkit.chroma
+              self.collection = None
+              self._ensure_schema()
+              self._ensure_collection()
+              self.toolkit.logger.debug("KnowledgeBase initialized successfully.")
+      
+          def _ensure_schema(self) -> None:
+              cursor = self.db.cursor()
+              cursor.execute(
+                  """
+                  CREATE TABLE IF NOT EXISTS knowledge_items (
+                      id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      title TEXT NOT NULL,
+                      summary TEXT NOT NULL,
+                      details TEXT NOT NULL,
+                      keywords_json TEXT NOT NULL,
+                      source TEXT,
+                      category TEXT,
+                      importance INTEGER NOT NULL DEFAULT 3,
+                      raw_text TEXT NOT NULL,
+                      created_at TEXT NOT NULL
+                  )
+                  """
+              )
+              cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge_items(category)")
+              cursor.execute("CREATE INDEX IF NOT EXISTS idx_knowledge_source ON knowledge_items(source)")
+              self.db.commit()
+              self.toolkit.logger.debug("SQLite schema ensured for knowledge_items table.")
+      
+          def _ensure_collection(self) -> None:
+              try:
+                  self.collection = self.chroma_client.get_or_create_collection(name="knowledge_items")
+                  self.toolkit.logger.debug("Chroma collection 'knowledge_items' is ready.")
+              except Exception as exc:
+                  self.collection = None
+                  self.toolkit.logger.debug(f"Chroma unavailable; continuing without vector index. Error: {exc}")
+      
+          def _tokenize(self, text: str) -> list[str]:
+              return re.findall(r"[a-z0-9]+", (text or "").lower())
+      
+          def _row_to_context(self, row: tuple, score: float) -> str:
+              item_id, title, summary, details, keywords_json, source, category, importance, raw_text, created_at = row
+              try:
+                  keywords = json.loads(keywords_json) if keywords_json else []
+                  if not isinstance(keywords, list):
+                      keywords = []
+              except Exception:
+                  keywords = []
+              excerpt = re.sub(r"\s+", " ", raw_text or "").strip()[:260]
+              context = (
+                  f"[Item {item_id} | score={score:.3f} | importance={importance} | "
+                  f"category={category or 'n/a'} | source={source or 'n/a'} | created={created_at}]\n"
+                  f"Title: {title}\n"
+                  f"Summary: {summary}\n"
+                  f"Details: {details}\n"
+                  f"Keywords: {', '.join(keywords[:12])}\n"
+                  f"Raw excerpt: {excerpt}"
+              )
+              return context[:900]
+      
+          def write(self, item: KnowledgeItem, raw_text: str) -> None:
+              title = (item.title or "").strip()
+              summary = (item.summary or "").strip()
+              details = (item.details or "").strip()
+              source = item.source.strip() if isinstance(item.source, str) and item.source.strip() else None
+              category = item.category.strip() if isinstance(item.category, str) and item.category.strip() else None
+              cleaned_raw_text = (raw_text or "").strip()
+      
+              keywords = []
+              for k in (item.keywords or []):
+                  if isinstance(k, str):
+                      token = k.strip()
+                      if token:
+                          keywords.append(token)
+              keywords = list(dict.fromkeys(keywords))[:30]
+      
+              if not title:
+                  title = (summary or details or cleaned_raw_text[:80] or "Knowledge Item").strip()[:120]
+              if not summary:
+                  summary = (details or cleaned_raw_text[:240] or "No summary provided.").strip()
+              if not details:
+                  details = summary
+      
+              importance = item.importance if isinstance(item.importance, int) and not isinstance(item.importance, bool) else 3
+              importance = max(1, min(5, importance))
+              created_at = datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z"
+      
+              cursor = self.db.cursor()
+              cursor.execute(
+                  """
+                  INSERT INTO knowledge_items
+                  (title, summary, details, keywords_json, source, category, importance, raw_text, created_at)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  """,
+                  (
+                      title,
+                      summary,
+                      details,
+                      json.dumps(keywords, ensure_ascii=False),
+                      source,
+                      category,
+                      importance,
+                      cleaned_raw_text,
+                      created_at,
+                  ),
+              )
+              self.db.commit()
+              row_id = cursor.lastrowid
+              self.toolkit.logger.debug(
+                  f"Stored item id={row_id}, title='{title[:60]}', importance={importance}, "
+                  f"category={category}, source={source}, keywords={len(keywords)}"
+              )
+      
+              if self.collection is not None:
+                  document = (
+                      f"Title: {title}\n"
+                      f"Summary: {summary}\n"
+                      f"Details: {details}\n"
+                      f"Keywords: {', '.join(keywords)}\n"
+                      f"Raw excerpt: {cleaned_raw_text[:800]}"
+                  )[:4000]
+                  metadata = {
+                      "source": source or "",
+                      "category": category or "",
+                      "importance": importance,
+                      "created_at": created_at,
+                  }
+                  try:
+                      self.collection.add(
+                          ids=[str(row_id)],
+                          documents=[document],
+                          metadatas=[metadata],
+                      )
+                      self.toolkit.logger.debug(f"Indexed item id={row_id} into Chroma.")
+                  except Exception as exc:
+                      self.toolkit.logger.debug(f"Chroma add failed for id={row_id}: {exc}")
+              else:
+                  self.toolkit.logger.debug("Skipping vector indexing; Chroma collection not available.")
+      
+          def read(self, query: Query) -> str:
+              question = (query.question or "").strip()
+              if not question:
+                  return "Please provide a non-empty question."
+      
+              top_k = query.top_k if isinstance(query.top_k, int) and not isinstance(query.top_k, bool) else 6
+              top_k = max(1, min(20, top_k))
+              desired_category = query.category.strip() if isinstance(query.category, str) and query.category.strip() else None
+              desired_source = query.source.strip() if isinstance(query.source, str) and query.source.strip() else None
+              focus = query.focus.strip() if isinstance(query.focus, str) and query.focus.strip() else ""
+              search_text = " ".join([question, focus]).strip()
+      
+              self.toolkit.logger.debug(
+                  f"Read start: question='{question[:80]}', top_k={top_k}, "
+                  f"category={desired_category}, source={desired_source}, focus='{focus[:60]}'"
+              )
+      
+              cursor = self.db.cursor()
+              where_parts = []
+              params = []
+              if desired_category:
+                  where_parts.append("category = ?")
+                  params.append(desired_category)
+              if desired_source:
+                  where_parts.append("source = ?")
+                  params.append(desired_source)
+              where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+      
+              select_sql = (
+                  "SELECT id, title, summary, details, keywords_json, source, category, importance, raw_text, created_at "
+                  f"FROM knowledge_items {where_clause} ORDER BY id DESC LIMIT 600"
+              )
+              rows = cursor.execute(select_sql, params).fetchall()
+              self.toolkit.logger.debug(f"Fetched {len(rows)} candidate rows from SQLite with filters.")
+      
+              if not rows and (desired_category or desired_source):
+                  self.toolkit.logger.debug("No rows with filters; retrying without category/source filters.")
+                  rows = cursor.execute(
+                      "SELECT id, title, summary, details, keywords_json, source, category, importance, raw_text, created_at "
+                      "FROM knowledge_items ORDER BY id DESC LIMIT 600"
+                  ).fetchall()
+      
+              if not rows:
+                  return "No information stored."
+      
+              tokens = self._tokenize(search_text)
+              unique_tokens = set(tokens)
+              candidate_scores: dict[str, float] = {}
+              candidate_rows: dict[str, tuple] = {}
+      
+              for row in rows:
+                  rid = str(row[0])
+                  title, summary, details, keywords_json = row[1], row[2], row[3], row[4]
+                  importance = row[7] if isinstance(row[7], int) else 3
+      
+                  searchable = " ".join([title or "", summary or "", details or ""])
+                  token_set = set(self._tokenize(searchable))
+      
+                  try:
+                      keywords = json.loads(keywords_json) if keywords_json else []
+                      if not isinstance(keywords, list):
+                          keywords = []
+                  except Exception:
+                      keywords = []
+                  keyword_set = set(self._tokenize(" ".join([k for k in keywords if isinstance(k, str)])))
+      
+                  overlap = len(unique_tokens.intersection(token_set)) if unique_tokens else 1
+                  kw_overlap = len(unique_tokens.intersection(keyword_set)) if unique_tokens else 0
+      
+                  score = (overlap * 2.0) + (kw_overlap * 2.5) + (max(1, min(5, importance)) * 0.15)
+                  if focus and focus.lower() in f"{summary} {details}".lower():
+                      score += 1.0
+                  if score > 0:
+                      candidate_scores[rid] = score
+                      candidate_rows[rid] = row
+      
+              self.toolkit.logger.debug(f"Lexical scoring produced {len(candidate_scores)} candidates.")
+      
+              if self.collection is not None and search_text:
+                  try:
+                      n_results = min(max(top_k * 4, 8), 30)
+                      vector_result = self.collection.query(
+                          query_texts=[search_text],
+                          n_results=n_results,
+                          include=["distances"],
+                      )
+                      vec_ids = (vector_result.get("ids") or [[]])[0]
+                      vec_distances = (vector_result.get("distances") or [[]])[0]
+                      for i, cid in enumerate(vec_ids):
+                          if cid is None:
+                              continue
+                          cid = str(cid)
+                          distance = vec_distances[i] if i < len(vec_distances) and vec_distances[i] is not None else 1.0
+                          similarity = 1.0 / (1.0 + float(distance))
+                          candidate_scores[cid] = candidate_scores.get(cid, 0.0) + (similarity * 4.0)
+                      self.toolkit.logger.debug(f"Vector retrieval merged {len(vec_ids)} candidates.")
+                  except Exception as exc:
+                      self.toolkit.logger.debug(f"Vector retrieval failed; using lexical only. Error: {exc}")
+      
+              missing_ids = [cid for cid in candidate_scores.keys() if cid not in candidate_rows]
+              if missing_ids:
+                  placeholders = ",".join(["?"] * len(missing_ids))
+                  fetch_sql = (
+                      "SELECT id, title, summary, details, keywords_json, source, category, importance, raw_text, created_at "
+                      f"FROM knowledge_items WHERE id IN ({placeholders})"
+                  )
+                  fetched = cursor.execute(fetch_sql, missing_ids).fetchall()
+                  for row in fetched:
+                      candidate_rows[str(row[0])] = row
+                  self.toolkit.logger.debug(f"Fetched {len(fetched)} rows missing from lexical candidate cache.")
+      
+              ranked_ids = sorted(
+                  candidate_scores.keys(),
+                  key=lambda cid: (candidate_scores[cid], int(cid) if cid.isdigit() else 0),
+                  reverse=True,
+              )
+              selected_ids = []
+              for cid in ranked_ids:
+                  if cid in candidate_rows:
+                      selected_ids.append(cid)
+                  if len(selected_ids) >= top_k:
+                      break
+      
+              if not selected_ids:
+                  selected_ids = [str(row[0]) for row in rows[:top_k]]
+      
+              contexts = []
+              for cid in selected_ids:
+                  row = candidate_rows.get(cid)
+                  if row is None:
+                      continue
+                  contexts.append(self._row_to_context(row, candidate_scores.get(cid, 0.0)))
+              context_block = "\n\n".join(contexts)[:7500]
+              self.toolkit.logger.debug(
+                  f"Prepared {len(contexts)} contexts for synthesis; context chars={len(context_block)}."
+              )
+      
+              if not contexts:
+                  return "No relevant information found."
+      
+              system_prompt = INSTRUCTION_RESPONSE.strip()
+              if ALWAYS_ON_KNOWLEDGE.strip():
+                  system_prompt += "\n\n" + ALWAYS_ON_KNOWLEDGE.strip()
+              user_prompt = (
+                  "Use the retrieved knowledge to answer the question.\n"
+                  "If the knowledge is insufficient, state that clearly.\n\n"
+                  f"Question: {question}\n"
+                  f"Focus: {focus or 'none'}\n"
+                  f"Requested category: {desired_category or 'any'}\n"
+                  f"Requested source: {desired_source or 'any'}\n\n"
+                  "Retrieved knowledge:\n"
+                  f"{context_block}"
+              )
+      
+              try:
+                  answer = self.toolkit.llm_completion(
+                      [
+                          {"role": "system", "content": system_prompt},
+                          {"role": "user", "content": user_prompt},
+                      ],
+                      temperature=0.1,
+                  )
+                  if not isinstance(answer, str):
+                      answer = str(answer)
+                  answer = answer.strip()
+                  if not answer:
+                      raise ValueError("Empty LLM response")
+                  self.toolkit.logger.debug(f"LLM synthesis succeeded; answer chars={len(answer)}.")
+              except Exception as exc:
+                  self.toolkit.logger.debug(f"LLM synthesis failed; using deterministic fallback. Error: {exc}")
+                  bullets = []
+                  for ctx in contexts[:5]:
+                      match = re.search(r"Summary:\s*(.*)", ctx)
+                      summary_line = match.group(1).strip() if match else ctx[:160]
+                      bullets.append(f"- {summary_line}")
+                  answer = "Retrieved facts:\n" + "\n".join(bullets)
+      
+              return answer[:3000]
+  
+    ''',
+    'total_llm_calls': 5,
+  })
+# ---
 # name: test_patch_generation_compile_fix
   dict({
     'fixed_code': '''

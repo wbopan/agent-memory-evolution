@@ -129,17 +129,18 @@ class KnowledgeBase:
 PATCH_FORMAT_SPEC = """\
 Before the patch, output a commit message summarizing your changes:
 
-```
 *** Commit Message
 Title: <one-line summary of what you changed and why>
 - <root cause / diagnosis>
 - <what you changed>
-```
 
 Then output your changes as a V4A patch. The patch is applied to the current program shown in <current_program>.
 
+IMPORTANT: You MUST output the exact markers `*** Begin Patch` and `*** End Patch` on their own lines. \
+Do NOT wrap them in code fences. Do NOT use traditional unified diff format (--- a/ / +++ b/).
+
 Format:
-```
+
 *** Begin Patch
 *** Update File: program.py
 @@ <optional context hint>
@@ -148,7 +149,6 @@ Format:
 +added line
  context line (1-2 lines after change)
 *** End Patch
-```
 
 Rules:
 - Lines prefixed with `-` are removed, `+` are added, ` ` (space) are unchanged context.
@@ -156,7 +156,7 @@ Rules:
 - Multiple hunks are allowed within one `*** Update File` block.
 
 Example — replacing a return value:
-```
+
 *** Commit Message
 Title: Truncate read output to respect 3000-char limit
 - read() returned all stored text, exceeding the limit
@@ -169,7 +169,6 @@ Title: Truncate read output to respect 3000-char limit
 -    return "\\n".join(self.store)
 +    return "\\n".join(self.store[-5:])
 *** End Patch
-```
 """
 
 _MSG_MAX_CHARS = 10_000
@@ -578,6 +577,33 @@ The knowledge item must be a JSON object matching this schema:
 
 Respond with the JSON only."""
     return prompt
+
+
+def build_patch_format_fix_prompt(code: str) -> str:
+    """Build user prompt for retrying after a patch format error.
+
+    Unlike build_compile_fix_prompt, this tells the LLM the code is valid
+    and only asks it to re-emit improvements as a properly formatted patch.
+    """
+    return f"""\
+You are an expert Python programmer. The previous LLM output did not contain the required V4A patch markers.
+The code itself is valid — your job is to analyze it and output an improvement as a properly formatted V4A patch.
+
+{KB_INTERFACE_SPEC}
+
+Rules:
+1. Output your changes as a patch using the format below. If you see no improvements, output a no-op patch.
+2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
+3. Only use allowed imports: json, re, math, hashlib, collections, dataclasses, typing, datetime, textwrap, sqlite3, chromadb.
+
+{PATCH_FORMAT_SPEC}
+## Current Code
+
+```python
+{code}
+```
+
+Output your changes as a V4A patch."""
 
 
 def build_compile_fix_prompt(code: str, error_type: str, error_details: str) -> str:
