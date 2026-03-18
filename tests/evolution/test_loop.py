@@ -237,7 +237,7 @@ class TestEvolutionLoopRuntimeFix:
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
             EvalResult(score=0.5),
-            EvalResult(score=0.0, runtime_violation="memory.read() returned 5000 chars (limit: 1000)"),
+            EvalResult(score=0.0, runtime_violation="memory.read() returned 5000 chars (limit: 3000)"),
             EvalResult(score=0.8),
         ]
         reflector = MagicMock(spec=Reflector)
@@ -255,7 +255,7 @@ class TestEvolutionLoopRuntimeFix:
         state = loop.run()
 
         reflector.fix_runtime_violation.assert_called_once_with(
-            "child", "memory.read() returned 5000 chars (limit: 1000)"
+            "child", "memory.read() returned 5000 chars (limit: 3000)"
         )
         assert evaluator.evaluate.call_count == 3
         assert state.best_score == 0.8
@@ -298,8 +298,8 @@ class TestEvolutionLoopRuntimeFix:
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
             EvalResult(score=0.5),
-            EvalResult(score=0.0, runtime_violation="memory.read() returned 5000 chars (limit: 1000)"),
-            EvalResult(score=0.0, runtime_violation="memory.read() returned 3000 chars (limit: 1000)"),
+            EvalResult(score=0.0, runtime_violation="memory.read() returned 5000 chars (limit: 3000)"),
+            EvalResult(score=0.0, runtime_violation="memory.read() returned 4000 chars (limit: 3000)"),
             EvalResult(score=0.7),
         ]
         reflector = MagicMock(spec=Reflector)

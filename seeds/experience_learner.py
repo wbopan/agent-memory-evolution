@@ -51,4 +51,4 @@ class KnowledgeBase:
         facts_text = "\n".join(self.facts)[:500]
         result = f"Lessons:\n{lessons_text}\n\nFacts:\n{facts_text}"
         self.toolkit.logger.debug(f"Returning {len(self.lessons)} lessons, {len(self.facts)} facts")
-        return result[:1000]
+        return result[:3000]

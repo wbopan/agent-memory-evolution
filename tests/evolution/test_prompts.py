@@ -628,7 +628,7 @@ class TestLineageLogEndToEnd:
             "class KnowledgeBase:\n"
             "    def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []\n"
             "    def write(self, item, raw_text): self.raw_texts.append(raw_text)\n"
-            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:1000]\n"
+            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:3000]\n"
         )
         seed = KBProgram(source_code=seed_code)
         pool.add(
@@ -663,7 +663,7 @@ class TestLineageLogEndToEnd:
             "class KnowledgeBase:\n"
             "    def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []\n"
             "    def write(self, item, raw_text): self.raw_texts.append(raw_text)\n"
-            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'precise summary'}])[:1000]\n"
+            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'precise summary'}])[:3000]\n"
         )
         iter4 = KBProgram(source_code=iter4_code, generation=1, parent_hash=seed.hash)
         pool.add(
@@ -698,7 +698,7 @@ class TestLineageLogEndToEnd:
             "class KnowledgeBase:\n"
             "    def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []\n"
             "    def write(self, item, raw_text): self.raw_texts.append(raw_text)\n"
-            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':f'focus on {query.focus_person}'}])[:1000]\n"
+            "    def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':f'focus on {query.focus_person}'}])[:3000]\n"
             "    def _filter_by_person(self, person): return []\n"
         )
         iter12 = KBProgram(source_code=iter12_code, generation=2, parent_hash=iter4.hash)

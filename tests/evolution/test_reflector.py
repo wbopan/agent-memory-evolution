@@ -596,7 +596,7 @@ class TestReflectorRuntimeFix:
         mock_smoke.return_value = SmokeTestResult(success=True)
 
         reflector = Reflector(model="mock/model")
-        result = reflector.fix_runtime_violation("old code", "memory.read() returned 5000 chars (limit: 1000)")
+        result = reflector.fix_runtime_violation("old code", "memory.read() returned 5000 chars (limit: 3000)")
 
         assert result == fixed_code
         # _try_fix was called — verify the prompt includes "Runtime violation"

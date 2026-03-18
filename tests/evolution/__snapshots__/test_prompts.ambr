@@ -33,7 +33,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -86,9 +86,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -146,7 +146,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -199,9 +199,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -360,7 +360,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -381,7 +381,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -420,9 +420,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -500,7 +500,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -521,7 +521,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -560,9 +560,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -634,7 +634,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -655,7 +655,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -694,9 +694,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -782,7 +782,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -803,7 +803,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -842,9 +842,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -936,7 +936,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -957,7 +957,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -996,9 +996,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1094,7 +1094,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -1115,7 +1115,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -1154,9 +1154,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1249,7 +1249,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -1270,7 +1270,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -1309,9 +1309,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1394,7 +1394,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -1415,7 +1415,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -1454,9 +1454,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1528,7 +1528,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -1549,7 +1549,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -1588,9 +1588,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1662,7 +1662,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -1683,7 +1683,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -1722,9 +1722,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1809,7 +1809,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -1830,7 +1830,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -1869,9 +1869,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -1993,7 +1993,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -2014,7 +2014,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -2053,9 +2053,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -2077,7 +2077,7 @@
   class KnowledgeBase:
       def __init__(self, toolkit): self.toolkit = toolkit; self.raw_texts = []
       def write(self, item, raw_text): self.raw_texts.append(raw_text)
-      def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:1000]
+      def read(self, query): return self.toolkit.llm_completion([{'role':'user','content':'summarize'}])[:3000]
   
   ```
   </current_program>
@@ -2373,7 +2373,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -2394,7 +2394,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -2433,9 +2433,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -2513,7 +2513,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -2534,7 +2534,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -2573,9 +2573,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -2660,7 +2660,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -2681,7 +2681,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -2720,9 +2720,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -2800,7 +2800,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -2821,7 +2821,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -2860,9 +2860,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py
@@ -2951,7 +2951,7 @@
   
   These limits are enforced during evaluation. Violating them results in score = 0.
   
-  - **`read()` output limit**: `kb.read()` must return at most **1000 characters**. Programs that dump all stored text will fail.
+  - **`read()` output limit**: `kb.read()` must return at most **3000 characters**. Programs that dump all stored text will fail.
   - **`write()` / `read()` timeout**: Each call must complete within **60 seconds**. Avoid expensive computation in these methods.
   - **`toolkit.llm_completion()` budget**: At most **1 LLM call per `write()` or `read()` invocation**. The budget resets before each call. This is a powerful AI model capable of reasoning over large amounts of text — use it wisely (e.g., query-focused summarization, re-ranking, or information extraction in `read()`). Deterministic retrieval alone often misses semantic matches; combining it with an LLM call for final synthesis is a strong pattern.
   
@@ -2972,7 +2972,7 @@
   1. Output your diagnosis first, then your changes as a patch using the format below.
   2. The code must define exactly three classes (KnowledgeItem, Query, KnowledgeBase) and four module-level string constants (INSTRUCTION_KNOWLEDGE_ITEM, INSTRUCTION_QUERY, INSTRUCTION_RESPONSE, ALWAYS_ON_KNOWLEDGE).
   3. KnowledgeBase.__init__ must accept `toolkit`; write takes a KnowledgeItem; read takes a Query and returns str.
-  4. `read()` must return at most 1000 characters — do not return all stored text.
+  4. `read()` must return at most 3000 characters — do not return all stored text.
   5. Keep it simple. Make minimal changes that generalize beyond the specific cases shown — no hardcoded word lists or case-specific pattern rules.
   6. **Prompt Optimization**: Update INSTRUCTION_* to steer the task LLM's output format. Update ALWAYS_ON_KNOWLEDGE with domain strategies, heuristics, and behavioral rules the task agent should always follow — this constant is injected into EVERY task agent action/decision prompt and is often the highest-leverage change. Study the <model_generation> transcripts in the underperforming cases to identify agent behavioral patterns (e.g., looping, inefficient exploration, wrong object selection) that ALWAYS_ON_KNOWLEDGE can fix.
   7. **Memory Design**: Improve KnowledgeItem/Query field schemas and KnowledgeBase read()/write() logic to store and retrieve more useful information for the task agent.
@@ -3011,9 +3011,9 @@
   Example — replacing a return value:
   ```
   *** Commit Message
-  Title: Truncate read output to respect 1000-char limit
+  Title: Truncate read output to respect 3000-char limit
   - read() returned all stored text, exceeding the limit
-  - Added [:1000] truncation to the return value
+  - Added [:3000] truncation to the return value
   
   *** Begin Patch
   *** Update File: program.py

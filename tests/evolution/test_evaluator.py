@@ -875,9 +875,9 @@ class TestGuardedRead:
 
     def test_oversized_output_raises_violation(self):
         memory = MagicMock()
-        memory.read.return_value = "x" * 2000
-        with pytest.raises(RuntimeViolationError, match="2000 chars"):
-            _guarded_read(memory, MagicMock(), max_chars=1000)
+        memory.read.return_value = "x" * 5000
+        with pytest.raises(RuntimeViolationError, match="5000 chars"):
+            _guarded_read(memory, MagicMock(), max_chars=3000)
 
     def test_none_return_passes(self):
         memory = MagicMock()
@@ -925,7 +925,7 @@ OVERSIZED_READ_PROGRAM = textwrap.dedent("""\
 class TestRuntimeViolationEarlyAbort:
     @patch("programmaticmemory.evolution.evaluator.litellm")
     def test_oversized_read_aborts_eval(self, mock_litellm):
-        """Eval aborts on first kb.read() returning >1000 chars."""
+        """Eval aborts on first kb.read() returning >3000 chars."""
         batch_mock = _make_batch_mock(
             [
                 ['{"content": "hello"}'],  # train ki batch

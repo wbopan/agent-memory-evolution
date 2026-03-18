@@ -1,15 +1,15 @@
 from dataclasses import dataclass, field
 
 COMMIT_MESSAGE = (
-    "Title: ChromaDB vector search with QA pairs\n- Extracts question-answer pairs, retrieves via semantic similarity"
+    "Title: Vanilla RAG with ChromaDB\n"
+    "- Chunks raw text into paragraphs, stores in ChromaDB\n"
+    "- Retrieves top-k by semantic similarity, no LLM in read()"
 )
 
-INSTRUCTION_KNOWLEDGE_ITEM = (
-    "Extract a question-answer pair from the text. "
-    "The question should capture what this text is about, "
-    "and the answer should contain the key factual content."
+INSTRUCTION_KNOWLEDGE_ITEM = "Summarize the key information from the text."
+INSTRUCTION_QUERY = (
+    "Formulate a natural language query to search the knowledge base for information relevant to the question."
 )
-INSTRUCTION_QUERY = "Given the following question, generate a query to retrieve relevant knowledge."
 INSTRUCTION_RESPONSE = (
     "Based on the above knowledge and the original question, provide a short answer without explanation."
 )
@@ -18,45 +18,62 @@ ALWAYS_ON_KNOWLEDGE = ""
 
 @dataclass
 class KnowledgeItem:
-    """A question-answer pair extracted from source text."""
+    """A summary of what was learnt from the source text."""
 
-    question: str = field(metadata={"description": "A question that this text answers"})
-    answer: str = field(metadata={"description": "The factual answer contained in the text"})
+    summary: str = field(metadata={"description": "What you have learnt from the text"})
 
 
 @dataclass
 class Query:
-    """Raw text query for semantic search."""
+    """Natural language query to the knowledge base."""
 
-    raw: str = field(metadata={"description": "The query text to search for"})
+    query_text: str = field(metadata={"description": "A natural language query describing what information you need"})
 
 
 class KnowledgeBase:
-    """Semantic vector retrieval using ChromaDB embeddings."""
+    """Vanilla RAG: store text chunks in ChromaDB, retrieve by semantic similarity."""
 
     def __init__(self, toolkit):
         self.toolkit = toolkit
         self.collection = toolkit.chroma.get_or_create_collection("knowledge")
-        self._doc_count = 0
+        self._doc_id = 0
 
     def write(self, item: KnowledgeItem, raw_text: str) -> None:
-        doc_text = f"{item.question} {item.answer}"
-        meta = {"raw_text": raw_text[:500]}
-        self.collection.add(
-            documents=[doc_text],
-            metadatas=[meta],
-            ids=[str(self._doc_count)],
-        )
-        self._doc_count += 1
-        self.toolkit.logger.debug(f"Stored doc {self._doc_count}: {doc_text[:80]}")
+        chunks = self._chunk(raw_text, max_chars=500)
+        for chunk in chunks:
+            self.collection.add(
+                documents=[chunk],
+                ids=[f"doc_{self._doc_id}"],
+            )
+            self._doc_id += 1
+        self.toolkit.logger.debug(f"Stored {len(chunks)} chunks, total docs: {self._doc_id}")
 
     def read(self, query: Query) -> str:
-        if self._doc_count == 0:
+        if self._doc_id == 0:
             return "No information stored."
-        results = self.collection.query(query_texts=[query.raw], n_results=min(2, self._doc_count))
-        parts = []
-        for meta in results["metadatas"][0]:
-            parts.append(meta.get("raw_text", "")[:500])
-        result = "\n\n".join(parts)
-        self.toolkit.logger.debug(f"Query: {query.raw}, retrieved {len(parts)} results")
-        return result[:1000]
+        results = self.collection.query(
+            query_texts=[query.query_text],
+            n_results=min(5, self._doc_id),
+        )
+        docs = results["documents"][0] if results["documents"] else []
+        if not docs:
+            return "No relevant information found."
+        return "\n\n".join(docs)[:3000]
+
+    @staticmethod
+    def _chunk(text: str, max_chars: int = 500) -> list[str]:
+        """Split text into chunks by paragraphs, merging short ones."""
+        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        if not paragraphs:
+            paragraphs = [text.strip()] if text.strip() else [""]
+        chunks = []
+        current = ""
+        for para in paragraphs:
+            if current and len(current) + len(para) + 2 > max_chars:
+                chunks.append(current)
+                current = para
+            else:
+                current = f"{current}\n\n{para}" if current else para
+        if current:
+            chunks.append(current)
+        return chunks if chunks else [text[:max_chars]]

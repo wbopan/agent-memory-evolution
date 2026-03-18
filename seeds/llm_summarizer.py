@@ -61,4 +61,4 @@ class KnowledgeBase:
         except Exception:
             # Fallback: return truncated raw text if LLM call fails
             result = combined
-        return result[:1000]
+        return result[:3000]

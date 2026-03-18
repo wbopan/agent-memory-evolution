@@ -66,7 +66,7 @@ def set_batch_pool_size(size: int) -> None:
 _GUARD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 MEMORY_OP_TIMEOUT = 60.0
-MEMORY_READ_MAX_CHARS = 1000
+MEMORY_READ_MAX_CHARS = 3000
 
 
 class RuntimeViolationError(Exception):

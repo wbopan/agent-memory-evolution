@@ -608,7 +608,7 @@ def test_runtime_violation_fix_oversized_read(snapshot: SnapshotAssertion):
 
     assert result.runtime_violation is not None, "Expected runtime violation but got None"
     assert "5000" in result.runtime_violation
-    assert "1000" in result.runtime_violation
+    assert "3000" in result.runtime_violation
     assert result.score == 0.0
 
     # Step 2: LLM fixes the runtime violation
