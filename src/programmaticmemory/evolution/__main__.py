@@ -266,11 +266,18 @@ def main() -> None:
 
         # Load saved config and override args (but keep user-supplied --iterations)
         saved_config = _json.loads(config_path.read_text(encoding="utf-8"))
-        user_iterations = args.iterations  # preserve user override
+        # Detect if user explicitly passed --iterations (vs parser default)
+        user_passed_iterations = "--iterations" in sys.argv
         for key, value in saved_config.items():
-            if key != "iterations" and hasattr(args, key):
+            if hasattr(args, key):
                 setattr(args, key, value)
-        args.iterations = user_iterations
+        if user_passed_iterations:
+            # Re-parse just --iterations from CLI to get user's explicit value
+            iter_parser = argparse.ArgumentParser()
+            iter_parser.add_argument("--iterations", type=int)
+            iter_args, _ = iter_parser.parse_known_args()
+            if iter_args.iterations is not None:
+                args.iterations = iter_args.iterations
 
         # Restore random state
         random.setstate(pickle.loads(base64.b64decode(checkpoint["random_state"])))
@@ -345,9 +352,18 @@ def main() -> None:
             else:
                 eval_strat = FullDataset(test_train_ratio=args.test_train_ratio)
 
+        # Build selection strategy
+        if args.selection_strategy == "recency_decay":
+            strategy = RecencyDecaySelection(decay_rate=args.selection_recency_decay_rate)
+        elif args.selection_strategy == "max":
+            strategy = MaxSelection()
+        else:
+            strategy = SoftmaxSelection(temperature=args.selection_softmax_temperature)
+
         # Reconstruct pool from saved programs
         programs_dir = resume_dir / "programs"
         pool_entries_data = checkpoint.get("pool", [])
+        resumed_pool = ProgramPool(strategy=strategy)
         hash_to_program: dict = {}
         for entry_data in pool_entries_data:
             name = entry_data["name"]
@@ -358,35 +374,12 @@ def main() -> None:
             # Strip header comment (first line starting with "# ")
             lines = raw.split("\n")
             if lines and lines[0].startswith("# "):
-                # Remove header line and optional blank line
-                source = "\n".join(lines[1:]).lstrip("\n")
-            else:
-                source = raw
-            entry = deserialize_pool_entry(entry_data, source)
-            hash_to_program[entry.program.hash] = entry.program
-
-        # Build selection strategy
-        if args.selection_strategy == "recency_decay":
-            strategy = RecencyDecaySelection(decay_rate=args.selection_recency_decay_rate)
-        elif args.selection_strategy == "max":
-            strategy = MaxSelection()
-        else:
-            strategy = SoftmaxSelection(temperature=args.selection_softmax_temperature)
-
-        resumed_pool = ProgramPool(strategy=strategy)
-        for entry_data in pool_entries_data:
-            name = entry_data["name"]
-            prog_file = programs_dir / f"{name}.py"
-            if not prog_file.exists():
-                continue
-            raw = prog_file.read_text(encoding="utf-8")
-            lines = raw.split("\n")
-            if lines and lines[0].startswith("# "):
                 source = "\n".join(lines[1:]).lstrip("\n")
             else:
                 source = raw
             entry = deserialize_pool_entry(entry_data, source)
             resumed_pool.entries.append(entry)
+            hash_to_program[entry.program.hash] = entry.program
 
         # Reconstruct EvolutionState history from checkpoint
         score_history = checkpoint.get("score_history", [])
