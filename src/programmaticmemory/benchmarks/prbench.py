@@ -35,7 +35,7 @@ def ensure_data(data_dir: str | Path | None = None) -> Path:
     records: list[dict] = []
     for split_name in ["finance", "finance_hard", "legal", "legal_hard"]:
         try:
-            ds = hf_load("ScaleAI/PRBench", name=split_name, split="train")
+            ds = hf_load("ScaleAI/PRBench", split=split_name)
         except Exception:
             continue
         for row in ds:
@@ -95,7 +95,7 @@ def load_prbench(
     if category is not None:
         if category not in all_categories:
             raise ValueError(f"Unknown category {category!r}. Available: {all_categories}")
-        records = [r for r in records if r.get("field") == category]
+        records = [r for r in records if (r.get("field") or "").lower() == category]
 
     rng = random.Random(seed)
     rng.shuffle(records)
@@ -122,7 +122,7 @@ def load_prbench(
                 question=prompt,
                 expected_answer="",
                 metadata={
-                    "domain": field,
+                    "domain": (field or "").lower(),
                     "topic": str(record.get("topic", "")),
                     "rubric_criteria": rubric_criteria,
                 },

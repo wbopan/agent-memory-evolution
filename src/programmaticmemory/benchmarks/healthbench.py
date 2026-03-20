@@ -6,28 +6,24 @@ import json
 import random
 from pathlib import Path
 
-from programmaticmemory.benchmarks._download import get_data_dir
+from programmaticmemory.benchmarks._download import download_file, get_data_dir
 from programmaticmemory.datasets import register_dataset
 from programmaticmemory.evolution.evaluator import RubricValScorer
 from programmaticmemory.evolution.types import DataItem, Dataset
 
+_HEALTHBENCH_URL = (
+    "https://openaipublic.blob.core.windows.net/simple-evals/healthbench/2025-05-07-06-14-12_oss_eval.jsonl"
+)
+
 
 def ensure_data(data_dir: str | Path | None = None) -> Path:
-    """Download HealthBench from HuggingFace if not already present."""
+    """Download HealthBench JSONL from official blob storage if not present."""
     dest_dir = get_data_dir("healthbench", data_dir)
     data_file = dest_dir / "healthbench.jsonl"
     if data_file.exists():
         return dest_dir
 
-    try:
-        from datasets import load_dataset as hf_load
-    except ImportError as exc:
-        raise ImportError("pip install datasets  # required for HealthBench") from exc
-
-    ds = hf_load("openai/healthbench", split="test")
-    with data_file.open("w", encoding="utf-8") as fp:
-        for row in ds:
-            fp.write(json.dumps(dict(row), ensure_ascii=False, default=str) + "\n")
+    download_file(_HEALTHBENCH_URL, data_file)
     return dest_dir
 
 
