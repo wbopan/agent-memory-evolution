@@ -44,8 +44,12 @@ uv run python -m programmaticmemory.evolution --dataset mini_locomo --iterations
 # --dataset locomo/tau_bench/alfworld/mini_locomo for other benchmarks
 # --selection-strategy softmax/recency_decay/max (default: softmax)
 # Local output directory (default: outputs/YYYY-MM-DD-HH-mm-SS/)
-# Contains config.json, run.log, summary.json, llm_calls/ with per-call JSON
+# Contains config.json, run.log, summary.json, state.json, evals/, programs/, llm_calls/
 # Disable with --no-output
+
+# Resume an interrupted run (picks up from last completed iteration)
+uv run python -m programmaticmemory.evolution --resume outputs/<run-dir>/
+# Optionally extend total iterations: --resume outputs/<dir>/ --iterations 30
 ```
 
 ## Architecture
@@ -94,6 +98,7 @@ Population-based: maintains a `ProgramPool` of evaluated programs with pluggable
 - **benchmarks/__init__.py** — Imports all benchmark modules to trigger `@register_dataset` decorators. Must be updated when adding new benchmarks.
 - **batching.py** — Co-selected evaluation batching: `EvalBatch` (val_indices + train_indices + coverage), `build_eval_batches()` clusters val items via k-means on embeddings, then greedy facility location selects train items per cluster. `select_representative_subset()` picks a representative val subset via clustering + facility location for train coverage. Uses `litellm.embedding` (model: `openrouter/baai/bge-m3`). Depends on `numpy`.
 - **strategies.py** — `EvalStrategy` implementations: `FullDataset` (full data every iteration, no final revalidation), `FixedRepresentative` (clustering-based fixed subset, comparable scores, final revalidation of top-1), `RotatingBatch` (round-robin batches, final revalidation of top-K).
+- **checkpoint.py** — Serialization utilities for resume: `serialize_*`/`deserialize_*` for `FailedCase`, `EvalResult`, `PoolEntry`. Pool entries exclude `source_code` (loaded from `programs/*.py`).
 - **patcher.py** — `apply_patch()`: thin wrapper around `codex-apply-patch` for applying diffs to Knowledge Base Program source code.
 
 ### Other Modules (under `src/programmaticmemory/`)
