@@ -397,12 +397,16 @@ def _run_episode(
     max_steps: int,
     always_on_knowledge: str = "",
     reasoning_effort: str | None = None,
-) -> tuple[str, float]:
-    """Run a single ALFWorld episode in its own process. Returns (transcript, score).
+    ) -> tuple[str, float, str]:
+    """Run a single ALFWorld episode in its own process.
 
-    Module-level function (not a method) so it can be pickled for ProcessPoolExecutor.
-    TextWorld's tatsu-based parsers use global singletons that are not thread-safe,
-    so each episode must run in a separate process.
+    Module-level function (not a method) so it can be pickled for
+    ``ProcessPoolExecutor``. TextWorld's tatsu-based parsers use global
+    singletons that are not thread-safe, so each episode must run in a
+    separate process.
+
+    Returns:
+        tuple[str, float, str]: (transcript, score, rationale)
     """
     import os
 
@@ -440,7 +444,11 @@ def _run_episode(
 
         admissible = _extract_admissible(info if isinstance(info, dict) else {})
         if not admissible:
-            return "Game has no admissible commands (corrupt PDDL state)", 0.0
+            return (
+                "Game has no admissible commands (corrupt PDDL state)",
+                0.0,
+                "ALFWorld episode. Episode failed before execution: no admissible actions.",
+            )
         trajectory_lines: list[str] = [str(obs).strip()] if obs else []
         total_reward = 0.0
         done = False
@@ -480,8 +488,23 @@ def _run_episode(
                 break
 
         transcript = "\n".join(trajectory_lines)
-        score = 1.0 if done and total_reward >= 1.0 else 0.0
-        return transcript, score
+        if done and total_reward >= 1.0:
+            rationale = (
+                f"ALFWorld episode (binary success: complete the household task). "
+                f"Result: SUCCESS in {_step + 1}/{max_steps} steps. "
+                f'Task: "{objective}"'
+            )
+            score = 1.0
+        else:
+            last_lines = trajectory_lines[-6:] if len(trajectory_lines) >= 6 else trajectory_lines
+            last_context = "\n  ".join(last_lines)
+            score = 0.0
+            rationale = (
+                f"ALFWorld episode (binary success: complete the household task). "
+                f"Result: FAILED after {_step + 1}/{max_steps} steps. "
+                f'Task: "{objective}"\nLast steps:\n  {last_context}'
+            )
+        return transcript, score, rationale
     finally:
         try:
             env.close()
@@ -574,15 +597,15 @@ class ALFWorldValScorer:
         always_on_knowledge: str = "",
         *,
         reasoning_effort: str | None = None,
-    ) -> list[tuple[str, float]]:
-        """Run one episode per item in parallel, return (transcript, score) pairs."""
+    ) -> list[tuple[str, float, str]]:
+        """Run one episode per item in parallel, return (transcript, score, rationale) triples."""
         import concurrent.futures
 
         workers = min(self.max_workers, len(items)) if items else 1
         # Use 'spawn' context: TextWorld's C library crashes (exit/abort) in
         # forked workers can break the pool. 'spawn' fully isolates each episode.
         ctx = multiprocessing.get_context("spawn")
-        results: list[tuple[str, float]] = []
+        results: list[tuple[str, float, str]] = []
         try:
             with concurrent.futures.ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
                 futures = [
@@ -602,7 +625,7 @@ class ALFWorldValScorer:
                     try:
                         results.append(f.result(timeout=self.episode_timeout))
                     except Exception as exc:
-                        results.append((f"Episode failed: {exc}", 0.0))
+                        results.append((f"Episode failed: {exc}", 0.0, f"ALFWorld episode. Episode crashed: {exc}"))
         except Exception as e:
             # Pool broke — fill remaining items with 0.0
             from programmaticmemory.logging.logger import get_logger
@@ -612,7 +635,7 @@ class ALFWorldValScorer:
                 header="ALFWORLD",
             )
             while len(results) < len(items):
-                results.append(("Episode failed: broken process pool", 0.0))
+                results.append(("Episode failed: broken process pool", 0.0, "ALFWorld episode. Process pool broke"))
         return results
 
 
@@ -749,7 +772,7 @@ def load_alfworld(
         train=train,
         val=val,
         test=[],
-        scorer=ExactMatchScorer(),
+        compare_fn=ExactMatchScorer() if val_scorer is None else None,
         val_scorer=val_scorer,
         available_categories=all_categories,
         category_key="task_type",

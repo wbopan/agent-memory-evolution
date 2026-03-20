@@ -155,7 +155,6 @@ def load_prbench(
         train=train,
         val=val,
         test=[],
-        scorer=None,
         val_scorer=RubricValScorer(judge_model=judge_model),
         available_categories=all_categories,
         category_key="domain",

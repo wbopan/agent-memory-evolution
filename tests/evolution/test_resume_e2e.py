@@ -79,7 +79,7 @@ def _make_eval_result(score: float) -> EvalResult:
         score=score,
         per_case_scores=[score],
         per_case_outputs=["output"],
-        failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)] if score < 1.0 else [],
+        failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)] if score < 1.0 else [],
         success_cases=[],
     )
 

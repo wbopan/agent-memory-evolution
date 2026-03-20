@@ -30,7 +30,6 @@ from programmaticmemory.evolution.types import (
     PoolEntry,
     ProgramPool,
     RecencyDecaySelection,
-    Scorer,
     SelectionStrategy,
     SoftmaxSelection,
 )

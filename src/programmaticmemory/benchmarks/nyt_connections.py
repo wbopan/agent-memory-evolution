@@ -33,13 +33,19 @@ class ConnectionsScorer:
     Returns correct_count / 4 (partial credit: 0.0, 0.25, 0.5, 0.75, 1.0).
     """
 
-    def __call__(self, output: str, expected: str) -> float:
+    def __call__(self, output: str, expected: str) -> tuple[float, str]:
         predicted = self._parse_groups(output)
         answer = self._parse_groups(expected)
         if not answer:
-            return 0.0
+            return 0.0, "Connections puzzle. No expected groups found."
         correct = self._count_correct_groups(predicted, answer)
-        return correct / len(answer)
+        total = len(answer)
+        score = correct / total if total else 0.0
+        groups_str = "; ".join(", ".join(sorted(g)) for g in answer)
+        return (
+            score,
+            f"Connections puzzle (matches word groups exactly). Matched {correct}/{total} groups. Expected groups: [{groups_str}]",
+        )
 
     @staticmethod
     def _parse_groups(text: str) -> list[set[str]]:
@@ -133,4 +139,4 @@ def load_nyt_connections(
     train = items[:split]
     val = items[split:]
 
-    return Dataset(train=train, val=val, test=[], scorer=ConnectionsScorer())
+    return Dataset(train=train, val=val, test=[], compare_fn=ConnectionsScorer())

@@ -104,4 +104,4 @@ def load_tau_bench(
     train = items[:split]
     val = items[split:]
 
-    return Dataset(train=train, val=val, test=[], scorer=ExactMatchScorer(), available_categories=all_domains)
+    return Dataset(train=train, val=val, test=[], compare_fn=ExactMatchScorer(), available_categories=all_domains)

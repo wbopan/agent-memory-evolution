@@ -7,20 +7,14 @@ import hashlib
 import math
 import random
 from dataclasses import dataclass, field
-from typing import Protocol
-
-
-class Scorer(Protocol):
-    """Scoring function: compares model output against expected answer."""
-
-    def __call__(self, output: str, expected: str) -> float: ...
+from typing import Any, Protocol
 
 
 class ValScorer(Protocol):
     """Pluggable val scoring strategy.
 
     Replaces the default LLM answer generation + string-compare scoring.
-    Receives items with their KB-retrieved strings and returns (output, score) pairs.
+    Receives items with their KB-retrieved strings and returns (output, score, rationale) triples.
     """
 
     def score_batch(
@@ -32,7 +26,7 @@ class ValScorer(Protocol):
         always_on_knowledge: str,
         *,
         reasoning_effort: str | None = None,
-    ) -> list[tuple[str, float]]: ...
+    ) -> list[tuple[str, float, str]]: ...
 
 
 class EvalStrategy(Protocol):
@@ -94,10 +88,10 @@ class Dataset:
     train: list[DataItem]
     val: list[DataItem]
     test: list[DataItem]
-    scorer: Scorer | None = None
+    compare_fn: Any | None = None
     val_scorer: ValScorer | None = None
     available_categories: list[str] | None = None
-    extra_scorers: dict[str, Scorer] = field(default_factory=dict)
+    extra_scorers: dict[str, Any] = field(default_factory=dict)
     category_key: str | None = None
 
 
@@ -107,7 +101,7 @@ class FailedCase:
 
     question: str
     output: str
-    expected: str
+    rationale: str
     score: float
     conversation_history: list[dict[str, str]] = field(default_factory=list)
     memory_logs: list[str] = field(default_factory=list)

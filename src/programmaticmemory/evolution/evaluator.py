@@ -32,7 +32,6 @@ from programmaticmemory.evolution.types import (
     EvalResult,
     FailedCase,
     KBProgram,
-    Scorer,
     TrainExample,
     ValScorer,
 )
@@ -118,14 +117,20 @@ def _guarded_read(
 
 
 class ExactMatchScorer:
-    """Containment-based matching with normalization."""
+    """Containment-based matching with normalization. Returns (score, rationale)."""
 
-    def __call__(self, output: str, expected: str) -> float:
+    def __call__(self, output: str, expected: str) -> tuple[float, str]:
         output_norm = self._normalize(output)
         expected_norm = self._normalize(expected)
         if expected_norm in output_norm:
-            return 1.0
-        return 0.0
+            return (
+                1.0,
+                f'Exact match (checks if normalized expected answer appears in output). MATCH. Expected answer: "{expected}"',
+            )
+        return (
+            0.0,
+            f'Exact match (checks if normalized expected answer appears in output). NO MATCH. Expected answer: "{expected}"',
+        )
 
     @staticmethod
     def _normalize(text: str) -> str:
@@ -136,19 +141,39 @@ class ExactMatchScorer:
 
 
 class TokenF1Scorer:
-    """Token-level F1 with SQuAD-style normalization (no stemming)."""
+    """Token-level F1 with SQuAD-style normalization (no stemming). Returns (score, rationale)."""
 
-    def __call__(self, output: str, expected: str) -> float:
+    def __call__(self, output: str, expected: str) -> tuple[float, str]:
         out_tok = self._normalize_and_tokenize(output)
         exp_tok = self._normalize_and_tokenize(expected)
         if not exp_tok or not out_tok:
-            return float(out_tok == exp_tok)
+            score = float(out_tok == exp_tok)
+            detail = "both empty" if score == 1.0 else "one side empty"
+            return (
+                score,
+                f'Token F1 score (measures word overlap between output and expected answer). F1={score:.2f} — {detail}. Expected answer: "{expected}"',
+            )
         common = collections.Counter(out_tok) & collections.Counter(exp_tok)
         num = sum(common.values())
         if num == 0:
-            return 0.0
+            return (
+                0.0,
+                f'Token F1 score (measures word overlap between output and expected answer). F1=0.00 — No word overlap with expected answer. Expected answer: "{expected}"',
+            )
         p, r = num / len(out_tok), num / len(exp_tok)
-        return 2 * p * r / (p + r)
+        f1 = 2 * p * r / (p + r)
+        if f1 >= 1.0:
+            interp = "perfect word overlap with expected answer"
+        elif f1 > 0.5:
+            interp = "partial match — output captures the gist but misses or adds terms"
+        elif f1 > 0.0:
+            interp = "low overlap — output largely misses the expected content"
+        else:
+            interp = "no overlap"
+        return (
+            f1,
+            f'Token F1 score (measures word overlap between output and expected answer). F1={f1:.2f} (precision={p:.2f}, recall={r:.2f}) — {interp}. Expected answer: "{expected}"',
+        )
 
     @staticmethod
     def _normalize_and_tokenize(text: str) -> list[str]:
@@ -159,12 +184,12 @@ class TokenF1Scorer:
 
 
 class LLMJudgeScorer:
-    """LLM-as-judge scorer, returns 0.0 or 1.0."""
+    """LLM-as-judge scorer, returns (score, rationale)."""
 
     def __init__(self, model: str) -> None:
         self.model = model
 
-    def __call__(self, output: str, expected: str) -> float:
+    def __call__(self, output: str, expected: str) -> tuple[float, str]:
         response = litellm.completion(
             model=self.model,
             messages=[
@@ -182,9 +207,14 @@ class LLMJudgeScorer:
         )
         text = response.choices[0].message.content.strip()
         try:
-            return float(int(text))
+            score = float(int(text))
         except (ValueError, TypeError):
-            return 0.0
+            score = 0.0
+        verdict = "correct" if score >= 1.0 else "incorrect"
+        return (
+            score,
+            f"LLM judge (binary correct/incorrect assessment). Verdict: {verdict}. Expected answer: \"{expected}\"",
+        )
 
 
 RUBRIC_GRADER_TEMPLATE = """
@@ -255,9 +285,9 @@ class RubricValScorer:
         always_on_knowledge: str = "",
         *,
         reasoning_effort: str | None = None,
-    ) -> list[tuple[str, float]]:
+    ) -> list[tuple[str, float, str]]:
         """Generate responses and grade each against rubric criteria."""
-        results: list[tuple[str, float]] = []
+        results: list[tuple[str, float, str]] = []
 
         for item, memory_text in zip(items, retrieved):  # noqa: B905
             response = self._generate_response(
@@ -271,7 +301,7 @@ class RubricValScorer:
 
             criteria = item.metadata.get("rubric_criteria", [])
             if not criteria:
-                results.append((response, 0.0))
+                results.append((response, 0.0, "Rubric-based scoring. No rubric criteria found."))
                 continue
 
             conversation_text = self._format_conversation(item, response)
@@ -281,7 +311,28 @@ class RubricValScorer:
                 grades.append(met)
 
             score = _calculate_rubric_score(criteria, grades)
-            results.append((response, score))
+            met_count = sum(1 for met in grades if met)
+            total = len(criteria)
+            lines = [
+                "Rubric-based scoring (per-criterion LLM judge, score = met_points / total_positive_points).",
+                f"Score: {score:.2f} ({met_count} of {total} criteria met).",
+                "Per-criterion breakdown:",
+            ]
+            focus_areas = []
+            for criterion, met in zip(criteria, grades, strict=False):
+                points = criterion["points"]
+                label = "MET" if met else "NOT MET"
+                if points < 0 and not met:
+                    label = "NOT MET (good)"
+                prefix = f"  [{points:+.1f}] {label}"
+                lines.append(f'{prefix}: "{criterion["criterion"]}"')
+                if not met and points > 0:
+                    focus_areas.append(str(criterion["criterion"]))
+            if focus_areas:
+                lines.append(f"Focus areas for improvement: {'; '.join(focus_areas)}.")
+
+            rationale = "\n".join(lines)
+            results.append((response, score, rationale))
 
         return results
 
@@ -383,14 +434,14 @@ class MemoryEvaluator:
 
     def __init__(
         self,
-        scorer: Scorer | None = None,
+        compare_fn: Any | None = None,
         *,
         task_model: str,
         toolkit_config: ToolkitConfig,
         val_scorer: ValScorer | None = None,
         reasoning_effort: str | None = None,
     ) -> None:
-        self.scorer = scorer or ExactMatchScorer()
+        self.compare_fn = compare_fn or ExactMatchScorer()
         self.task_model = task_model
         self.toolkit_config = toolkit_config
         self.val_scorer = val_scorer
@@ -780,7 +831,7 @@ class MemoryEvaluator:
                 logs.append("Train answer generation failed (batch error)")
                 fail_count += 1
                 continue
-            score = self.scorer(answer, train_data[i].expected_answer)
+            score, _rationale = self.compare_fn(answer, train_data[i].expected_answer)
             evaluation_result = f"Score: {score:.1f} ({'correct' if score >= 1.0 else 'incorrect'})"
             msgs_so_far = r2_msgs + [{"role": "assistant", "content": answer}]
             round3_items.append((train_data[i], msgs_so_far, evaluation_result))
@@ -1100,8 +1151,9 @@ class MemoryEvaluator:
                     FailedCase(
                         question=item.question,
                         output="",
-                        expected=item.expected_answer,
+                        rationale="Query generation failed — no memory retrieval was performed.",
                         score=0.0,
+                        conversation_history=[],
                         memory_logs=log_snapshot,
                     )
                 )
@@ -1123,7 +1175,7 @@ class MemoryEvaluator:
                     FailedCase(
                         question=item.question,
                         output="",
-                        expected=item.expected_answer,
+                        rationale="Answer generation failed (LLM batch error).",
                         score=0.0,
                         conversation_history=conv,
                         memory_logs=log_snapshot,
@@ -1132,7 +1184,7 @@ class MemoryEvaluator:
                 continue
 
             outputs.append(answer)
-            score = self.scorer(answer, item.expected_answer)
+            score, rationale = self.compare_fn(answer, item.expected_answer)
             scores.append(score)
             conv = [
                 {"role": "user", "content": slot.query_prompt},
@@ -1143,7 +1195,7 @@ class MemoryEvaluator:
             case = FailedCase(
                 question=item.question,
                 output=answer,
-                expected=item.expected_answer,
+                rationale=rationale,
                 score=score,
                 conversation_history=conv,
                 memory_logs=log_snapshot,
@@ -1183,7 +1235,7 @@ class MemoryEvaluator:
         success_cases: list[FailedCase] = []
         log_snapshot = list(toolkit.logger.logs)
 
-        for i, (output, score) in enumerate(results):
+        for i, (output, score, rationale) in enumerate(results):
             scores.append(score)
             outputs.append(output)
             # Include retrieval conversation so reflection LLM can diagnose
@@ -1201,7 +1253,7 @@ class MemoryEvaluator:
             case = FailedCase(
                 question=val_data[i].question,
                 output=output,
-                expected=val_data[i].expected_answer,
+                rationale=rationale,
                 score=score,
                 conversation_history=conv,
                 memory_logs=log_snapshot,

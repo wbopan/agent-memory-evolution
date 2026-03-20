@@ -34,7 +34,7 @@ def _make_failed_case(**kwargs) -> FailedCase:
     defaults = dict(
         question="What is X?",
         output="A",
-        expected="B",
+        rationale="B",
         score=0.0,
         conversation_history=[{"role": "user", "content": "hi"}],
         memory_logs=["log line 1"],
@@ -49,7 +49,7 @@ def _make_eval_result(**kwargs) -> EvalResult:
         per_case_scores=[0.5, 1.0],
         per_case_outputs=["answer A", "answer B"],
         failed_cases=[_make_failed_case(score=0.0)],
-        success_cases=[_make_failed_case(score=1.0, output="B", expected="B")],
+        success_cases=[_make_failed_case(score=1.0, output="B", rationale="B")],
         logs=["eval log"],
         train_examples=[TrainExample(messages=[{"role": "user", "content": "train"}])],
         runtime_violation=None,
@@ -82,13 +82,13 @@ class TestFailedCaseSerialization:
         fc2 = deserialize_failed_case(d)
         assert fc2.question == fc.question
         assert fc2.output == fc.output
-        assert fc2.expected == fc.expected
+        assert fc2.rationale == fc.rationale
         assert fc2.score == fc.score
         assert fc2.conversation_history == fc.conversation_history
         assert fc2.memory_logs == fc.memory_logs
 
     def test_empty_optional_fields(self):
-        fc = FailedCase(question="Q", output="O", expected="E", score=0.5)
+        fc = FailedCase(question="Q", output="O", rationale="E", score=0.5)
         d = serialize_failed_case(fc)
         fc2 = deserialize_failed_case(d)
         assert fc2.conversation_history == []
@@ -124,6 +124,12 @@ class TestFailedCaseSerialization:
         fc = deserialize_failed_case(d)
         assert fc.conversation_history == []
         assert fc.memory_logs == []
+
+    def test_deserialize_old_expected_key(self):
+        """Old checkpoints should still deserialize from `expected`."""
+        d = {"question": "Q", "output": "O", "expected": "E", "score": 0.0}
+        fc = deserialize_failed_case(d)
+        assert fc.rationale == "E"
 
 
 # ---------------------------------------------------------------------------
@@ -183,12 +189,12 @@ class TestEvalResultSerialization:
         json.dumps(d)
 
     def test_failed_cases_content_preserved(self):
-        fc = _make_failed_case(question="specific Q", output="wrong", expected="right", score=0.0)
+        fc = _make_failed_case(question="specific Q", output="wrong", rationale="right", score=0.0)
         er = _make_eval_result(failed_cases=[fc])
         er2 = deserialize_eval_result(serialize_eval_result(er))
         assert er2.failed_cases[0].question == "specific Q"
         assert er2.failed_cases[0].output == "wrong"
-        assert er2.failed_cases[0].expected == "right"
+        assert er2.failed_cases[0].rationale == "right"
 
     def test_missing_optional_keys_tolerated(self):
         """Deserializing a minimal dict should use defaults."""
@@ -286,10 +292,10 @@ def _make_dataset(n_val: int = 10, n_train: int = 20) -> Dataset:
     val = [DataItem(raw_text="", question=f"val_q_{i}", expected_answer="A") for i in range(n_val)]
     train = [DataItem(raw_text="", question=f"train_q_{i}", expected_answer="B") for i in range(n_train)]
 
-    def scorer(a: str, b: str) -> float:
+    def compare_fn(a: str, b: str) -> float:
         return 1.0 if a == b else 0.0
 
-    return Dataset(train=train, val=val, test=[], scorer=scorer)
+    return Dataset(train=train, val=val, test=[], compare_fn=compare_fn)
 
 
 # ---------------------------------------------------------------------------

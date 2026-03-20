@@ -430,14 +430,14 @@ def main() -> None:
         )
 
         # Build evaluator / reflector / tracker
-        scorer = dataset.scorer or ExactMatchScorer()
+        compare_fn = dataset.compare_fn or ExactMatchScorer()
         toolkit_config = ToolkitConfig(
             llm_model=args.toolkit_model,
             reasoning_effort=args.task_lm_thinking_effort,
             llm_call_budget=args.toolkit_budget,
         )
         evaluator = MemoryEvaluator(
-            scorer=scorer,
+            compare_fn=compare_fn,
             task_model=args.task_model,
             toolkit_config=toolkit_config,
             val_scorer=dataset.val_scorer,
@@ -577,12 +577,12 @@ def main() -> None:
         logger.log(f"Output directory: {output_manager.run_dir}", header="CONFIG")
 
     # Configure
-    scorer = dataset.scorer or ExactMatchScorer()
+    compare_fn = dataset.compare_fn or ExactMatchScorer()
     toolkit_config = ToolkitConfig(
         llm_model=args.toolkit_model, reasoning_effort=args.task_lm_thinking_effort, llm_call_budget=args.toolkit_budget
     )
     evaluator = MemoryEvaluator(
-        scorer=scorer,
+        compare_fn=compare_fn,
         task_model=args.task_model,
         toolkit_config=toolkit_config,
         val_scorer=dataset.val_scorer,

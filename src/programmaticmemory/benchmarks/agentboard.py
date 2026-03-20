@@ -254,7 +254,7 @@ def _run_episode(
     max_steps: int,
     always_on_knowledge: str = "",
     reasoning_effort: str | None = None,
-) -> tuple[str, float]:
+) -> tuple[str, float, str]:
     if env_type == "scienceworld":
         from programmaticmemory.benchmarks._scienceworld_wrapper import ScienceWorldWrapper
 
@@ -295,7 +295,16 @@ def _run_episode(
             trajectory_lines.append(f"OBSERVATION: {obs.strip()}")
             if done:
                 break
-        return "\n".join(trajectory_lines), progress
+        trajectory = "\n".join(trajectory_lines)
+        return (
+            trajectory,
+            progress,
+            (
+                f"AgentBoard episode (progress rate: fraction of subgoals completed). "
+                f"Progress: {progress:.2f}. Task: \"{objective}\". "
+                f"Environment: {env_type}"
+            ),
+        )
     finally:
         wrapper.close()
 
@@ -318,7 +327,7 @@ class AgentBoardValScorer:
         always_on_knowledge: str = "",
         *,
         reasoning_effort: str | None = None,
-    ) -> list[tuple[str, float]]:
+    ) -> list[tuple[str, float, str]]:
         import concurrent.futures
 
         workers = min(self.max_workers, len(items)) if items else 1
@@ -337,12 +346,18 @@ class AgentBoardValScorer:
                 )
                 for item, tips in zip(items, retrieved, strict=True)
             ]
-            results: list[tuple[str, float]] = []
+            results: list[tuple[str, float, str]] = []
             for f in futures:
                 try:
                     results.append(f.result(timeout=self.episode_timeout))
                 except Exception as exc:
-                    results.append((f"Episode failed: {exc}", 0.0))
+                    results.append(
+                        (
+                            f"Episode failed: {exc}",
+                            0.0,
+                            f"AgentBoard episode. Episode crashed: {exc}",
+                        )
+                    )
         return results
 
 
@@ -373,7 +388,7 @@ def load_agentboard(
         train=train,
         val=val,
         test=[],
-        scorer=ExactMatchScorer(),
+        compare_fn=ExactMatchScorer(),
         val_scorer=val_scorer,
         available_categories=AVAILABLE_CATEGORIES,
     )

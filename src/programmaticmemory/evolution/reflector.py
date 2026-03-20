@@ -156,7 +156,7 @@ class Reflector:
                 {
                     "question": fc.question,
                     "output": fc.output,
-                    "expected": fc.expected,
+                    "rationale": fc.rationale,
                     "score": fc.score,
                     "conversation_history": fc.conversation_history,
                     "memory_logs": fc.memory_logs,
@@ -170,7 +170,7 @@ class Reflector:
                 {
                     "question": sc.question,
                     "output": sc.output,
-                    "expected": sc.expected,
+                    "rationale": sc.rationale,
                     "score": sc.score,
                     "conversation_history": sc.conversation_history,
                     "memory_logs": sc.memory_logs,

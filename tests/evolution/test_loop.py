@@ -53,7 +53,7 @@ class TestEvolutionLoop:
 
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             EvalResult(score=0.8, per_case_scores=[0.8]),
         ]
         reflector = MagicMock(spec=Reflector)
@@ -555,7 +555,7 @@ class TestFreezeInstructions:
         mock_evaluator = Mock()
         mock_evaluator.evaluate.return_value = EvalResult(score=0.5)
 
-        dataset = Dataset(train=[], val=[], test=[], scorer=None)
+        dataset = Dataset(train=[], val=[], test=[], compare_fn=None)
         loop = EvolutionLoop(
             evaluator=mock_evaluator,
             reflector=mock_reflector,
@@ -665,7 +665,7 @@ class TestExtraScorers:
             train=[],
             val=[],
             test=test_items,
-            scorer=None,
+            compare_fn=None,
             extra_scorers={"em": ExactMatchScorer()},
         )
 
@@ -706,7 +706,7 @@ class TestPerCategoryScores:
             train=[],
             val=val_items,
             test=[],
-            scorer=None,
+            compare_fn=None,
             category_key="cat",
         )
 
@@ -754,7 +754,7 @@ class TestPerCategoryScores:
             train=[],
             val=[],
             test=test_items,
-            scorer=None,
+            compare_fn=None,
             category_key="cat",
         )
 
@@ -828,7 +828,7 @@ class TestSplitValidationLoop:
         # Seeds: dual eval returns (score, reflect)
         evaluator.evaluate_dual.return_value = (
             EvalResult(score=0.5, failed_cases=[]),
-            EvalResult(score=0.4, failed_cases=[FailedCase(question="rq", output="ro", expected="re", score=0.0)]),
+            EvalResult(score=0.4, failed_cases=[FailedCase(question="rq", output="ro", rationale="re", score=0.0)]),
         )
         reflector = MagicMock(spec=Reflector)
         reflector.max_fix_attempts = 3
@@ -854,7 +854,7 @@ class TestSplitValidationLoop:
 
         seed_reflect = EvalResult(
             score=0.3,
-            failed_cases=[FailedCase(question="rotate_q", output="wrong", expected="right", score=0.0)],
+            failed_cases=[FailedCase(question="rotate_q", output="wrong", rationale="right", score=0.0)],
         )
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate_dual.side_effect = [
@@ -910,7 +910,7 @@ class TestSplitValidationLoop:
 
         seed_eval = EvalResult(
             score=0.5,
-            failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)],
+            failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)],
         )
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.side_effect = [

@@ -206,7 +206,7 @@ class KnowledgeBase:
         eval_result = EvalResult(
             score=0.3,
             failed_cases=[
-                FailedCase(question="q", output="wrong", expected="right", score=0.0),
+                FailedCase(question="q", output="wrong", rationale="right", score=0.0),
             ],
         )
 
@@ -261,7 +261,7 @@ class KnowledgeBase:
                 FailedCase(
                     question="What is X?",
                     output="unknown",
-                    expected="42",
+                    rationale="42",
                     score=0.0,
                     memory_logs=["Stored: X=42"],
                 ),
@@ -342,7 +342,7 @@ class KnowledgeBase:
         eval_result = EvalResult(
             score=0.1,
             failed_cases=[
-                FailedCase(question=f"Question {i}?", output=f"wrong_{i}", expected=f"right_{i}", score=0.0)
+                FailedCase(question=f"Question {i}?", output=f"wrong_{i}", rationale=f"right_{i}", score=0.0)
                 for i in range(1, 7)  # 6 failed cases
             ],
         )
@@ -378,13 +378,13 @@ class KnowledgeBase:
         eval_result = EvalResult(
             score=0.5,
             failed_cases=[
-                FailedCase(question="What is X?", output="unknown", expected="42", score=0.0),
+                FailedCase(question="What is X?", output="unknown", rationale="42", score=0.0),
             ],
             success_cases=[
                 FailedCase(
                     question="What is Y?",
                     output="7",
-                    expected="7",
+                    rationale="7",
                     score=1.0,
                     conversation_history=[
                         {"role": "user", "content": "query for Y"},
@@ -422,7 +422,7 @@ class KnowledgeBase:
         reflector = Reflector(model="mock/model")
         result = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -445,7 +445,7 @@ class KnowledgeBase:
         reflector = Reflector(model="mock/model")
         result = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -483,7 +483,7 @@ class TestReflectorPatchFormatRecovery:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -516,7 +516,7 @@ class TestReflectorPatchFormatRecovery:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -535,7 +535,7 @@ class TestReflectorPatchFormatRecovery:
         reflector = Reflector(model="mock/model", max_fix_attempts=2)
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -572,7 +572,7 @@ class TestReflectorPatchFormatRecovery:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -603,7 +603,7 @@ class TestReflectorCompileFixLoop:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -641,7 +641,7 @@ class TestReflectorCompileFixLoop:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -680,7 +680,7 @@ class TestReflectorCompileFixLoop:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -706,7 +706,7 @@ class TestReflectorCompileFixLoop:
         reflector = Reflector(model="mock/model", max_fix_attempts=3)
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -739,7 +739,7 @@ class TestReflectorCompileFixLoop:
         reflector = Reflector(model="mock/model", max_fix_attempts=3)
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
@@ -779,7 +779,7 @@ class TestReflectorCompileFixLoop:
         reflector = Reflector(model="mock/model")
         child = reflector.reflect_and_mutate(
             KBProgram(source_code="old", generation=0),
-            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", expected="e", score=0.0)]),
+            EvalResult(score=0.3, failed_cases=[FailedCase(question="q", output="o", rationale="e", score=0.0)]),
             iteration=1,
         )
 
