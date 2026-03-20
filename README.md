@@ -1,7 +1,6 @@
 <div align="center">
 
-<!-- Replace with actual icon once generated -->
-<!-- <img src="assets/icon.png" width="120" alt="agent-memory-evolution icon"> -->
+<img src="assets/icon.png" width="160" alt="agent-memory-evolution">
 
 # agent-memory-evolution
 
