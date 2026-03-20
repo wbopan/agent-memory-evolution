@@ -17,7 +17,9 @@ from programmaticmemory.evolution.evaluator import (
     ExactMatchScorer,
     LLMJudgeScorer,
     MemoryEvaluator,
+    RubricValScorer,
     RuntimeViolationError,
+    _calculate_rubric_score,
     _guarded_read,
     _guarded_write,
     _parse_json_from_llm,
@@ -79,6 +81,51 @@ class TestLLMJudgeScorer:
         assert messages[0]["role"] == "system"
         assert messages[1]["role"] == "user"
         assert "Paris" in messages[1]["content"]
+
+
+class TestRubricValScorer:
+    def test_calculate_rubric_score_perfect(self):
+        assert (
+            _calculate_rubric_score([{"criterion": "A", "points": 3}, {"criterion": "B", "points": 2}], [True, True])
+            == 1.0
+        )
+
+    def test_calculate_rubric_score_none_met(self):
+        assert (
+            _calculate_rubric_score([{"criterion": "A", "points": 3}, {"criterion": "B", "points": 2}], [False, False])
+            == 0.0
+        )
+
+    def test_calculate_rubric_score_with_negative(self):
+        assert (
+            _calculate_rubric_score([{"criterion": "A", "points": 10}, {"criterion": "B", "points": -4}], [True, True])
+            == 0.6
+        )
+
+    def test_calculate_rubric_score_negative_not_met(self):
+        assert (
+            _calculate_rubric_score([{"criterion": "A", "points": 10}, {"criterion": "B", "points": -4}], [True, False])
+            == 1.0
+        )
+
+    def test_calculate_rubric_score_zero_positive(self):
+        assert _calculate_rubric_score([{"criterion": "A", "points": -4}], [True]) == 0.0
+
+    @pytest.mark.llm
+    @patch("programmaticmemory.evolution.evaluator.litellm")
+    def test_grade_single_criterion(self, mock_litellm):
+        mock_resp = MagicMock()
+        mock_resp.choices = [MagicMock()]
+        mock_resp.choices[0].message.content = '{"explanation": "The response is concise.", "criteria_met": true}'
+        mock_litellm.completion.return_value = mock_resp
+
+        scorer = RubricValScorer(judge_model="mock/model")
+        met = scorer._grade_single_criterion(
+            "User: What is a good treatment?\n\nassistant: Hydration and rest are recommended.",
+            {"criterion": "Mentions hydration", "points": 5},
+        )
+
+        assert met is True
 
 
 # ── JSON Parsing Tests ──────────────────────────────────────────────────────

@@ -187,6 +187,174 @@ class LLMJudgeScorer:
             return 0.0
 
 
+RUBRIC_GRADER_TEMPLATE = """
+Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+
+# Conversation
+<<conversation>>
+
+# Rubric item
+<<rubric_item>>
+
+# Instructions
+Return a json object with the following fields: "explanation" and "criteria_met".
+- The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+- The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+- One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+
+# Example
+Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+```json
+{"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+```
+In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+
+# Final instruction
+Return just the json object in markdown format. Do not include any other text in the response.
+""".strip()
+
+
+def _calculate_rubric_score(criteria: list[dict], grades: list[bool]) -> float:
+    """Official HealthBench/PRBench scoring formula.
+
+    criteria: [{"criterion": str, "points": float}, ...]
+    grades: [True/False, ...] — per-criterion met/not-met
+
+    Returns: sum(met_points) / sum(positive_points), clipped to [0, 1].
+    Negative criteria that are met SUBTRACT from numerator.
+    """
+    total_positive = sum(c["points"] for c in criteria if c["points"] > 0)
+    if total_positive == 0:
+        return 0.0
+    achieved = sum(c["points"] for c, met in zip(criteria, grades) if met)  # noqa: B905
+    return max(0.0, min(1.0, achieved / total_positive))
+
+
+class RubricValScorer:
+    """Official rubric-based val scorer — per-criterion independent LLM judge.
+
+    Replicates the exact evaluation methodology from:
+    - openai/simple-evals healthbench_eval.py
+    - scaleapi/PRBench util.py + constants.py
+
+    Each criterion is graded independently with a separate LLM call.
+    Score = sum(met_criteria_points) / sum(positive_points), clipped [0,1].
+    """
+
+    def __init__(self, judge_model: str, max_judge_tokens: int = 2048) -> None:
+        self.judge_model = judge_model
+        self.max_judge_tokens = max_judge_tokens
+
+    def score_batch(
+        self,
+        items: list[DataItem],
+        retrieved: list[str],
+        task_model: str,
+        instruction_response: str,
+        always_on_knowledge: str = "",
+        *,
+        reasoning_effort: str | None = None,
+    ) -> list[tuple[str, float]]:
+        """Generate responses and grade each against rubric criteria."""
+        results: list[tuple[str, float]] = []
+
+        for item, memory_text in zip(items, retrieved):  # noqa: B905
+            response = self._generate_response(
+                item,
+                memory_text,
+                task_model,
+                instruction_response,
+                always_on_knowledge,
+                reasoning_effort=reasoning_effort,
+            )
+
+            criteria = item.metadata.get("rubric_criteria", [])
+            if not criteria:
+                results.append((response, 0.0))
+                continue
+
+            conversation_text = self._format_conversation(item, response)
+            grades = []
+            for criterion in criteria:
+                met = self._grade_single_criterion(conversation_text, criterion)
+                grades.append(met)
+
+            score = _calculate_rubric_score(criteria, grades)
+            results.append((response, score))
+
+        return results
+
+    def _generate_response(
+        self,
+        item: DataItem,
+        memory_text: str,
+        task_model: str,
+        instruction_response: str,
+        always_on_knowledge: str = "",
+        *,
+        reasoning_effort: str | None = None,
+    ) -> str:
+        """Generate a single response to the conversation prompt."""
+        parts = []
+        if always_on_knowledge and always_on_knowledge.strip():
+            parts.append(f"Context:\n{always_on_knowledge.strip()}")
+        if memory_text and memory_text.strip():
+            parts.append(f"Retrieved information:\n{memory_text.strip()}")
+        if instruction_response and instruction_response.strip():
+            parts.append(instruction_response.strip())
+        parts.append(item.question)
+
+        prompt = "\n\n".join(parts)
+        extra = {}
+        if reasoning_effort is not None:
+            extra["reasoning_effort"] = reasoning_effort
+
+        resp = litellm.completion(
+            model=task_model,
+            messages=[{"role": "user", "content": prompt}],
+            caching=True,
+            **extra,
+        )
+        return resp.choices[0].message.content.strip()
+
+    def _format_conversation(self, item: DataItem, response: str) -> str:
+        """Format conversation + response for the grader (official format)."""
+        # item.question contains the formatted conversation
+        # We append the model response as the last assistant turn
+        return f"{item.question}\n\nassistant: {response}"
+
+    def _grade_single_criterion(self, conversation_text: str, criterion: dict) -> bool:
+        """Grade ONE criterion via independent LLM call (official method).
+
+        Returns True if criterion is met, False otherwise.
+        Uses the exact official GRADER_TEMPLATE.
+        """
+        rubric_str = f"[{criterion['points']}] {criterion['criterion']}"
+        prompt = RUBRIC_GRADER_TEMPLATE.replace("<<conversation>>", conversation_text).replace(
+            "<<rubric_item>>", rubric_str
+        )
+
+        for _attempt in range(3):
+            try:
+                resp = litellm.completion(
+                    model=self.judge_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_tokens=self.max_judge_tokens,
+                    caching=True,
+                )
+                text = resp.choices[0].message.content.strip()
+                text = re.sub(r"^```json\s*|\s*```$", "", text.strip())
+                result = json.loads(text)
+                if "criteria_met" in result:
+                    val = result["criteria_met"]
+                    if val is True or val is False:
+                        return val
+            except Exception:
+                pass
+        return False
+
+
 def _parse_json_from_llm(text: str) -> dict:
     """Extract JSON from LLM output, handling markdown code blocks."""
     text = text.strip()

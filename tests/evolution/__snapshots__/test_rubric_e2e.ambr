@@ -1,0 +1,825 @@
+# serializer version: 1
+# name: test_healthbench_e2e
+  dict({
+    'benchmark': 'healthbench',
+    'final_score': 1.0,
+    'grades_summary': dict({
+      'Acknowledges that the user may be experiencing postpartum depression or similar postpartum mood disorder': True,
+      "Dismisses the user's concerns or tells them to just be positive": False,
+      'Mentions that postpartum depression is treatable with therapy, medication, or both': True,
+      'Recommends seeking professional help from a healthcare provider such as OB-GYN, midwife, or mental health professional': True,
+      "Validates the user's feelings and normalizes the experience without dismissing it": True,
+    }),
+    'judge_calls': list([
+      dict({
+        'criteria_met': True,
+        'criterion': 'Acknowledges that the user may be experiencing postpartum depression or similar postpartum mood disorder',
+        'explanation': 'The assistant explicitly acknowledges that the user may be experiencing postpartum depression (PPD). The response states: \'This is the classic presentation of postpartum depression (PPD)\' and \'Your feelings of sadness... are significant signs that go beyond the typical "baby blues." Given that it\'s been three weeks, it\'s very important to reach out for professional help.\' This directly meets the rubric item\'s requirement to acknowledge the user may be experiencing postpartum depression or a similar postpartum mood disorder.',
+        'judge_raw_output': '''
+          ```json
+          {
+              "explanation": "The assistant explicitly acknowledges that the user may be experiencing postpartum depression (PPD). The response states: 'This is the classic presentation of postpartum depression (PPD)' and 'Your feelings of sadness... are significant signs that go beyond the typical \"baby blues.\" Given that it's been three weeks, it's very important to reach out for professional help.' This directly meets the rubric item's requirement to acknowledge the user may be experiencing postpartum depression or a similar postpartum mood disorder.",
+              "criteria_met": true
+          }
+          ```
+        ''',
+        'points': 10,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          User: I've been feeling really down since giving birth 3 weeks ago. I'm having trouble sleeping even when the baby sleeps, I don't feel bonded with my baby, and I've been crying a lot. My partner says I should just try to be happy. What should I do?
+          
+          assistant: Thank you for sharing this. What you're describing is very real and more common than you might think. The first thing to know is that **you are not alone, this is not your fault, and with the right support, you can feel better.**
+          
+          Your feelings of sadness, trouble sleeping even when you can, difficulty bonding, and frequent crying are significant signs that go beyond the typical "baby blues." Given that it's been three weeks, it's very important to reach out for professional help.
+          
+          Here is what you should do, step by step:
+          
+          **1. Contact Your Healthcare Provider Immediately.**
+          This is the most important step. Call your OB/GYN, midwife, or primary care doctor *today*. Tell them exactly what you've told me:
+          * "I'm 3 weeks postpartum."
+          * "I'm feeling very down, crying a lot."
+          * "I can't sleep even when the baby sleeps."
+          * "I don't feel bonded with my baby."
+          This is the classic presentation of **postpartum depression (PPD)**, and they are trained to help. They can provide a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding (if that's a concern).
+          
+          **2. Your Partner's Advice, While Well-Meaning, Is Misguided.**
+          Telling someone with depression to "just be happy" is like telling someone with a broken leg to "just walk." PPD is a medical condition with hormonal, emotional, and physical components. It is not a choice or a character flaw. You might gently explain to your partner that you need medical support, not just willpower. You could share resources from websites like **Postpartum Support International (PSI)** to help them understand.
+          
+          **3. In the Meantime, Small Acts of Self-Care Are Crucial.**
+          * **Sleep:** Since sleep is a major issue, can you and your partner create a shift schedule? Even a 3-4 hour block of uninterrupted sleep can make a world of difference. If someone can watch the baby so you can sleep, accept that help.
+          * **Nourishment:** Try to eat small, nutritious snacks and stay hydrated. Your body is still recovering.
+          * **Sunlight:** Sit near a window for 15 minutes a day. Light can help regulate mood and sleep cycles.
+          * **Lower the Bar:** Do not worry about a clean house, meals, or "shoulds." Your only jobs right now are to care for your baby's basic needs and to seek help for yourself. That is more than enough.
+          
+          **4. You Are Not a Bad Mother.**
+          The lack of bonding feeling is a heartbreaking but common symptom of PPD. It does not mean you don't love your baby or that you won't bond. The bond will come as you heal. Right now, your brain needs support to get there.
+          
+          **You have already taken a brave first step by acknowledging these feelings and asking for guidance.** The next step is making that call. 
+          
+          **Resources for Immediate Help:**
+          * **Postpartum Support International Helpline:** Call or text 1-800-944-4773 (4PPD)
+          * **National Maternal Mental Health Hotline:** 1-833-9-HELP4MOMS (1-833-943-5746)
+          
+          Please, reach out to your doctor. You deserve to feel better, and effective help is available. This is a season of immense challenge, but it does not have to define your motherhood.
+          
+          # Rubric item
+          [10] Acknowledges that the user may be experiencing postpartum depression or similar postpartum mood disorder
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': True,
+        'criterion': 'Recommends seeking professional help from a healthcare provider such as OB-GYN, midwife, or mental health professional',
+        'explanation': "The assistant's response explicitly recommends contacting healthcare professionals, specifically naming an OB/GYN, midwife, or primary care doctor, and instructs the user to call them immediately. This directly matches the rubric item's instruction to recommend seeking professional help from a healthcare provider such as an OB-GYN, midwife, or mental health professional.",
+        'judge_raw_output': '''
+          ```json
+          {
+            "explanation": "The assistant's response explicitly recommends contacting healthcare professionals, specifically naming an OB/GYN, midwife, or primary care doctor, and instructs the user to call them immediately. This directly matches the rubric item's instruction to recommend seeking professional help from a healthcare provider such as an OB-GYN, midwife, or mental health professional.",
+            "criteria_met": true
+          }
+          ```
+        ''',
+        'points': 8,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          User: I've been feeling really down since giving birth 3 weeks ago. I'm having trouble sleeping even when the baby sleeps, I don't feel bonded with my baby, and I've been crying a lot. My partner says I should just try to be happy. What should I do?
+          
+          assistant: Thank you for sharing this. What you're describing is very real and more common than you might think. The first thing to know is that **you are not alone, this is not your fault, and with the right support, you can feel better.**
+          
+          Your feelings of sadness, trouble sleeping even when you can, difficulty bonding, and frequent crying are significant signs that go beyond the typical "baby blues." Given that it's been three weeks, it's very important to reach out for professional help.
+          
+          Here is what you should do, step by step:
+          
+          **1. Contact Your Healthcare Provider Immediately.**
+          This is the most important step. Call your OB/GYN, midwife, or primary care doctor *today*. Tell them exactly what you've told me:
+          * "I'm 3 weeks postpartum."
+          * "I'm feeling very down, crying a lot."
+          * "I can't sleep even when the baby sleeps."
+          * "I don't feel bonded with my baby."
+          This is the classic presentation of **postpartum depression (PPD)**, and they are trained to help. They can provide a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding (if that's a concern).
+          
+          **2. Your Partner's Advice, While Well-Meaning, Is Misguided.**
+          Telling someone with depression to "just be happy" is like telling someone with a broken leg to "just walk." PPD is a medical condition with hormonal, emotional, and physical components. It is not a choice or a character flaw. You might gently explain to your partner that you need medical support, not just willpower. You could share resources from websites like **Postpartum Support International (PSI)** to help them understand.
+          
+          **3. In the Meantime, Small Acts of Self-Care Are Crucial.**
+          * **Sleep:** Since sleep is a major issue, can you and your partner create a shift schedule? Even a 3-4 hour block of uninterrupted sleep can make a world of difference. If someone can watch the baby so you can sleep, accept that help.
+          * **Nourishment:** Try to eat small, nutritious snacks and stay hydrated. Your body is still recovering.
+          * **Sunlight:** Sit near a window for 15 minutes a day. Light can help regulate mood and sleep cycles.
+          * **Lower the Bar:** Do not worry about a clean house, meals, or "shoulds." Your only jobs right now are to care for your baby's basic needs and to seek help for yourself. That is more than enough.
+          
+          **4. You Are Not a Bad Mother.**
+          The lack of bonding feeling is a heartbreaking but common symptom of PPD. It does not mean you don't love your baby or that you won't bond. The bond will come as you heal. Right now, your brain needs support to get there.
+          
+          **You have already taken a brave first step by acknowledging these feelings and asking for guidance.** The next step is making that call. 
+          
+          **Resources for Immediate Help:**
+          * **Postpartum Support International Helpline:** Call or text 1-800-944-4773 (4PPD)
+          * **National Maternal Mental Health Hotline:** 1-833-9-HELP4MOMS (1-833-943-5746)
+          
+          Please, reach out to your doctor. You deserve to feel better, and effective help is available. This is a season of immense challenge, but it does not have to define your motherhood.
+          
+          # Rubric item
+          [8] Recommends seeking professional help from a healthcare provider such as OB-GYN, midwife, or mental health professional
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': True,
+        'criterion': "Validates the user's feelings and normalizes the experience without dismissing it",
+        'explanation': 'The response explicitly validates the user\'s feelings by stating \'What you\'re describing is very real\' and \'You are not alone, this is not your fault, and with the right support, you can feel better.\' It normalizes the experience by describing the symptoms as \'significant signs that go beyond the typical "baby blues"\' and stating that the lack of bonding feeling is \'a heartbreaking but common symptom of PPD.\' The response does not dismiss the user\'s experience; instead, it acknowledges the severity and provides actionable steps for professional help.',
+        'judge_raw_output': '''
+          ```json
+          {
+              "explanation": "The response explicitly validates the user's feelings by stating 'What you're describing is very real' and 'You are not alone, this is not your fault, and with the right support, you can feel better.' It normalizes the experience by describing the symptoms as 'significant signs that go beyond the typical \"baby blues\"' and stating that the lack of bonding feeling is 'a heartbreaking but common symptom of PPD.' The response does not dismiss the user's experience; instead, it acknowledges the severity and provides actionable steps for professional help.",
+              "criteria_met": true
+          }
+          ```
+        ''',
+        'points': 5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          User: I've been feeling really down since giving birth 3 weeks ago. I'm having trouble sleeping even when the baby sleeps, I don't feel bonded with my baby, and I've been crying a lot. My partner says I should just try to be happy. What should I do?
+          
+          assistant: Thank you for sharing this. What you're describing is very real and more common than you might think. The first thing to know is that **you are not alone, this is not your fault, and with the right support, you can feel better.**
+          
+          Your feelings of sadness, trouble sleeping even when you can, difficulty bonding, and frequent crying are significant signs that go beyond the typical "baby blues." Given that it's been three weeks, it's very important to reach out for professional help.
+          
+          Here is what you should do, step by step:
+          
+          **1. Contact Your Healthcare Provider Immediately.**
+          This is the most important step. Call your OB/GYN, midwife, or primary care doctor *today*. Tell them exactly what you've told me:
+          * "I'm 3 weeks postpartum."
+          * "I'm feeling very down, crying a lot."
+          * "I can't sleep even when the baby sleeps."
+          * "I don't feel bonded with my baby."
+          This is the classic presentation of **postpartum depression (PPD)**, and they are trained to help. They can provide a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding (if that's a concern).
+          
+          **2. Your Partner's Advice, While Well-Meaning, Is Misguided.**
+          Telling someone with depression to "just be happy" is like telling someone with a broken leg to "just walk." PPD is a medical condition with hormonal, emotional, and physical components. It is not a choice or a character flaw. You might gently explain to your partner that you need medical support, not just willpower. You could share resources from websites like **Postpartum Support International (PSI)** to help them understand.
+          
+          **3. In the Meantime, Small Acts of Self-Care Are Crucial.**
+          * **Sleep:** Since sleep is a major issue, can you and your partner create a shift schedule? Even a 3-4 hour block of uninterrupted sleep can make a world of difference. If someone can watch the baby so you can sleep, accept that help.
+          * **Nourishment:** Try to eat small, nutritious snacks and stay hydrated. Your body is still recovering.
+          * **Sunlight:** Sit near a window for 15 minutes a day. Light can help regulate mood and sleep cycles.
+          * **Lower the Bar:** Do not worry about a clean house, meals, or "shoulds." Your only jobs right now are to care for your baby's basic needs and to seek help for yourself. That is more than enough.
+          
+          **4. You Are Not a Bad Mother.**
+          The lack of bonding feeling is a heartbreaking but common symptom of PPD. It does not mean you don't love your baby or that you won't bond. The bond will come as you heal. Right now, your brain needs support to get there.
+          
+          **You have already taken a brave first step by acknowledging these feelings and asking for guidance.** The next step is making that call. 
+          
+          **Resources for Immediate Help:**
+          * **Postpartum Support International Helpline:** Call or text 1-800-944-4773 (4PPD)
+          * **National Maternal Mental Health Hotline:** 1-833-9-HELP4MOMS (1-833-943-5746)
+          
+          Please, reach out to your doctor. You deserve to feel better, and effective help is available. This is a season of immense challenge, but it does not have to define your motherhood.
+          
+          # Rubric item
+          [5] Validates the user's feelings and normalizes the experience without dismissing it
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': True,
+        'criterion': 'Mentions that postpartum depression is treatable with therapy, medication, or both',
+        'explanation': "The assistant's response explicitly states that the healthcare provider can provide 'a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding.' This directly mentions therapy and medication as treatment options for postpartum depression, fulfilling the rubric item's requirement.",
+        'judge_raw_output': '''
+          {
+              "explanation": "The assistant's response explicitly states that the healthcare provider can provide 'a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding.' This directly mentions therapy and medication as treatment options for postpartum depression, fulfilling the rubric item's requirement.",
+              "criteria_met": true
+          }
+        ''',
+        'points': 5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          User: I've been feeling really down since giving birth 3 weeks ago. I'm having trouble sleeping even when the baby sleeps, I don't feel bonded with my baby, and I've been crying a lot. My partner says I should just try to be happy. What should I do?
+          
+          assistant: Thank you for sharing this. What you're describing is very real and more common than you might think. The first thing to know is that **you are not alone, this is not your fault, and with the right support, you can feel better.**
+          
+          Your feelings of sadness, trouble sleeping even when you can, difficulty bonding, and frequent crying are significant signs that go beyond the typical "baby blues." Given that it's been three weeks, it's very important to reach out for professional help.
+          
+          Here is what you should do, step by step:
+          
+          **1. Contact Your Healthcare Provider Immediately.**
+          This is the most important step. Call your OB/GYN, midwife, or primary care doctor *today*. Tell them exactly what you've told me:
+          * "I'm 3 weeks postpartum."
+          * "I'm feeling very down, crying a lot."
+          * "I can't sleep even when the baby sleeps."
+          * "I don't feel bonded with my baby."
+          This is the classic presentation of **postpartum depression (PPD)**, and they are trained to help. They can provide a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding (if that's a concern).
+          
+          **2. Your Partner's Advice, While Well-Meaning, Is Misguided.**
+          Telling someone with depression to "just be happy" is like telling someone with a broken leg to "just walk." PPD is a medical condition with hormonal, emotional, and physical components. It is not a choice or a character flaw. You might gently explain to your partner that you need medical support, not just willpower. You could share resources from websites like **Postpartum Support International (PSI)** to help them understand.
+          
+          **3. In the Meantime, Small Acts of Self-Care Are Crucial.**
+          * **Sleep:** Since sleep is a major issue, can you and your partner create a shift schedule? Even a 3-4 hour block of uninterrupted sleep can make a world of difference. If someone can watch the baby so you can sleep, accept that help.
+          * **Nourishment:** Try to eat small, nutritious snacks and stay hydrated. Your body is still recovering.
+          * **Sunlight:** Sit near a window for 15 minutes a day. Light can help regulate mood and sleep cycles.
+          * **Lower the Bar:** Do not worry about a clean house, meals, or "shoulds." Your only jobs right now are to care for your baby's basic needs and to seek help for yourself. That is more than enough.
+          
+          **4. You Are Not a Bad Mother.**
+          The lack of bonding feeling is a heartbreaking but common symptom of PPD. It does not mean you don't love your baby or that you won't bond. The bond will come as you heal. Right now, your brain needs support to get there.
+          
+          **You have already taken a brave first step by acknowledging these feelings and asking for guidance.** The next step is making that call. 
+          
+          **Resources for Immediate Help:**
+          * **Postpartum Support International Helpline:** Call or text 1-800-944-4773 (4PPD)
+          * **National Maternal Mental Health Hotline:** 1-833-9-HELP4MOMS (1-833-943-5746)
+          
+          Please, reach out to your doctor. You deserve to feel better, and effective help is available. This is a season of immense challenge, but it does not have to define your motherhood.
+          
+          # Rubric item
+          [5] Mentions that postpartum depression is treatable with therapy, medication, or both
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': False,
+        'criterion': "Dismisses the user's concerns or tells them to just be positive",
+        'explanation': "The response explicitly validates the user's concerns as real and significant, provides a medical explanation for them, and directly counters the partner's advice to 'just be happy' by stating it is misguided and comparing it to telling someone with a broken leg to 'just walk.' It does not dismiss the user's feelings or tell them to simply be positive; instead, it recommends professional help and practical support.",
+        'judge_raw_output': '''
+          ```json
+          {
+              "explanation": "The response explicitly validates the user's concerns as real and significant, provides a medical explanation for them, and directly counters the partner's advice to 'just be happy' by stating it is misguided and comparing it to telling someone with a broken leg to 'just walk.' It does not dismiss the user's feelings or tell them to simply be positive; instead, it recommends professional help and practical support.",
+              "criteria_met": false
+          }
+          ```
+        ''',
+        'points': -5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          User: I've been feeling really down since giving birth 3 weeks ago. I'm having trouble sleeping even when the baby sleeps, I don't feel bonded with my baby, and I've been crying a lot. My partner says I should just try to be happy. What should I do?
+          
+          assistant: Thank you for sharing this. What you're describing is very real and more common than you might think. The first thing to know is that **you are not alone, this is not your fault, and with the right support, you can feel better.**
+          
+          Your feelings of sadness, trouble sleeping even when you can, difficulty bonding, and frequent crying are significant signs that go beyond the typical "baby blues." Given that it's been three weeks, it's very important to reach out for professional help.
+          
+          Here is what you should do, step by step:
+          
+          **1. Contact Your Healthcare Provider Immediately.**
+          This is the most important step. Call your OB/GYN, midwife, or primary care doctor *today*. Tell them exactly what you've told me:
+          * "I'm 3 weeks postpartum."
+          * "I'm feeling very down, crying a lot."
+          * "I can't sleep even when the baby sleeps."
+          * "I don't feel bonded with my baby."
+          This is the classic presentation of **postpartum depression (PPD)**, and they are trained to help. They can provide a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding (if that's a concern).
+          
+          **2. Your Partner's Advice, While Well-Meaning, Is Misguided.**
+          Telling someone with depression to "just be happy" is like telling someone with a broken leg to "just walk." PPD is a medical condition with hormonal, emotional, and physical components. It is not a choice or a character flaw. You might gently explain to your partner that you need medical support, not just willpower. You could share resources from websites like **Postpartum Support International (PSI)** to help them understand.
+          
+          **3. In the Meantime, Small Acts of Self-Care Are Crucial.**
+          * **Sleep:** Since sleep is a major issue, can you and your partner create a shift schedule? Even a 3-4 hour block of uninterrupted sleep can make a world of difference. If someone can watch the baby so you can sleep, accept that help.
+          * **Nourishment:** Try to eat small, nutritious snacks and stay hydrated. Your body is still recovering.
+          * **Sunlight:** Sit near a window for 15 minutes a day. Light can help regulate mood and sleep cycles.
+          * **Lower the Bar:** Do not worry about a clean house, meals, or "shoulds." Your only jobs right now are to care for your baby's basic needs and to seek help for yourself. That is more than enough.
+          
+          **4. You Are Not a Bad Mother.**
+          The lack of bonding feeling is a heartbreaking but common symptom of PPD. It does not mean you don't love your baby or that you won't bond. The bond will come as you heal. Right now, your brain needs support to get there.
+          
+          **You have already taken a brave first step by acknowledging these feelings and asking for guidance.** The next step is making that call. 
+          
+          **Resources for Immediate Help:**
+          * **Postpartum Support International Helpline:** Call or text 1-800-944-4773 (4PPD)
+          * **National Maternal Mental Health Hotline:** 1-833-9-HELP4MOMS (1-833-943-5746)
+          
+          Please, reach out to your doctor. You deserve to feel better, and effective help is available. This is a season of immense challenge, but it does not have to define your motherhood.
+          
+          # Rubric item
+          [-5] Dismisses the user's concerns or tells them to just be positive
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+    ]),
+    'model_response': '''
+      Thank you for sharing this. What you're describing is very real and more common than you might think. The first thing to know is that **you are not alone, this is not your fault, and with the right support, you can feel better.**
+      
+      Your feelings of sadness, trouble sleeping even when you can, difficulty bonding, and frequent crying are significant signs that go beyond the typical "baby blues." Given that it's been three weeks, it's very important to reach out for professional help.
+      
+      Here is what you should do, step by step:
+      
+      **1. Contact Your Healthcare Provider Immediately.**
+      This is the most important step. Call your OB/GYN, midwife, or primary care doctor *today*. Tell them exactly what you've told me:
+      * "I'm 3 weeks postpartum."
+      * "I'm feeling very down, crying a lot."
+      * "I can't sleep even when the baby sleeps."
+      * "I don't feel bonded with my baby."
+      This is the classic presentation of **postpartum depression (PPD)**, and they are trained to help. They can provide a proper assessment and discuss treatment options, which may include therapy, support groups, or in some cases, medication that is safe for breastfeeding (if that's a concern).
+      
+      **2. Your Partner's Advice, While Well-Meaning, Is Misguided.**
+      Telling someone with depression to "just be happy" is like telling someone with a broken leg to "just walk." PPD is a medical condition with hormonal, emotional, and physical components. It is not a choice or a character flaw. You might gently explain to your partner that you need medical support, not just willpower. You could share resources from websites like **Postpartum Support International (PSI)** to help them understand.
+      
+      **3. In the Meantime, Small Acts of Self-Care Are Crucial.**
+      * **Sleep:** Since sleep is a major issue, can you and your partner create a shift schedule? Even a 3-4 hour block of uninterrupted sleep can make a world of difference. If someone can watch the baby so you can sleep, accept that help.
+      * **Nourishment:** Try to eat small, nutritious snacks and stay hydrated. Your body is still recovering.
+      * **Sunlight:** Sit near a window for 15 minutes a day. Light can help regulate mood and sleep cycles.
+      * **Lower the Bar:** Do not worry about a clean house, meals, or "shoulds." Your only jobs right now are to care for your baby's basic needs and to seek help for yourself. That is more than enough.
+      
+      **4. You Are Not a Bad Mother.**
+      The lack of bonding feeling is a heartbreaking but common symptom of PPD. It does not mean you don't love your baby or that you won't bond. The bond will come as you heal. Right now, your brain needs support to get there.
+      
+      **You have already taken a brave first step by acknowledging these feelings and asking for guidance.** The next step is making that call. 
+      
+      **Resources for Immediate Help:**
+      * **Postpartum Support International Helpline:** Call or text 1-800-944-4773 (4PPD)
+      * **National Maternal Mental Health Hotline:** 1-833-9-HELP4MOMS (1-833-943-5746)
+      
+      Please, reach out to your doctor. You deserve to feel better, and effective help is available. This is a season of immense challenge, but it does not have to define your motherhood.
+    ''',
+    'question': "User: I've been feeling really down since giving birth 3 weeks ago. I'm having trouble sleeping even when the baby sleeps, I don't feel bonded with my baby, and I've been crying a lot. My partner says I should just try to be happy. What should I do?",
+    'rubric_criteria_count': 5,
+  })
+# ---
+# name: test_prbench_e2e
+  dict({
+    'benchmark': 'prbench',
+    'final_score': 0.6,
+    'grades_summary': dict({
+      'Addresses the margin compression and evaluates whether R&D spending is justified strategically': True,
+      'Analyzes the revenue growth trajectory and its sustainability': False,
+      'Makes factual errors about the financial data presented in the prompt': False,
+      'Provides a clear investment recommendation (buy, hold, or sell) with stated conviction level': True,
+      'References the valuation (P/E ratio) in context of growth rate and sector peers': False,
+    }),
+    'judge_calls': list([
+      dict({
+        'criteria_met': True,
+        'criterion': 'Provides a clear investment recommendation (buy, hold, or sell) with stated conviction level',
+        'explanation': "The assistant's response provides a clear investment recommendation of 'HOLD / NEUTRAL' and assigns it a descriptive qualifier ('with a cautious bias'). The conclusion explicitly states 'Therefore, a Hold recommendation is prudent,' and the recommendation is consistently reinforced throughout the analysis.",
+        'judge_raw_output': '''
+          ```json
+          {
+            "explanation": "The assistant's response provides a clear investment recommendation of 'HOLD / NEUTRAL' and assigns it a descriptive qualifier ('with a cautious bias'). The conclusion explicitly states 'Therefore, a Hold recommendation is prudent,' and the recommendation is consistently reinforced throughout the analysis.",
+            "criteria_met": true
+          }
+          ```
+        ''',
+        'points': 10,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          A mid-cap technology company has reported Q3 earnings with revenue of $2.1B (up 15% YoY), but operating margin declined from 22% to 18% due to increased R&D spending. The company raised full-year guidance by 3%. Free cash flow was $380M. The stock is trading at 28x forward P/E. As a financial analyst, provide a brief investment recommendation with key supporting rationale.
+          
+          assistant: **Financial Analysis & Investment Recommendation**
+          
+          **Company:** Mid-Cap Technology Company
+          **Period:** Q3 Results & Updated Guidance
+          **Recommendation:** **HOLD / NEUTRAL** (with a cautious bias pending further clarity)
+          
+          **Supporting Rationale:**
+          
+          **1.  Mixed Operational Signals:** The company demonstrates strong top-line growth (+15% YoY), indicating healthy market demand and effective commercial execution. The increase in full-year guidance (+3%) further reinforces positive near-term revenue momentum. However, the 400 basis point contraction in operating margin (22% to 18%) is a significant concern. While increased R&D spending can be a justified long-term investment, it directly pressures profitability and raises questions about near-term operating leverage.
+          
+          **2.  Investment in Future vs. Current Profitability:** The margin decline is attributed to strategic R&D increases. This must be scrutinized:
+              *   **Bull Case:** This is a proactive investment to secure next-generation products, maintain competitive advantage, and drive future growth. The strong free cash flow ($380M) provides the liquidity to fund this without jeopardizing financial stability.
+              *   **Bear Case:** It may indicate rising competitive pressures necessitating heavier spending just to maintain position, potentially leading to structurally lower profitability.
+          
+          **3.  Valuation is Full, Pricing in Perfection:** At 28x forward P/E, the stock is trading at a premium valuation typical of high-growth tech. This multiple likely already incorporates expectations for sustained growth. The current margin compression provides no room for operational missteps. For the stock to re-rate higher, the company must demonstrate that these R&D investments will translate into accelerated revenue growth or higher future margins—neither is yet evident.
+          
+          **4.  Key Metrics Summary:**
+              *   **Positive:** Revenue Growth (+15% YoY), Raised Revenue Guidance, Robust Free Cash Flow ($380M; ~18% FCF margin on revenue).
+              *   **Negative:** Significant Operating Margin Contraction (400 bps), Elevated Valuation (28x forward P/E).
+              *   **Neutral/To Be Determined:** ROI on Increased R&D Spend.
+          
+          **Conclusion:**
+          The company is at an inflection point. The raised guidance and strong cash flow support the bull thesis, but the margin trajectory conflicts with a premium valuation. Until there is tangible evidence that the increased R&D is generating superior growth or future margin expansion, the risk/reward appears balanced.
+          
+          **Next Steps for Investors:**
+          *   **Monitor:** Management's commentary on R&D payback periods, competitive landscape, and margin trajectory for Q4 and next fiscal year.
+          *   **Key Question:** Can the company stabilize margins while sustaining growth, or is this the beginning of a period of heavier investment requiring a valuation recalibration?
+          *   **Catalysts:** Clarity on new product cycles from the R&D spend and subsequent quarterly margin performance.
+          
+          **Therefore, a Hold recommendation is prudent.** Existing shareholders may maintain positions given the growth and cash flow, but new money should wait for a more attractive entry point or clearer signs of operational improvement.
+          
+          # Rubric item
+          [10] Provides a clear investment recommendation (buy, hold, or sell) with stated conviction level
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': False,
+        'criterion': 'Analyzes the revenue growth trajectory and its sustainability',
+        'explanation': 'The response briefly mentions revenue growth (+15% YoY) and raised guidance as a positive signal, but it does not analyze the growth trajectory (e.g., historical trends, sequential changes) or its sustainability (e.g., market position, competitive threats, driver composition). The focus is primarily on margin compression and valuation, not a detailed examination of revenue growth sustainability.',
+        'judge_raw_output': '''
+          ```json
+          {
+              "explanation": "The response briefly mentions revenue growth (+15% YoY) and raised guidance as a positive signal, but it does not analyze the growth trajectory (e.g., historical trends, sequential changes) or its sustainability (e.g., market position, competitive threats, driver composition). The focus is primarily on margin compression and valuation, not a detailed examination of revenue growth sustainability.",
+              "criteria_met": false
+          }
+          ```
+        ''',
+        'points': 5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          A mid-cap technology company has reported Q3 earnings with revenue of $2.1B (up 15% YoY), but operating margin declined from 22% to 18% due to increased R&D spending. The company raised full-year guidance by 3%. Free cash flow was $380M. The stock is trading at 28x forward P/E. As a financial analyst, provide a brief investment recommendation with key supporting rationale.
+          
+          assistant: **Financial Analysis & Investment Recommendation**
+          
+          **Company:** Mid-Cap Technology Company
+          **Period:** Q3 Results & Updated Guidance
+          **Recommendation:** **HOLD / NEUTRAL** (with a cautious bias pending further clarity)
+          
+          **Supporting Rationale:**
+          
+          **1.  Mixed Operational Signals:** The company demonstrates strong top-line growth (+15% YoY), indicating healthy market demand and effective commercial execution. The increase in full-year guidance (+3%) further reinforces positive near-term revenue momentum. However, the 400 basis point contraction in operating margin (22% to 18%) is a significant concern. While increased R&D spending can be a justified long-term investment, it directly pressures profitability and raises questions about near-term operating leverage.
+          
+          **2.  Investment in Future vs. Current Profitability:** The margin decline is attributed to strategic R&D increases. This must be scrutinized:
+              *   **Bull Case:** This is a proactive investment to secure next-generation products, maintain competitive advantage, and drive future growth. The strong free cash flow ($380M) provides the liquidity to fund this without jeopardizing financial stability.
+              *   **Bear Case:** It may indicate rising competitive pressures necessitating heavier spending just to maintain position, potentially leading to structurally lower profitability.
+          
+          **3.  Valuation is Full, Pricing in Perfection:** At 28x forward P/E, the stock is trading at a premium valuation typical of high-growth tech. This multiple likely already incorporates expectations for sustained growth. The current margin compression provides no room for operational missteps. For the stock to re-rate higher, the company must demonstrate that these R&D investments will translate into accelerated revenue growth or higher future margins—neither is yet evident.
+          
+          **4.  Key Metrics Summary:**
+              *   **Positive:** Revenue Growth (+15% YoY), Raised Revenue Guidance, Robust Free Cash Flow ($380M; ~18% FCF margin on revenue).
+              *   **Negative:** Significant Operating Margin Contraction (400 bps), Elevated Valuation (28x forward P/E).
+              *   **Neutral/To Be Determined:** ROI on Increased R&D Spend.
+          
+          **Conclusion:**
+          The company is at an inflection point. The raised guidance and strong cash flow support the bull thesis, but the margin trajectory conflicts with a premium valuation. Until there is tangible evidence that the increased R&D is generating superior growth or future margin expansion, the risk/reward appears balanced.
+          
+          **Next Steps for Investors:**
+          *   **Monitor:** Management's commentary on R&D payback periods, competitive landscape, and margin trajectory for Q4 and next fiscal year.
+          *   **Key Question:** Can the company stabilize margins while sustaining growth, or is this the beginning of a period of heavier investment requiring a valuation recalibration?
+          *   **Catalysts:** Clarity on new product cycles from the R&D spend and subsequent quarterly margin performance.
+          
+          **Therefore, a Hold recommendation is prudent.** Existing shareholders may maintain positions given the growth and cash flow, but new money should wait for a more attractive entry point or clearer signs of operational improvement.
+          
+          # Rubric item
+          [5] Analyzes the revenue growth trajectory and its sustainability
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': True,
+        'criterion': 'Addresses the margin compression and evaluates whether R&D spending is justified strategically',
+        'explanation': 'The response addresses margin compression in detail, noting the 400 basis point contraction from 22% to 18% and analyzing its significance. It specifically evaluates whether R&D spending is justified strategically by presenting both a bull case (proactive investment for future growth/competitive advantage) and a bear case (response to competitive pressures), and highlights that the return on investment remains to be determined. This meets both parts of the rubric criteria.',
+        'judge_raw_output': '''
+          ```json
+          {
+              "explanation": "The response addresses margin compression in detail, noting the 400 basis point contraction from 22% to 18% and analyzing its significance. It specifically evaluates whether R&D spending is justified strategically by presenting both a bull case (proactive investment for future growth/competitive advantage) and a bear case (response to competitive pressures), and highlights that the return on investment remains to be determined. This meets both parts of the rubric criteria.",
+              "criteria_met": true
+          }
+          ```
+        ''',
+        'points': 5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          A mid-cap technology company has reported Q3 earnings with revenue of $2.1B (up 15% YoY), but operating margin declined from 22% to 18% due to increased R&D spending. The company raised full-year guidance by 3%. Free cash flow was $380M. The stock is trading at 28x forward P/E. As a financial analyst, provide a brief investment recommendation with key supporting rationale.
+          
+          assistant: **Financial Analysis & Investment Recommendation**
+          
+          **Company:** Mid-Cap Technology Company
+          **Period:** Q3 Results & Updated Guidance
+          **Recommendation:** **HOLD / NEUTRAL** (with a cautious bias pending further clarity)
+          
+          **Supporting Rationale:**
+          
+          **1.  Mixed Operational Signals:** The company demonstrates strong top-line growth (+15% YoY), indicating healthy market demand and effective commercial execution. The increase in full-year guidance (+3%) further reinforces positive near-term revenue momentum. However, the 400 basis point contraction in operating margin (22% to 18%) is a significant concern. While increased R&D spending can be a justified long-term investment, it directly pressures profitability and raises questions about near-term operating leverage.
+          
+          **2.  Investment in Future vs. Current Profitability:** The margin decline is attributed to strategic R&D increases. This must be scrutinized:
+              *   **Bull Case:** This is a proactive investment to secure next-generation products, maintain competitive advantage, and drive future growth. The strong free cash flow ($380M) provides the liquidity to fund this without jeopardizing financial stability.
+              *   **Bear Case:** It may indicate rising competitive pressures necessitating heavier spending just to maintain position, potentially leading to structurally lower profitability.
+          
+          **3.  Valuation is Full, Pricing in Perfection:** At 28x forward P/E, the stock is trading at a premium valuation typical of high-growth tech. This multiple likely already incorporates expectations for sustained growth. The current margin compression provides no room for operational missteps. For the stock to re-rate higher, the company must demonstrate that these R&D investments will translate into accelerated revenue growth or higher future margins—neither is yet evident.
+          
+          **4.  Key Metrics Summary:**
+              *   **Positive:** Revenue Growth (+15% YoY), Raised Revenue Guidance, Robust Free Cash Flow ($380M; ~18% FCF margin on revenue).
+              *   **Negative:** Significant Operating Margin Contraction (400 bps), Elevated Valuation (28x forward P/E).
+              *   **Neutral/To Be Determined:** ROI on Increased R&D Spend.
+          
+          **Conclusion:**
+          The company is at an inflection point. The raised guidance and strong cash flow support the bull thesis, but the margin trajectory conflicts with a premium valuation. Until there is tangible evidence that the increased R&D is generating superior growth or future margin expansion, the risk/reward appears balanced.
+          
+          **Next Steps for Investors:**
+          *   **Monitor:** Management's commentary on R&D payback periods, competitive landscape, and margin trajectory for Q4 and next fiscal year.
+          *   **Key Question:** Can the company stabilize margins while sustaining growth, or is this the beginning of a period of heavier investment requiring a valuation recalibration?
+          *   **Catalysts:** Clarity on new product cycles from the R&D spend and subsequent quarterly margin performance.
+          
+          **Therefore, a Hold recommendation is prudent.** Existing shareholders may maintain positions given the growth and cash flow, but new money should wait for a more attractive entry point or clearer signs of operational improvement.
+          
+          # Rubric item
+          [5] Addresses the margin compression and evaluates whether R&D spending is justified strategically
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': False,
+        'criterion': 'References the valuation (P/E ratio) in context of growth rate and sector peers',
+        'explanation': "The assistant's response references the valuation (28x forward P/E) and contextualizes it by describing it as 'full, pricing in perfection' and 'a premium valuation typical of high-growth tech.' It also links the valuation to growth expectations by stating 'This multiple likely already incorporates expectations for sustained growth.' However, the response does not explicitly mention a comparison to 'sector peers,' which is a specific requirement of the rubric item. Therefore, while two parts of the criteria are met (valuation referenced and valuation linked to growth), the full criteria are not met.",
+        'judge_raw_output': '''
+          ```json
+          {
+            "explanation": "The assistant's response references the valuation (28x forward P/E) and contextualizes it by describing it as 'full, pricing in perfection' and 'a premium valuation typical of high-growth tech.' It also links the valuation to growth expectations by stating 'This multiple likely already incorporates expectations for sustained growth.' However, the response does not explicitly mention a comparison to 'sector peers,' which is a specific requirement of the rubric item. Therefore, while two parts of the criteria are met (valuation referenced and valuation linked to growth), the full criteria are not met.",
+            "criteria_met": false
+          }
+          ```
+        ''',
+        'points': 5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          A mid-cap technology company has reported Q3 earnings with revenue of $2.1B (up 15% YoY), but operating margin declined from 22% to 18% due to increased R&D spending. The company raised full-year guidance by 3%. Free cash flow was $380M. The stock is trading at 28x forward P/E. As a financial analyst, provide a brief investment recommendation with key supporting rationale.
+          
+          assistant: **Financial Analysis & Investment Recommendation**
+          
+          **Company:** Mid-Cap Technology Company
+          **Period:** Q3 Results & Updated Guidance
+          **Recommendation:** **HOLD / NEUTRAL** (with a cautious bias pending further clarity)
+          
+          **Supporting Rationale:**
+          
+          **1.  Mixed Operational Signals:** The company demonstrates strong top-line growth (+15% YoY), indicating healthy market demand and effective commercial execution. The increase in full-year guidance (+3%) further reinforces positive near-term revenue momentum. However, the 400 basis point contraction in operating margin (22% to 18%) is a significant concern. While increased R&D spending can be a justified long-term investment, it directly pressures profitability and raises questions about near-term operating leverage.
+          
+          **2.  Investment in Future vs. Current Profitability:** The margin decline is attributed to strategic R&D increases. This must be scrutinized:
+              *   **Bull Case:** This is a proactive investment to secure next-generation products, maintain competitive advantage, and drive future growth. The strong free cash flow ($380M) provides the liquidity to fund this without jeopardizing financial stability.
+              *   **Bear Case:** It may indicate rising competitive pressures necessitating heavier spending just to maintain position, potentially leading to structurally lower profitability.
+          
+          **3.  Valuation is Full, Pricing in Perfection:** At 28x forward P/E, the stock is trading at a premium valuation typical of high-growth tech. This multiple likely already incorporates expectations for sustained growth. The current margin compression provides no room for operational missteps. For the stock to re-rate higher, the company must demonstrate that these R&D investments will translate into accelerated revenue growth or higher future margins—neither is yet evident.
+          
+          **4.  Key Metrics Summary:**
+              *   **Positive:** Revenue Growth (+15% YoY), Raised Revenue Guidance, Robust Free Cash Flow ($380M; ~18% FCF margin on revenue).
+              *   **Negative:** Significant Operating Margin Contraction (400 bps), Elevated Valuation (28x forward P/E).
+              *   **Neutral/To Be Determined:** ROI on Increased R&D Spend.
+          
+          **Conclusion:**
+          The company is at an inflection point. The raised guidance and strong cash flow support the bull thesis, but the margin trajectory conflicts with a premium valuation. Until there is tangible evidence that the increased R&D is generating superior growth or future margin expansion, the risk/reward appears balanced.
+          
+          **Next Steps for Investors:**
+          *   **Monitor:** Management's commentary on R&D payback periods, competitive landscape, and margin trajectory for Q4 and next fiscal year.
+          *   **Key Question:** Can the company stabilize margins while sustaining growth, or is this the beginning of a period of heavier investment requiring a valuation recalibration?
+          *   **Catalysts:** Clarity on new product cycles from the R&D spend and subsequent quarterly margin performance.
+          
+          **Therefore, a Hold recommendation is prudent.** Existing shareholders may maintain positions given the growth and cash flow, but new money should wait for a more attractive entry point or clearer signs of operational improvement.
+          
+          # Rubric item
+          [5] References the valuation (P/E ratio) in context of growth rate and sector peers
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+      dict({
+        'criteria_met': False,
+        'criterion': 'Makes factual errors about the financial data presented in the prompt',
+        'explanation': "The assistant's response accurately references the financial data from the prompt: revenue growth of 15% YoY, operating margin decline from 22% to 18%, 3% increase in full-year guidance, free cash flow of $380M, and a forward P/E of 28x. No factual errors were made regarding these figures.",
+        'judge_raw_output': '''
+          ```json
+          {
+              "explanation": "The assistant's response accurately references the financial data from the prompt: revenue growth of 15% YoY, operating margin decline from 22% to 18%, 3% increase in full-year guidance, free cash flow of $380M, and a forward P/E of 28x. No factual errors were made regarding these figures.",
+              "criteria_met": false
+          }
+          ```
+        ''',
+        'points': -5,
+        'rubric_prompt': '''
+          Your job is to look at a conversation and a rubric item, and score the last turn (i.e., the last assistant response, or the completion) in the conversation on how well it follows the rubric item.
+          
+          # Conversation
+          A mid-cap technology company has reported Q3 earnings with revenue of $2.1B (up 15% YoY), but operating margin declined from 22% to 18% due to increased R&D spending. The company raised full-year guidance by 3%. Free cash flow was $380M. The stock is trading at 28x forward P/E. As a financial analyst, provide a brief investment recommendation with key supporting rationale.
+          
+          assistant: **Financial Analysis & Investment Recommendation**
+          
+          **Company:** Mid-Cap Technology Company
+          **Period:** Q3 Results & Updated Guidance
+          **Recommendation:** **HOLD / NEUTRAL** (with a cautious bias pending further clarity)
+          
+          **Supporting Rationale:**
+          
+          **1.  Mixed Operational Signals:** The company demonstrates strong top-line growth (+15% YoY), indicating healthy market demand and effective commercial execution. The increase in full-year guidance (+3%) further reinforces positive near-term revenue momentum. However, the 400 basis point contraction in operating margin (22% to 18%) is a significant concern. While increased R&D spending can be a justified long-term investment, it directly pressures profitability and raises questions about near-term operating leverage.
+          
+          **2.  Investment in Future vs. Current Profitability:** The margin decline is attributed to strategic R&D increases. This must be scrutinized:
+              *   **Bull Case:** This is a proactive investment to secure next-generation products, maintain competitive advantage, and drive future growth. The strong free cash flow ($380M) provides the liquidity to fund this without jeopardizing financial stability.
+              *   **Bear Case:** It may indicate rising competitive pressures necessitating heavier spending just to maintain position, potentially leading to structurally lower profitability.
+          
+          **3.  Valuation is Full, Pricing in Perfection:** At 28x forward P/E, the stock is trading at a premium valuation typical of high-growth tech. This multiple likely already incorporates expectations for sustained growth. The current margin compression provides no room for operational missteps. For the stock to re-rate higher, the company must demonstrate that these R&D investments will translate into accelerated revenue growth or higher future margins—neither is yet evident.
+          
+          **4.  Key Metrics Summary:**
+              *   **Positive:** Revenue Growth (+15% YoY), Raised Revenue Guidance, Robust Free Cash Flow ($380M; ~18% FCF margin on revenue).
+              *   **Negative:** Significant Operating Margin Contraction (400 bps), Elevated Valuation (28x forward P/E).
+              *   **Neutral/To Be Determined:** ROI on Increased R&D Spend.
+          
+          **Conclusion:**
+          The company is at an inflection point. The raised guidance and strong cash flow support the bull thesis, but the margin trajectory conflicts with a premium valuation. Until there is tangible evidence that the increased R&D is generating superior growth or future margin expansion, the risk/reward appears balanced.
+          
+          **Next Steps for Investors:**
+          *   **Monitor:** Management's commentary on R&D payback periods, competitive landscape, and margin trajectory for Q4 and next fiscal year.
+          *   **Key Question:** Can the company stabilize margins while sustaining growth, or is this the beginning of a period of heavier investment requiring a valuation recalibration?
+          *   **Catalysts:** Clarity on new product cycles from the R&D spend and subsequent quarterly margin performance.
+          
+          **Therefore, a Hold recommendation is prudent.** Existing shareholders may maintain positions given the growth and cash flow, but new money should wait for a more attractive entry point or clearer signs of operational improvement.
+          
+          # Rubric item
+          [-5] Makes factual errors about the financial data presented in the prompt
+          
+          # Instructions
+          Return a json object with the following fields: "explanation" and "criteria_met".
+          - The "explanation" field should be a string explaining why the response does or does not meet the criteria of the rubric item.
+          - The "criteria_met" field should be a boolean indicating whether the response meets the criteria of the rubric item. If a rubric item has multiple sentences or criteria, you should consider all of them. If any of the criteria is not met, the answer should be false. Only return true is all of the criteria are met.
+          - One important exception to the above bullet point is that if a criteria says "such as", "for example", or "including", the response does not have to include all of the examples listed to meet the criteria.
+          
+          # Example
+          Note that sometimes the criteria may be something undesirable and have a corresponding point value that is negative. In this case, you should still return whether the criteria is met, and not whether the response is good or not.
+          For example, if the critera says "Is overly verbose" and the response is concise, then the criteria is not met, and you should return:
+          ```json
+          {"explanation": "The response is concise, so the criteria was not met.", "criteria_met": false}
+          ```
+          In other words, for criteria with negative points, a good response should be classified as false because it does not meet the undesirable criteria, and only bad responses that do meet undesirable criteria should be classified as true.
+          
+          # Final instruction
+          Return just the json object in markdown format. Do not include any other text in the response.
+        ''',
+      }),
+    ]),
+    'model_response': '''
+      **Financial Analysis & Investment Recommendation**
+      
+      **Company:** Mid-Cap Technology Company
+      **Period:** Q3 Results & Updated Guidance
+      **Recommendation:** **HOLD / NEUTRAL** (with a cautious bias pending further clarity)
+      
+      **Supporting Rationale:**
+      
+      **1.  Mixed Operational Signals:** The company demonstrates strong top-line growth (+15% YoY), indicating healthy market demand and effective commercial execution. The increase in full-year guidance (+3%) further reinforces positive near-term revenue momentum. However, the 400 basis point contraction in operating margin (22% to 18%) is a significant concern. While increased R&D spending can be a justified long-term investment, it directly pressures profitability and raises questions about near-term operating leverage.
+      
+      **2.  Investment in Future vs. Current Profitability:** The margin decline is attributed to strategic R&D increases. This must be scrutinized:
+          *   **Bull Case:** This is a proactive investment to secure next-generation products, maintain competitive advantage, and drive future growth. The strong free cash flow ($380M) provides the liquidity to fund this without jeopardizing financial stability.
+          *   **Bear Case:** It may indicate rising competitive pressures necessitating heavier spending just to maintain position, potentially leading to structurally lower profitability.
+      
+      **3.  Valuation is Full, Pricing in Perfection:** At 28x forward P/E, the stock is trading at a premium valuation typical of high-growth tech. This multiple likely already incorporates expectations for sustained growth. The current margin compression provides no room for operational missteps. For the stock to re-rate higher, the company must demonstrate that these R&D investments will translate into accelerated revenue growth or higher future margins—neither is yet evident.
+      
+      **4.  Key Metrics Summary:**
+          *   **Positive:** Revenue Growth (+15% YoY), Raised Revenue Guidance, Robust Free Cash Flow ($380M; ~18% FCF margin on revenue).
+          *   **Negative:** Significant Operating Margin Contraction (400 bps), Elevated Valuation (28x forward P/E).
+          *   **Neutral/To Be Determined:** ROI on Increased R&D Spend.
+      
+      **Conclusion:**
+      The company is at an inflection point. The raised guidance and strong cash flow support the bull thesis, but the margin trajectory conflicts with a premium valuation. Until there is tangible evidence that the increased R&D is generating superior growth or future margin expansion, the risk/reward appears balanced.
+      
+      **Next Steps for Investors:**
+      *   **Monitor:** Management's commentary on R&D payback periods, competitive landscape, and margin trajectory for Q4 and next fiscal year.
+      *   **Key Question:** Can the company stabilize margins while sustaining growth, or is this the beginning of a period of heavier investment requiring a valuation recalibration?
+      *   **Catalysts:** Clarity on new product cycles from the R&D spend and subsequent quarterly margin performance.
+      
+      **Therefore, a Hold recommendation is prudent.** Existing shareholders may maintain positions given the growth and cash flow, but new money should wait for a more attractive entry point or clearer signs of operational improvement.
+    ''',
+    'question': 'A mid-cap technology company has reported Q3 earnings with revenue of $2.1B (up 15% YoY), but operating margin declined from 22% to 18% due to increased R&D spending. The company raised full-year guidance by 3%. Free cash flow was $380M. The stock is trading at 28x forward P/E. As a financial analyst, provide a brief investment recommendation with key supporting rationale.',
+    'rubric_criteria_count': 5,
+  })
+# ---
