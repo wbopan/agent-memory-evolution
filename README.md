@@ -1,4 +1,18 @@
+<div align="center">
+
+<!-- Replace with actual icon once generated -->
+<!-- <img src="assets/icon.png" width="120" alt="agent-memory-evolution icon"> -->
+
 # agent-memory-evolution
+
+**Evolve task-specific memory systems for LLM agents as executable Python code.**
+
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-632%20passing-brightgreen.svg)](#quick-start)
+[![arXiv](https://img.shields.io/badge/arXiv-coming%20soon-b31b1b.svg)](#citation)
+
+</div>
 
 LLM agents need memory to store what they have seen and retrieve it when needed.
 Everyone hand-designs these systems: pick a vector store, write some retrieval logic, tune the prompts, ship it.
@@ -6,6 +20,10 @@ This project automates the design process.
 You provide a benchmark; it evolves a task-specific memory system as executable Python code.
 The memory it discovers for conversational QA looks nothing like what it discovers for a household robot.
 Both emerge from the same three simple seeds.
+
+<p align="center">
+  <img src="assets/system-overview.png" width="800" alt="System overview">
+</p>
 
 ## The idea
 
@@ -17,6 +35,28 @@ After 20 iterations over a population of diverse candidates, the best program wi
 The task agent that *uses* the memory is completely fixed.
 Only the memory program changes.
 If the score improves, the memory got better.
+
+## What evolution finds
+
+A seed program starts at roughly 30 lines. After 20 iterations, the system discovers structurally different solutions for different tasks:
+
+<table>
+<tr>
+<td align="center"><b>Seed</b><br>(30 lines)</td>
+<td align="center"><b>LoCoMo (Conversational QA)</b><br>(200+ lines)</td>
+<td align="center"><b>ALFWorld (Embodied Tasks)</b><br>(200+ lines)</td>
+</tr>
+<tr>
+<td><img src="assets/minimap-seed.png" width="200" alt="Seed program"></td>
+<td><img src="assets/minimap-locomo.png" width="200" alt="Evolved LoCoMo program"></td>
+<td><img src="assets/minimap-alfworld.png" width="200" alt="Evolved ALFWorld program"></td>
+</tr>
+<tr>
+<td>Dump everything,<br>retrieve everything</td>
+<td>Multi-table SQL, temporal decay,<br>entity indexing, semantic fusion</td>
+<td>Deterministic action cache,<br>zero LLM calls at retrieval</td>
+</tr>
+</table>
 
 ## How it works
 
@@ -81,9 +121,6 @@ class KnowledgeBase:
         results = self.collection.query(query_texts=[query.query_text], n_results=5)
         return "\n".join(results["documents"][0])
 ```
-
-This is one of the seeds (roughly 30 lines).
-After 20 iterations on LoCoMo, it grows into a 200+ line program with multi-table SQL, temporal decay, entity indexing, and semantic search fusion.
 
 ## Project structure
 
