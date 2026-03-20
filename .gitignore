@@ -13,3 +13,11 @@ data/
 outputs/
 wandb/
 .env
+CLAUDE.md
+docs/
+knowledge/
+exps/
+scripts/
+baselines/
+.pre-commit-config.yaml
+tests/evolution/.llm_cache/
