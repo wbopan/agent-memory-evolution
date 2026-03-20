@@ -6,7 +6,7 @@
 
 **Optimizing memory architecture for every LLM task as executable Python code.**
 
-[![Project Page](https://img.shields.io/badge/Project%20Page-engram.wenbo.io-blue?style=for-the-badge)](https://engram.wenbo.io)
+[![project page](https://img.shields.io/badge/project-page-blue?style=for-the-badge)](https://engram-project.wenbo.io)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue?style=for-the-badge)](https://www.python.org/downloads/)
 [![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-632%20passing-brightgreen?style=for-the-badge)](#quick-start)
