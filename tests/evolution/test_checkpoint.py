@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 from programmaticmemory.evolution.checkpoint import (
     deserialize_eval_result,
     deserialize_failed_case,
@@ -10,7 +12,10 @@ from programmaticmemory.evolution.checkpoint import (
     serialize_failed_case,
     serialize_pool_entry,
 )
+from programmaticmemory.evolution.strategies import FixedRepresentative, SplitValidation
 from programmaticmemory.evolution.types import (
+    DataItem,
+    Dataset,
     EvalResult,
     FailedCase,
     KBProgram,
@@ -269,3 +274,153 @@ class TestPoolEntrySerialization:
         d = serialize_pool_entry(entry)
         entry2 = deserialize_pool_entry(d, source_code=_SOURCE)
         assert entry2.score == entry2.eval_result.score
+
+
+# ---------------------------------------------------------------------------
+# Helpers for strategy tests
+# ---------------------------------------------------------------------------
+
+
+def _make_dataset(n_val: int = 10, n_train: int = 20) -> Dataset:
+    """Create a minimal Dataset with DataItems for strategy tests."""
+    val = [DataItem(raw_text="", question=f"val_q_{i}", expected_answer="A") for i in range(n_val)]
+    train = [DataItem(raw_text="", question=f"train_q_{i}", expected_answer="B") for i in range(n_train)]
+
+    def scorer(a: str, b: str) -> float:
+        return 1.0 if a == b else 0.0
+
+    return Dataset(train=train, val=val, test=[], scorer=scorer)
+
+
+# ---------------------------------------------------------------------------
+# SplitValidation get_state / from_state
+# ---------------------------------------------------------------------------
+
+
+class TestSplitValidationState:
+    def _make_instance(self, dataset: Dataset) -> SplitValidation:
+        """Build a SplitValidation bypassing the embedding API."""
+        instance = object.__new__(SplitValidation)
+        instance._static_indices = [0, 1, 2]
+        instance._train_indices = [0, 1, 2, 3, 4]
+        instance._rotate_pool = [3, 4, 5, 6, 7, 8, 9]
+        instance._rotate_size = 3
+        instance._test_train_ratio = -1
+        instance._rotate_embs = None
+        return instance
+
+    def test_get_state_returns_correct_type(self):
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        assert state["type"] == "SplitValidation"
+
+    def test_get_state_contains_all_keys(self):
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        assert "static_indices" in state
+        assert "train_indices" in state
+        assert "rotate_pool" in state
+        assert "rotate_size" in state
+        assert "test_train_ratio" in state
+
+    def test_round_trip_indices(self):
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        # Patch _embed_texts to avoid API call
+        with patch("programmaticmemory.evolution.strategies._embed_texts", return_value=None):
+            sv2 = SplitValidation.from_state(state, ds)
+        assert sv2._static_indices == sv._static_indices
+        assert sv2._train_indices == sv._train_indices
+        assert sv2._rotate_pool == sv._rotate_pool
+        assert sv2._rotate_size == sv._rotate_size
+        assert sv2._test_train_ratio == sv._test_train_ratio
+
+    def test_from_state_empty_rotate_pool(self):
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        state["rotate_pool"] = []
+        sv2 = SplitValidation.from_state(state, ds)
+        assert sv2._rotate_pool == []
+        assert sv2._rotate_embs is None
+
+    def test_from_state_embedding_failure_sets_none(self):
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        with patch("programmaticmemory.evolution.strategies._embed_texts", side_effect=Exception("API down")):
+            sv2 = SplitValidation.from_state(state, ds)
+        assert sv2._rotate_embs is None
+
+    def test_state_is_json_safe(self):
+        import json
+
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        json.dumps(state)
+
+    def test_select_works_after_from_state(self):
+        ds = _make_dataset()
+        sv = self._make_instance(ds)
+        state = sv.get_state()
+        with patch("programmaticmemory.evolution.strategies._embed_texts", return_value=None):
+            sv2 = SplitValidation.from_state(state, ds)
+        train_items, val_items = sv2.select(ds, iteration=1)
+        assert len(train_items) == len(sv._train_indices)
+        assert len(val_items) == len(sv._static_indices)
+
+
+# ---------------------------------------------------------------------------
+# FixedRepresentative get_state / from_state
+# ---------------------------------------------------------------------------
+
+
+class TestFixedRepresentativeState:
+    def _make_instance(self) -> FixedRepresentative:
+        """Build a FixedRepresentative bypassing the embedding API."""
+        instance = object.__new__(FixedRepresentative)
+        instance._train_indices = [0, 1, 2, 3, 4]
+        instance._val_indices = [0, 1, 2]
+        instance._test_train_ratio = -1
+        return instance
+
+    def test_get_state_returns_correct_type(self):
+        fr = self._make_instance()
+        state = fr.get_state()
+        assert state["type"] == "FixedRepresentative"
+
+    def test_get_state_contains_all_keys(self):
+        fr = self._make_instance()
+        state = fr.get_state()
+        assert "train_indices" in state
+        assert "val_indices" in state
+        assert "test_train_ratio" in state
+
+    def test_round_trip_indices(self):
+        ds = _make_dataset()
+        fr = self._make_instance()
+        state = fr.get_state()
+        fr2 = FixedRepresentative.from_state(state, ds)
+        assert fr2._train_indices == fr._train_indices
+        assert fr2._val_indices == fr._val_indices
+        assert fr2._test_train_ratio == fr._test_train_ratio
+
+    def test_state_is_json_safe(self):
+        import json
+
+        fr = self._make_instance()
+        state = fr.get_state()
+        json.dumps(state)
+
+    def test_select_works_after_from_state(self):
+        ds = _make_dataset()
+        fr = self._make_instance()
+        state = fr.get_state()
+        fr2 = FixedRepresentative.from_state(state, ds)
+        train_items, val_items = fr2.select(ds, iteration=1)
+        assert len(train_items) == len(fr._train_indices)
+        assert len(val_items) == len(fr._val_indices)

@@ -26,6 +26,7 @@ from programmaticmemory.evolution.sandbox import (
 from programmaticmemory.evolution.strategies import FullDataset
 from programmaticmemory.evolution.types import (
     Dataset,
+    EvalResult,
     EvalStrategy,
     EvolutionRecord,
     EvolutionState,
@@ -55,6 +56,42 @@ def _serialize_failed_cases(failed_cases: list[FailedCase]) -> list[dict]:
     ]
 
 
+def _build_eval_cases(eval_result: EvalResult) -> list[dict]:
+    """Build per-item case dicts from an EvalResult."""
+    all_cases = []
+    if eval_result.per_case_scores:
+        used = set()
+        for score, output in zip(eval_result.per_case_scores, eval_result.per_case_outputs, strict=False):
+            case_dict: dict = {"score": score, "output": output}
+            for fc in eval_result.failed_cases + eval_result.success_cases:
+                fc_id = id(fc)
+                if fc_id not in used and fc.output == output and fc.score == score:
+                    case_dict = {
+                        "question": fc.question,
+                        "output": fc.output,
+                        "expected": fc.expected,
+                        "score": fc.score,
+                        "conversation_history": fc.conversation_history,
+                        "memory_logs": fc.memory_logs,
+                    }
+                    used.add(fc_id)
+                    break
+            all_cases.append(case_dict)
+    else:
+        for fc in eval_result.failed_cases + eval_result.success_cases:
+            all_cases.append(
+                {
+                    "question": fc.question,
+                    "output": fc.output,
+                    "expected": fc.expected,
+                    "score": fc.score,
+                    "conversation_history": fc.conversation_history,
+                    "memory_logs": fc.memory_logs,
+                }
+            )
+    return all_cases
+
+
 class EvolutionLoop:
     """Population-based evolution loop for Knowledge Base Programs."""
 
@@ -74,6 +111,9 @@ class EvolutionLoop:
         freeze_code: bool = False,
         use_references: bool = True,
         seed_commit_messages: list[str | None] | None = None,
+        start_iteration: int = 0,
+        resumed_pool: ProgramPool | None = None,
+        resumed_state: EvolutionState | None = None,
     ) -> None:
         self.evaluator = evaluator
         self.reflector = reflector
@@ -89,6 +129,9 @@ class EvolutionLoop:
         self.freeze_code = freeze_code
         self.use_references = use_references
         self.seed_commit_messages = seed_commit_messages
+        self.start_iteration = start_iteration
+        self.resumed_pool = resumed_pool
+        self.resumed_state = resumed_state
         self.logger = get_logger()
 
     def _has_reflection_val(self) -> bool:
@@ -107,6 +150,57 @@ class EvolutionLoop:
             return self.evaluator.evaluate_dual(program, train, val, reflect_val)
         return self.evaluator.evaluate(program, train, val), None
 
+    def _write_eval(
+        self,
+        name: str,
+        program: KBProgram,
+        eval_result: EvalResult,
+        commit_message: str | None = None,
+    ) -> None:
+        if not self.output_manager:
+            return
+        meta = {
+            "program_hash": program.hash,
+            "overall_score": eval_result.score,
+            "generation": program.generation,
+            "parent_hash": program.parent_hash,
+            "commit_message": commit_message,
+            "num_items": len(eval_result.per_case_scores)
+            if eval_result.per_case_scores
+            else len(eval_result.failed_cases) + len(eval_result.success_cases),
+            "runtime_violation": eval_result.runtime_violation,
+        }
+        cases = _build_eval_cases(eval_result)
+        self.output_manager.write_eval_dir(name, meta, cases)
+
+    def _write_checkpoint(self, pool: ProgramPool, state: EvolutionState, last_iteration: int) -> None:
+        if not self.output_manager:
+            return
+        import base64
+        import pickle
+        import random as _random
+
+        from programmaticmemory.evolution.checkpoint import serialize_pool_entry
+
+        checkpoint = {
+            "last_completed_iteration": last_iteration,
+            "best_score": state.best_score,
+            "random_state": base64.b64encode(pickle.dumps(_random.getstate())).decode("ascii"),
+            "pool": [serialize_pool_entry(e) for e in pool.entries],
+            "score_history": [
+                {
+                    "iteration": r.iteration,
+                    "score": r.score,
+                    "parent_hash": r.parent_hash,
+                    "program_hash": r.program.hash,
+                }
+                for r in state.history
+            ],
+        }
+        if hasattr(self.eval_strategy, "get_state"):
+            checkpoint["eval_strategy_state"] = self.eval_strategy.get_state()
+        self.output_manager.write_checkpoint(checkpoint)
+
     @weave.op()
     def run(self) -> EvolutionState:
         """Execute the evolution loop and return final state."""
@@ -120,47 +214,74 @@ class EvolutionLoop:
             header="EVOLUTION",
         )
 
-        # Evaluate all seed programs
-        train, val = self.eval_strategy.select(self.dataset, 0)
-        reflect_val = self.eval_strategy.select_reflection_val(self.dataset, 0) if self._has_reflection_val() else None
-        seed_eval_results = []
-        for idx, seed in enumerate(self.initial_programs):
-            seed_name = f"seed_{idx}"
-            if self.output_manager:
-                self.output_manager.set_phase(0, "train")
+        if self.resumed_pool is not None and self.resumed_state is not None:
+            pool = self.resumed_pool
+            state = self.resumed_state
+            best_score = state.best_score
             self.logger.log(
-                f"Evaluating seed {idx + 1}/{len(self.initial_programs)} (hash={seed.hash})",
+                f"Resumed from iteration {self.start_iteration}, pool={len(pool)}, best={best_score:.3f}",
                 header="EVOLUTION",
             )
-            eval_result, reflect_result = self._evaluate_program(seed, train, val, reflect_val)
-            seed_msg = self.seed_commit_messages[idx] if self.seed_commit_messages else None
-            pool.add(seed, eval_result, name=seed_name, reflection_result=reflect_result, commit_message=seed_msg)
-            seed_eval_results.append(eval_result)
-            self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
-
-            if self.output_manager:
-                self.output_manager.write_program(
-                    0, seed.source_code, accepted=True, score=eval_result.score, name=seed_name
+            self.logger.log(pool.summary(), header="EVOLUTION")
+        else:
+            # Evaluate all seed programs
+            train, val = self.eval_strategy.select(self.dataset, 0)
+            reflect_val = (
+                self.eval_strategy.select_reflection_val(self.dataset, 0) if self._has_reflection_val() else None
+            )
+            seed_eval_results = []
+            for idx, seed in enumerate(self.initial_programs):
+                seed_name = f"seed_{idx}"
+                if self.output_manager:
+                    self.output_manager.set_phase(0, "train")
+                self.logger.log(
+                    f"Evaluating seed {idx + 1}/{len(self.initial_programs)} (hash={seed.hash})",
+                    header="EVOLUTION",
                 )
-            if self.output_manager and eval_result.failed_cases:
-                self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
+                eval_result, reflect_result = self._evaluate_program(seed, train, val, reflect_val)
+                seed_msg = self.seed_commit_messages[idx] if self.seed_commit_messages else None
+                pool.add(seed, eval_result, name=seed_name, reflection_result=reflect_result, commit_message=seed_msg)
+                seed_eval_results.append(eval_result)
+                self.logger.log(f"Seed {idx + 1} score: {eval_result.score:.3f}", header="EVOLUTION")
 
-        best_score = pool.best.score
-        self.logger.log(pool.summary(), header="EVOLUTION")
-        if self.tracker:
-            self.tracker.log_metrics({"score": best_score, "accepted": 1}, iteration=0)
+                if self.output_manager:
+                    self.output_manager.write_program(
+                        0, seed.source_code, accepted=True, score=eval_result.score, name=seed_name
+                    )
+                if self.output_manager and eval_result.failed_cases:
+                    self.output_manager.write_failed_cases(0, _serialize_failed_cases(eval_result.failed_cases))
 
-        state = EvolutionState(
-            pool=pool,
-            best_score=best_score,
-            history=[
-                EvolutionRecord(iteration=0, program=seed, score=er.score)
-                for seed, er in zip(self.initial_programs, seed_eval_results, strict=True)
-            ],
-            total_iterations=0,
-        )
+            best_score = pool.best.score
+            self.logger.log(pool.summary(), header="EVOLUTION")
+            if self.tracker:
+                self.tracker.log_metrics({"score": best_score, "accepted": 1}, iteration=0)
 
-        for i in range(1, self.max_iterations + 1):
+            state = EvolutionState(
+                pool=pool,
+                best_score=best_score,
+                history=[
+                    EvolutionRecord(iteration=0, program=seed, score=er.score)
+                    for seed, er in zip(self.initial_programs, seed_eval_results, strict=True)
+                ],
+                total_iterations=0,
+            )
+
+            # Write evals and checkpoint for seeds
+            for idx, (seed, er) in enumerate(zip(self.initial_programs, seed_eval_results, strict=True)):
+                seed_name = f"seed_{idx}"
+                self._write_eval(
+                    seed_name,
+                    seed,
+                    er,
+                    commit_message=self.seed_commit_messages[idx] if self.seed_commit_messages else None,
+                )
+                seed_entry = pool.entries[idx]
+                if seed_entry.reflection_result is not None:
+                    self._write_eval(f"{seed_name}_reflect", seed, seed_entry.reflection_result)
+            self._write_checkpoint(pool, state, 0)
+
+        start = self.start_iteration + 1 if self.resumed_pool is not None else 1
+        for i in range(start, self.max_iterations + 1):
             if self.stop_condition and self.stop_condition(state):
                 self.logger.log(f"Stop condition triggered at iteration {i}", header="EVOLUTION")
                 break
@@ -390,6 +511,11 @@ class EvolutionLoop:
             )
             state.best_score = best_score
             state.total_iterations = i
+
+            self._write_eval(f"iter_{i}", child, child_result, commit_message=commit_message)
+            if child_reflect is not None:
+                self._write_eval(f"iter_{i}_reflect", child, child_reflect)
+            self._write_checkpoint(pool, state, i)
 
             if self.tracker:
                 self.tracker.log_metrics(
