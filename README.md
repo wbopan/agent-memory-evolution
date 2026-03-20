@@ -6,10 +6,10 @@
 
 **Evolve task-specific memory systems for LLM agents as executable Python code.**
 
-[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
-[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-632%20passing-brightgreen.svg)](#quick-start)
-[![arXiv](https://img.shields.io/badge/arXiv-coming%20soon-b31b1b.svg)](#citation)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue?style=for-the-badge)](https://www.python.org/downloads/)
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-green?style=for-the-badge)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-632%20passing-brightgreen?style=for-the-badge)](#quick-start)
+[![arXiv](https://img.shields.io/badge/arXiv-coming%20soon-b31b1b?style=for-the-badge)](#citation)
 
 </div>
 
