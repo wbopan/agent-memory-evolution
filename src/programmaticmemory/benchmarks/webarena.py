@@ -329,7 +329,7 @@ def _expected_from_eval(eval_cfg: dict) -> str:
     """Derive a human-readable expected answer from the WebArena eval config.
 
     This surfaces the ground-truth signal (reference answer, URL pattern, or
-    program_html conditions) in the ``<expected>`` field of the reflection prompt,
+    program_html conditions) in the ``<rationale>`` field of the reflection prompt,
     so the reflector can compare the agent's output against the actual success
     criteria rather than just seeing "Task completed successfully".
     """
@@ -443,7 +443,7 @@ def load_webarena(
         train=train_items,
         val=val_items,
         test=[],
-        scorer=ExactMatchScorer(),
+        compare_fn=ExactMatchScorer(),
         val_scorer=WebArenaValScorer(),
         available_categories=_AVAILABLE_CATEGORIES,
         category_key="sites",
@@ -588,7 +588,7 @@ def _run_episode(
     always_on_knowledge: str = "",
     reasoning_effort: str | None = None,
     max_steps: int = 30,
-) -> tuple[str, float]:
+) -> tuple[str, float, str]:
     """Run a single WebArena episode inside a spawned process.
 
     Module-level function (not a method) so it can be pickled for ProcessPoolExecutor.
@@ -603,14 +603,18 @@ def _run_episode(
         max_steps: Maximum number of agent steps per episode.
 
     Returns:
-        (trajectory_text, reward) tuple.
+        (trajectory_text, reward, rationale) tuple.
     """
     try:
         from browsergym.core.env import BrowserEnv  # type: ignore[import-untyped]
         from browsergym.utils.obs import flatten_axtree_to_str  # type: ignore[import-untyped]
         from browsergym.webarena.task import GenericWebArenaTask  # type: ignore[import-untyped]
     except ImportError as exc:
-        return (f"BrowserGym not available: {exc}", 0.0)
+        return (
+            f"BrowserGym not available: {exc}",
+            0.0,
+            f"WebArena episode. BrowserGym unavailable: {exc}",
+        )
 
     def _extract_axtree(obs: dict) -> str:
         if "axtree_object" in obs:
@@ -683,7 +687,28 @@ def _run_episode(
         trajectory_lines.append("AGENT_ANSWER: (never called send_msg_to_user)")
     trajectory_lines.append(f"REWARD: {reward:.1f}")
 
-    return ("\n".join(trajectory_lines), reward)
+    trajectory = "\n".join(trajectory_lines)
+    steps = len(action_history)
+    if reward > 0:
+        return (
+            trajectory,
+            reward,
+            f"WebArena episode (binary success: complete the web task). Result: SUCCESS in {steps}/{max_steps} steps. Task: \"{intent}\"",
+        )
+    last_action = action_history[-1] if action_history else "none"
+    last_observation = ""
+    for line in reversed(trajectory_lines):
+        if line.startswith("OBSERVATION:"):
+            last_observation = line[len("OBSERVATION: ") :].strip()
+            break
+    return (
+        trajectory,
+        reward,
+        (
+            f"WebArena episode (binary success: complete the web task). Result: FAILED after {steps}/{max_steps} steps. "
+            f'Task: "{intent}". Last action: "{last_action}". Final observation excerpt: "{last_observation}"'
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -712,13 +737,13 @@ class WebArenaValScorer:
         always_on_knowledge: str = "",
         *,
         reasoning_effort: str | None = None,
-    ) -> list[tuple[str, float]]:
-        """Run one live episode per item in parallel, return (trajectory, score) pairs."""
+    ) -> list[tuple[str, float, str]]:
+        """Run one live episode per item in parallel, return (trajectory, score, rationale) pairs."""
         import concurrent.futures
 
         workers = min(self.max_workers, len(items)) if items else 1
         ctx = multiprocessing.get_context("spawn")
-        results: list[tuple[str, float]] = []
+        results: list[tuple[str, float, str]] = []
         try:
             with concurrent.futures.ProcessPoolExecutor(max_workers=workers, mp_context=ctx) as pool:
                 futures = [
@@ -738,7 +763,7 @@ class WebArenaValScorer:
                     try:
                         results.append(f.result(timeout=self.episode_timeout))
                     except Exception as exc:
-                        results.append((f"Episode failed: {exc}", 0.0))
+                        results.append((f"Episode failed: {exc}", 0.0, f"WebArena episode. Episode crashed: {exc}"))
         except Exception as e:
             from programmaticmemory.logging.logger import get_logger
 
@@ -747,5 +772,11 @@ class WebArenaValScorer:
                 header="WEBARENA",
             )
             while len(results) < len(items):
-                results.append(("Episode failed: broken process pool", 0.0))
+                results.append(
+                    (
+                        "Episode failed: broken process pool",
+                        0.0,
+                        "WebArena episode. Process pool broke — could not run episode.",
+                    )
+                )
         return results

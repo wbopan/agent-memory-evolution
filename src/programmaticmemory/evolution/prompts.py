@@ -251,7 +251,7 @@ def build_reflection_user_prompt(
     for i, case in enumerate(limited_cases, 1):
         case_parts: list[str] = []
         case_parts.append(f"<question>{case.get('question', 'N/A')}</question>\n")
-        case_parts.append(f"<expected>{case.get('expected', 'N/A')}</expected>\n")
+        case_parts.append(f"<rationale>{case.get('rationale', 'N/A')}</rationale>\n")
         case_parts.append(f"<model_generation>{case.get('output', 'N/A')}</model_generation>\n")
         case_parts.append(f"<score>{case.get('score', 0)}</score>\n")
         if case.get("conversation_history"):
@@ -293,7 +293,7 @@ These are the outputs of `toolkit.logger.debug()` calls within `write()` and `re
         for i, case in enumerate(limited_success, 1):
             case_parts: list[str] = []
             case_parts.append(f"<question>{case.get('question', 'N/A')}</question>\n")
-            case_parts.append(f"<expected>{case.get('expected', 'N/A')}</expected>\n")
+            case_parts.append(f"<rationale>{case.get('rationale', 'N/A')}</rationale>\n")
             case_parts.append(f"<model_generation>{case.get('output', 'N/A')}</model_generation>\n")
             case_parts.append(f"<score>{case.get('score', 0)}</score>\n")
             if case.get("conversation_history"):

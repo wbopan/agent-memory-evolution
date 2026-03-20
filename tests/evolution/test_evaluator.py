@@ -38,28 +38,42 @@ class TestExactMatchScorer:
         self.scorer = ExactMatchScorer()
 
     def test_exact_match(self):
-        assert self.scorer("Paris", "Paris") == 1.0
+        score, rationale = self.scorer("Paris", "Paris")
+        assert score == 1.0
+        assert "MATCH" in rationale
+        assert 'Expected answer: "Paris"' in rationale
 
     def test_case_insensitive(self):
-        assert self.scorer("paris", "Paris") == 1.0
+        score, _rationale = self.scorer("paris", "Paris")
+        assert score == 1.0
 
     def test_containment(self):
-        assert self.scorer("The answer is Paris.", "Paris") == 1.0
+        score, rationale = self.scorer("The answer is Paris.", "Paris")
+        assert score == 1.0
+        assert "MATCH" in rationale
 
     def test_no_match(self):
-        assert self.scorer("London", "Paris") == 0.0
+        score, rationale = self.scorer("London", "Paris")
+        assert score == 0.0
+        assert "NO MATCH" in rationale
 
     def test_punctuation_normalized(self):
-        assert self.scorer("It's Paris!", "Paris") == 1.0
+        score, _rationale = self.scorer("It's Paris!", "Paris")
+        assert score == 1.0
 
     def test_whitespace_normalized(self):
-        assert self.scorer("  Paris  ", "Paris") == 1.0
+        score, _rationale = self.scorer("  Paris  ", "Paris")
+        assert score == 1.0
 
     def test_empty_expected(self):
-        assert self.scorer("anything", "") == 1.0
+        score, rationale = self.scorer("anything", "")
+        assert score == 1.0
+        assert "MATCH" in rationale
 
     def test_empty_output(self):
-        assert self.scorer("", "Paris") == 0.0
+        score, rationale = self.scorer("", "Paris")
+        assert score == 0.0
+        assert "NO MATCH" in rationale
 
 
 class TestLLMJudgeScorer:
@@ -72,9 +86,10 @@ class TestLLMJudgeScorer:
         mock_litellm.completion.return_value = mock_resp
 
         scorer = LLMJudgeScorer(model="mock/model")
-        score = scorer("Paris", "Paris")
+        score, rationale = scorer("Paris", "Paris")
 
         assert score == 1.0
+        assert "Verdict: correct" in rationale
         call_kwargs = mock_litellm.completion.call_args.kwargs
         messages = call_kwargs["messages"]
         assert len(messages) == 2
@@ -1042,7 +1057,7 @@ class TestValScorerIntegration:
             ):
                 received_items.extend(items)
                 received_retrieved.extend(retrieved)
-                return [("custom_answer", 0.75)] * len(items)
+                return [("custom_answer", 0.75, "Token F1 score (example)")] * len(items)
 
         batch_mock = _make_batch_mock(
             [
@@ -1074,6 +1089,7 @@ class TestValScorerIntegration:
         assert "The sky is blue." in received_retrieved[0]  # KB has the stored text
         # Score comes from val_scorer, not default scorer
         assert result.score == 0.75
+        assert result.failed_cases[0].rationale == "Token F1 score (example)"
         assert result.per_case_outputs == ["custom_answer"]
         # Only 2 batch calls (train ki + val query), NOT 3 (no val answer generation)
         assert len(batch_mock.captured_calls) == 2
@@ -1086,7 +1102,7 @@ class TestValScorerIntegration:
             def score_batch(
                 self, items, retrieved, task_model, instruction_response, always_on_knowledge, *, reasoning_effort=None
             ):
-                return [("episode transcript: FAIL", 0.0)] * len(items)
+                return [("episode transcript: FAIL", 0.0, "Output not successful")] * len(items)
 
         batch_mock = _make_batch_mock(
             [
@@ -1167,7 +1183,7 @@ class TestEvaluateDual:
         mock_litellm.completion = batch_mock
 
         evaluator = MemoryEvaluator(
-            scorer=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
+            compare_fn=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
         )
         score_result, reflect_result = evaluator.evaluate_dual(program, train, val_score, val_reflect)
 
@@ -1197,7 +1213,7 @@ class TestEvaluateDual:
         mock_litellm.completion = batch_mock
 
         evaluator = MemoryEvaluator(
-            scorer=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
+            compare_fn=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
         )
         score_result, reflect_result = evaluator.evaluate_dual(program, train, val_score, val_reflect)
 
@@ -1211,7 +1227,7 @@ class TestEvaluateDual:
         """Compile failure returns two zero-score results."""
         program = KBProgram(source_code="invalid python {{{{")
         evaluator = MemoryEvaluator(
-            scorer=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
+            compare_fn=ExactMatchScorer(), task_model="test/model", toolkit_config=_TEST_TOOLKIT_CONFIG
         )
         score_result, reflect_result = evaluator.evaluate_dual(program, [], [], [])
 

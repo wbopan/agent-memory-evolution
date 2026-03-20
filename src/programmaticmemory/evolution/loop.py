@@ -47,7 +47,7 @@ def _serialize_failed_cases(failed_cases: list[FailedCase]) -> list[dict]:
         {
             "question": fc.question,
             "output": fc.output,
-            "expected": fc.expected,
+            "rationale": fc.rationale,
             "score": fc.score,
             "conversation_history": fc.conversation_history,
             "memory_logs": fc.memory_logs,
@@ -69,7 +69,7 @@ def _build_eval_cases(eval_result: EvalResult) -> list[dict]:
                     case_dict = {
                         "question": fc.question,
                         "output": fc.output,
-                        "expected": fc.expected,
+                        "rationale": fc.rationale,
                         "score": fc.score,
                         "conversation_history": fc.conversation_history,
                         "memory_logs": fc.memory_logs,
@@ -83,7 +83,7 @@ def _build_eval_cases(eval_result: EvalResult) -> list[dict]:
                 {
                     "question": fc.question,
                     "output": fc.output,
-                    "expected": fc.expected,
+                    "rationale": fc.rationale,
                     "score": fc.score,
                     "conversation_history": fc.conversation_history,
                     "memory_logs": fc.memory_logs,
@@ -550,7 +550,7 @@ class EvolutionLoop:
                     state.final_extra_metrics[entry.program.hash] = {}
                     for name, scorer in self.dataset.extra_scorers.items():
                         scores = [
-                            scorer(out, item.expected_answer)
+                            scorer(out, item.expected_answer)[0]
                             for out, item in zip(final_result.per_case_outputs, final_items, strict=False)
                         ]
                         avg = sum(scores) / len(scores) if scores else 0.0
@@ -600,7 +600,7 @@ class EvolutionLoop:
                 state.test_extra_metrics[best_entry.program.hash] = {}
                 for name, scorer in self.dataset.extra_scorers.items():
                     scores = [
-                        scorer(out, item.expected_answer)
+                        scorer(out, item.expected_answer)[0]
                         for out, item in zip(test_result.per_case_outputs, test_items, strict=False)
                     ]
                     avg = sum(scores) / len(scores) if scores else 0.0

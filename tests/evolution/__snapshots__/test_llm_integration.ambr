@@ -622,7 +622,7 @@
       <underperforming_cases>
       <case id="1">
       <question>What instruments does Caroline play?</question>
-      <expected>violin, piano</expected>
+      <rationale>violin, piano</rationale>
       <model_generation>violin, piano, guitar, drums</model_generation>
       <score>0.3</score>
       <conversation>
@@ -2171,7 +2171,7 @@
       <underperforming_cases>
       <case id="1">
       <question>What is Alice's favorite color?</question>
-      <expected>blue</expected>
+      <rationale>blue</rationale>
       <model_generation>I don't know</model_generation>
       <score>0.0</score>
       <conversation>
@@ -2617,7 +2617,7 @@
       <underperforming_cases>
       <case id="1">
       <question>What is the capital of France?</question>
-      <expected>Paris</expected>
+      <rationale>Paris</rationale>
       <model_generation>I don't know</model_generation>
       <score>0.0</score>
       <conversation>

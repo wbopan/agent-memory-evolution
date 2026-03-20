@@ -431,7 +431,7 @@ class TestWebArenaValScorer:
         retrieved = ["Tip: always add to cart first."]
 
         def fake_run_episode(*args, **kwargs):
-            return ("ACTION: click(button 'Submit')\nOBSERVATION: done", 1.0)
+            return ("ACTION: click(button 'Submit')\nOBSERVATION: done", 1.0, "rationale")
 
         with patch("programmaticmemory.benchmarks.webarena._run_episode", side_effect=fake_run_episode):
             # Patch ProcessPoolExecutor to use ThreadPoolExecutor to avoid spawn overhead
@@ -439,7 +439,7 @@ class TestWebArenaValScorer:
                 results = scorer.score_batch(items, retrieved, "fake-model", "")
 
         assert len(results) == 1
-        trajectory, score = results[0]
+        trajectory, score, rationale = results[0]
         assert score == 1.0
         assert "click" in trajectory
 
@@ -462,7 +462,7 @@ class TestWebArenaValScorer:
                 results = scorer.score_batch(items, retrieved, "fake-model", "")
 
         assert len(results) == 1
-        trajectory, score = results[0]
+        trajectory, score, rationale = results[0]
         assert score == 0.0
         assert "failed" in trajectory.lower() or "crashed" in trajectory.lower()
 

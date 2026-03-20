@@ -83,4 +83,4 @@ def load_mini_locomo(
     rng2.shuffle(eligible)
     val = eligible[:num_val] if num_val is not None else eligible
 
-    return Dataset(train=train, val=val, test=[], scorer=TokenF1Scorer())
+    return Dataset(train=train, val=val, test=[], compare_fn=TokenF1Scorer())

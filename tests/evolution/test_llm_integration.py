@@ -889,7 +889,7 @@ def test_patch_format_recovery(snapshot: SnapshotAssertion):
             FailedCase(
                 question="What is Alice's favorite color?",
                 output="I don't know",
-                expected="blue",
+                rationale="blue",
                 score=0.0,
                 conversation_history=[
                     {"role": "user", "content": "What is Alice's favorite color?"},

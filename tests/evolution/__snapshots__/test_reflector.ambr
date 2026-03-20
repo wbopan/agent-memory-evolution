@@ -128,14 +128,14 @@
           <underperforming_cases>
           <case id="1">
           <question>Question 2?</question>
-          <expected>right_2</expected>
+          <rationale>right_2</rationale>
           <model_generation>wrong_2</model_generation>
           <score>0.0</score>
           </case>
           
           <case id="2">
           <question>Question 3?</question>
-          <expected>right_3</expected>
+          <rationale>right_3</rationale>
           <model_generation>wrong_3</model_generation>
           <score>0.0</score>
           </case>
@@ -764,7 +764,7 @@
           <underperforming_cases>
           <case id="1">
           <question>What is X?</question>
-          <expected>42</expected>
+          <rationale>42</rationale>
           <model_generation>unknown</model_generation>
           <score>0.0</score>
           </case>
@@ -1251,7 +1251,7 @@
           <success_cases>
           <case id="1">
           <question>What is Y?</question>
-          <expected>7</expected>
+          <rationale>7</rationale>
           <model_generation>7</model_generation>
           <score>1.0</score>
           <conversation>
@@ -1267,7 +1267,7 @@
           <underperforming_cases>
           <case id="1">
           <question>What is X?</question>
-          <expected>42</expected>
+          <rationale>42</rationale>
           <model_generation>unknown</model_generation>
           <score>0.0</score>
           </case>
@@ -1897,7 +1897,7 @@
         <underperforming_cases>
         <case id="1">
         <question>q</question>
-        <expected>right</expected>
+        <rationale>right</rationale>
         <model_generation>wrong</model_generation>
         <score>0.0</score>
         </case>

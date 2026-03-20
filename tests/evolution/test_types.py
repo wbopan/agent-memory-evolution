@@ -120,7 +120,7 @@ class TestDataItem:
 
 class TestFailedCase:
     def test_defaults(self):
-        fc = FailedCase(question="q", output="o", expected="e", score=0.0)
+        fc = FailedCase(question="q", output="o", rationale="e", score=0.0)
         assert fc.conversation_history == []
         assert fc.memory_logs == []
 
@@ -128,13 +128,17 @@ class TestFailedCase:
         fc = FailedCase(
             question="q",
             output="o",
-            expected="e",
+            rationale="e",
             score=0.5,
             conversation_history=[{"role": "user", "content": "hi"}],
             memory_logs=["stored: x"],
         )
         assert len(fc.conversation_history) == 1
         assert len(fc.memory_logs) == 1
+
+    def test_has_rationale_field(self):
+        fc = FailedCase(question="q", output="o", rationale="r", score=0.5)
+        assert fc.rationale == "r"
 
 
 class TestEvalResult:
@@ -151,7 +155,7 @@ class TestEvalResult:
             score=0.5,
             per_case_scores=[1.0, 0.0],
             per_case_outputs=["yes", "no"],
-            failed_cases=[FailedCase(question="q", output="no", expected="yes", score=0.0)],
+            failed_cases=[FailedCase(question="q", output="no", rationale="yes", score=0.0)],
             logs=["evaluated 2 cases"],
         )
         assert len(er.per_case_scores) == 2
@@ -211,13 +215,24 @@ class TestValScorer:
                 always_on_knowledge: str,
                 *,
                 reasoning_effort: str | None = None,
-            ) -> list[tuple[str, float]]:
-                return [("answer", 1.0)] * len(items)
+            ) -> list[tuple[str, float, str]]:
+                return [("answer", 1.0, "rationale")] * len(items)
 
         scorer = MyScorer()
         items = [DataItem(raw_text="", question="q", expected_answer="a")]
         result = scorer.score_batch(items, ["retrieved"], "model", "instruction", "")
-        assert result == [("answer", 1.0)]
+        assert result == [("answer", 1.0, "rationale")]
+
+    def test_dataset_compare_fn_defaults_to_none(self):
+        ds = Dataset(train=[], val=[], test=[])
+        assert ds.compare_fn is None
+
+    def test_dataset_accepts_compare_fn(self):
+        def fn(output: str, expected: str):
+            return 1.0, "ok"
+
+        ds = Dataset(train=[], val=[], test=[], compare_fn=fn)
+        assert ds.compare_fn is fn
 
     def test_dataset_val_scorer_defaults_to_none(self):
         ds = Dataset(train=[], val=[], test=[])

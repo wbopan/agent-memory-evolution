@@ -442,7 +442,7 @@
   <underperforming_cases>
   <case id="1">
   <question>q</question>
-  <expected>a</expected>
+  <rationale>a</rationale>
   <model_generation>o</model_generation>
   <score>0.0</score>
   </case>
@@ -712,7 +712,7 @@
   <underperforming_cases>
   <case id="1">
   <question>What is X?</question>
-  <expected>42</expected>
+  <rationale>42</rationale>
   <model_generation>unknown</model_generation>
   <score>0.0</score>
   <conversation>
@@ -872,7 +872,7 @@
   <underperforming_cases>
   <case id="1">
   <question>q</question>
-  <expected>a</expected>
+  <rationale>a</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
@@ -1028,7 +1028,7 @@
   <underperforming_cases>
   <case id="1">
   <question>q</question>
-  <expected>a</expected>
+  <rationale>a</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
@@ -1165,7 +1165,7 @@
   <success_cases>
   <case id="1">
   <question>q_success</question>
-  <expected>correct_answer</expected>
+  <rationale>correct_answer</rationale>
   <model_generation>correct_answer</model_generation>
   <score>1.0</score>
   <conversation>
@@ -1181,7 +1181,7 @@
   <underperforming_cases>
   <case id="1">
   <question>q_fail</question>
-  <expected>a_fail</expected>
+  <rationale>a_fail</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
@@ -1726,14 +1726,14 @@
   <underperforming_cases>
   <case id="1">
   <question>q1</question>
-  <expected>a1</expected>
+  <rationale>a1</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
   
   <case id="2">
   <question>q7</question>
-  <expected>a7</expected>
+  <rationale>a7</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
@@ -1870,7 +1870,7 @@
   <success_cases>
   <case id="1">
   <question>sq0</question>
-  <expected>sa0</expected>
+  <rationale>sa0</rationale>
   <model_generation>sa0</model_generation>
   <score>1.0</score>
   </case>
@@ -2084,7 +2084,7 @@
   <underperforming_cases>
   <case id="1">
   <question>What instruments?</question>
-  <expected>violin, piano</expected>
+  <rationale>violin, piano</rationale>
   <model_generation>violin, piano, guitar</model_generation>
   <score>0.3</score>
   </case>
@@ -2286,7 +2286,7 @@
       <underperforming_cases>
       <case id="1">
       <question>q</question>
-      <expected>a</expected>
+      <rationale>a</rationale>
       <model_generation>wrong</model_generation>
       <score>0.0</score>
       </case>
@@ -2433,7 +2433,7 @@
   <underperforming_cases>
   <case id="1">
   <question>q</question>
-  <expected>a</expected>
+  <rationale>a</rationale>
   <model_generation>o</model_generation>
   <score>0.0</score>
   </case>
@@ -2571,14 +2571,14 @@
   <underperforming_cases>
   <case id="1">
   <question>q1</question>
-  <expected>a1</expected>
+  <rationale>a1</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
   
   <case id="2">
   <question>q7</question>
-  <expected>a7</expected>
+  <rationale>a7</rationale>
   <model_generation>wrong</model_generation>
   <score>0.0</score>
   </case>
@@ -2716,7 +2716,7 @@
   <underperforming_cases>
   <case id="1">
   <question>q</question>
-  <expected>a</expected>
+  <rationale>a</rationale>
   <model_generation>o</model_generation>
   <score>0.0</score>
   </case>
@@ -2853,13 +2853,13 @@
   <success_cases>
   <case id="1">
   <question>sq0</question>
-  <expected>sa0</expected>
+  <rationale>sa0</rationale>
   <model_generation>sa0</model_generation>
   <score>1.0</score>
   </case>
   <case id="2">
   <question>sq1</question>
-  <expected>sa1</expected>
+  <rationale>sa1</rationale>
   <model_generation>sa1</model_generation>
   <score>1.0</score>
   </case>

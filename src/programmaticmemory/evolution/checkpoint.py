@@ -20,7 +20,7 @@ def serialize_failed_case(fc: FailedCase) -> dict:
     return {
         "question": fc.question,
         "output": fc.output,
-        "expected": fc.expected,
+        "rationale": fc.rationale,
         "score": fc.score,
         "conversation_history": list(fc.conversation_history),
         "memory_logs": list(fc.memory_logs),
@@ -32,7 +32,7 @@ def deserialize_failed_case(d: dict) -> FailedCase:
     return FailedCase(
         question=d["question"],
         output=d["output"],
-        expected=d["expected"],
+        rationale=d.get("rationale", d.get("expected", "")),
         score=d["score"],
         conversation_history=list(d.get("conversation_history", [])),
         memory_logs=list(d.get("memory_logs", [])),

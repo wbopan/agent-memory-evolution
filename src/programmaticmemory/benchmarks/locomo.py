@@ -115,7 +115,7 @@ def load_locomo(
         train=train,
         val=val,
         test=[],
-        scorer=TokenF1Scorer(),
+        compare_fn=TokenF1Scorer(),
         available_categories=all_categories,
         extra_scorers={"em": ExactMatchScorer()},
         category_key="qa_category",

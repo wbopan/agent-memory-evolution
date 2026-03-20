@@ -459,12 +459,12 @@ class TestAgentBoardValScorer:
 
         with (
             patch("concurrent.futures.ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor),
-            patch("programmaticmemory.benchmarks.agentboard._run_episode", return_value=("transcript", 0.75)),
+            patch("programmaticmemory.benchmarks.agentboard._run_episode", return_value=("transcript", 0.75, "rationale")),
         ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 
         assert len(results) == 2
-        assert all(score == 0.75 for _, score in results)
+        assert all(score == 0.75 for _, score, _ in results)
 
     def test_score_batch_handles_failure(self):
         from programmaticmemory.benchmarks.agentboard import AgentBoardValScorer

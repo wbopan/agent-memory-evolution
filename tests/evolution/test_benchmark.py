@@ -537,8 +537,8 @@ class TestALFWorldBenchmark:
         with unittest.mock.patch.dict(sys.modules, {"alfworld": None}):
             ds = load_alfworld(num_train=2, data_dir=alfworld_data_dir)
         assert ds.val_scorer is None
-        # But scorer should still be set for fallback
-        assert ds.scorer is not None
+        # But compare_fn should still be set for fallback
+        assert ds.compare_fn is not None
 
     def test_available_categories(self, alfworld_data_dir):
         from programmaticmemory.benchmarks.alfworld import load_alfworld
@@ -592,7 +592,7 @@ class TestALFWorldValScorer:
             patch("textworld.gym.make", return_value=mock_env),
             patch("programmaticmemory.benchmarks.alfworld._select_action", side_effect=["go to desk 1", "take lamp"]),
         ):
-            transcript, score = _run_episode("/fake/game.tw-pddl", "Find lamp", "tips", "mock/model", 50)
+            transcript, score, rationale = _run_episode("/fake/game.tw-pddl", "Find lamp", "tips", "mock/model", 50)
 
         assert score == 1.0
         assert "ACTION: go to desk 1" in transcript
@@ -620,7 +620,7 @@ class TestALFWorldValScorer:
             patch("textworld.gym.make", return_value=NeverDoneEnv()),
             patch("programmaticmemory.benchmarks.alfworld._select_action", return_value="look"),
         ):
-            _transcript, score = _run_episode("/fake/game.tw-pddl", "Do something", "tips", "mock/model", 3)
+            _transcript, score, rationale = _run_episode("/fake/game.tw-pddl", "Do something", "tips", "mock/model", 3)
 
         assert score == 0.0
 
@@ -696,12 +696,12 @@ class TestALFWorldValScorer:
 
         with (
             patch("concurrent.futures.ProcessPoolExecutor", _FakeProcessPool),
-            patch("programmaticmemory.benchmarks.alfworld._run_episode", return_value=("transcript", 1.0)) as mock_run,
+            patch("programmaticmemory.benchmarks.alfworld._run_episode", return_value=("transcript", 1.0, "rationale")) as mock_run,
         ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 
         assert len(results) == 2
-        assert all(score == 1.0 for _, score in results)
+        assert all(score == 1.0 for _, score, _ in results)
         assert mock_run.call_count == 2
 
     def test_score_batch_handles_episode_failure(self):
@@ -914,7 +914,7 @@ class TestNYTConnectionsBenchmark:
         from programmaticmemory.benchmarks.nyt_connections import ConnectionsScorer, load_nyt_connections
 
         ds = load_nyt_connections(data_dir=nyt_data_dir)
-        assert isinstance(ds.scorer, ConnectionsScorer)
+        assert isinstance(ds.compare_fn, ConnectionsScorer)
 
 
 # ── load_dataset category parameter ──────────────────────────────────────────

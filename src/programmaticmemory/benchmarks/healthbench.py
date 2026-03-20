@@ -123,7 +123,6 @@ def load_healthbench(
         train=train,
         val=val,
         test=[],
-        scorer=None,
         val_scorer=RubricValScorer(judge_model=judge_model),
         available_categories=all_themes,
         category_key="theme",

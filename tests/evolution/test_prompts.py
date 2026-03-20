@@ -86,7 +86,7 @@ class TestBuildReflectionUserPrompt:
         cases = [
             {
                 "question": "What is X?",
-                "expected": "42",
+                "rationale": "42",
                 "output": "unknown",
                 "score": 0.0,
                 "conversation_history": [
@@ -112,7 +112,7 @@ class TestBuildReflectionUserPrompt:
         assert prompt == snapshot
 
     def test_samples_cases_when_exceeding_limit(self, snapshot: SnapshotAssertion):
-        cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
+        cases = [{"question": f"q{i}", "rationale": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
         # Default max_failed_cases=2 — weighted sampling selects exactly 2 from 10
         case_count = prompt.count("<case id=")
@@ -124,7 +124,7 @@ class TestBuildReflectionUserPrompt:
         cases = [
             {
                 "question": "q",
-                "expected": "a",
+                "rationale": "a",
                 "output": "o",
                 "score": 0.0,
                 "conversation_history": [
@@ -140,7 +140,7 @@ class TestBuildReflectionUserPrompt:
         cases = [
             {
                 "question": "q",
-                "expected": "a",
+                "rationale": "a",
                 "output": "o",
                 "score": 0.0,
                 "memory_logs": logs,
@@ -152,17 +152,17 @@ class TestBuildReflectionUserPrompt:
         assert "log entry 19" in prompt
 
     def test_handles_empty_optional_fields(self, snapshot: SnapshotAssertion):
-        cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0}]
+        cases = [{"question": "q", "rationale": "a", "output": "o", "score": 0.0}]
         prompt = build_reflection_user_prompt(code="x", score=0.5, failed_cases=cases, iteration=1)
         assert "q" in prompt
         assert prompt == snapshot
 
     def test_includes_success_cases(self, snapshot: SnapshotAssertion):
-        failed = [{"question": "q_fail", "expected": "a_fail", "output": "wrong", "score": 0.0}]
+        failed = [{"question": "q_fail", "rationale": "a_fail", "output": "wrong", "score": 0.0}]
         success = [
             {
                 "question": "q_success",
-                "expected": "correct_answer",
+                "rationale": "correct_answer",
                 "output": "correct_answer",
                 "score": 1.0,
                 "conversation_history": [
@@ -185,7 +185,7 @@ class TestBuildReflectionUserPrompt:
         assert prompt == snapshot
 
     def test_success_cases_limited_by_config(self, snapshot: SnapshotAssertion):
-        success = [{"question": f"sq{i}", "expected": f"sa{i}", "output": f"sa{i}", "score": 1.0} for i in range(5)]
+        success = [{"question": f"sq{i}", "rationale": f"sa{i}", "output": f"sa{i}", "score": 1.0} for i in range(5)]
         config = ReflectionPromptConfig(max_success_cases=1)
         prompt = build_reflection_user_prompt(
             code="x", score=0.8, failed_cases=[], iteration=1, config=config, success_cases=success
@@ -238,7 +238,7 @@ class TestBuildReflectionUserPrompt:
         prompt = build_reflection_user_prompt(
             code="class KnowledgeBase:\n    def read(self, q): return 'current'",
             score=0.50,
-            failed_cases=[{"question": "q", "expected": "a", "output": "wrong", "score": 0.0}],
+            failed_cases=[{"question": "q", "rationale": "a", "output": "wrong", "score": 0.0}],
             iteration=5,
             references=refs,
         )
@@ -265,7 +265,7 @@ class TestBuildReflectionUserPrompt:
         prompt = build_reflection_user_prompt(
             code="class KnowledgeBase: pass",
             score=0.289,
-            failed_cases=[{"question": "q", "expected": "a", "output": "wrong", "score": 0.0}],
+            failed_cases=[{"question": "q", "rationale": "a", "output": "wrong", "score": 0.0}],
             iteration=3,
             lineage_log=log,
         )
@@ -288,7 +288,7 @@ class TestBuildReflectionUserPrompt:
 
 class TestReflectionPromptConfig:
     def test_max_failed_cases(self, snapshot: SnapshotAssertion):
-        cases = [{"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
+        cases = [{"question": f"q{i}", "rationale": f"a{i}", "output": "wrong", "score": 0.0} for i in range(10)]
         config = ReflectionPromptConfig(max_failed_cases=2)
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
         # Weighted sampling selects exactly 2 from 10
@@ -308,7 +308,7 @@ class TestReflectionPromptConfig:
         assert prompt == snapshot
 
     def test_max_success_cases(self, snapshot: SnapshotAssertion):
-        success = [{"question": f"sq{i}", "expected": f"sa{i}", "output": f"sa{i}", "score": 1.0} for i in range(5)]
+        success = [{"question": f"sq{i}", "rationale": f"sa{i}", "output": f"sa{i}", "score": 1.0} for i in range(5)]
         config = ReflectionPromptConfig(max_success_cases=2)
         prompt = build_reflection_user_prompt(
             code="x", score=0.5, failed_cases=[], iteration=1, config=config, success_cases=success
@@ -321,7 +321,7 @@ class TestReflectionPromptConfig:
     def test_max_memory_log_chars_truncates(self):
         # Each log line "  - log entry NNN\n" is ~20 chars, 50 entries = ~1000 chars
         logs = [f"log entry {i:03d} with extra padding to make it longer" for i in range(50)]
-        cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0, "memory_logs": logs}]
+        cases = [{"question": "q", "rationale": "a", "output": "o", "score": 0.0, "memory_logs": logs}]
         config = ReflectionPromptConfig(max_memory_log_chars=200)
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
         assert "chars omitted" in prompt
@@ -330,7 +330,7 @@ class TestReflectionPromptConfig:
 
     def test_max_memory_log_chars_zero_excludes(self, snapshot: SnapshotAssertion):
         logs = ["log entry 1", "log entry 2"]
-        cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0, "memory_logs": logs}]
+        cases = [{"question": "q", "rationale": "a", "output": "o", "score": 0.0, "memory_logs": logs}]
         config = ReflectionPromptConfig(max_memory_log_chars=0)
         prompt = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1, config=config)
         assert "<memory_logs>" not in prompt
@@ -340,7 +340,7 @@ class TestReflectionPromptConfig:
     def test_memory_logs_deduplicated(self):
         shared_logs = ["init db", "write knowledge item", "read query"]
         cases = [
-            {"question": f"q{i}", "expected": f"a{i}", "output": "wrong", "score": 0.0, "memory_logs": shared_logs}
+            {"question": f"q{i}", "rationale": f"a{i}", "output": "wrong", "score": 0.0, "memory_logs": shared_logs}
             for i in range(3)
         ]
         config = ReflectionPromptConfig(max_memory_log_chars=2000)
@@ -353,7 +353,7 @@ class TestReflectionPromptConfig:
         assert "<memory_logs>" not in prompt
 
     def test_default_config(self, snapshot: SnapshotAssertion):
-        cases = [{"question": "q", "expected": "a", "output": "o", "score": 0.0}]
+        cases = [{"question": "q", "rationale": "a", "output": "o", "score": 0.0}]
         prompt_no_config = build_reflection_user_prompt(code="x", score=0.0, failed_cases=cases, iteration=1)
         prompt_default = build_reflection_user_prompt(
             code="x", score=0.0, failed_cases=cases, iteration=1, config=ReflectionPromptConfig()
@@ -730,7 +730,7 @@ class TestLineageLogEndToEnd:
             failed_cases=[
                 {
                     "question": "What instruments?",
-                    "expected": "violin, piano",
+                    "rationale": "violin, piano",
                     "output": "violin, piano, guitar",
                     "score": 0.3,
                 }
@@ -750,7 +750,7 @@ class TestLineageLogEndToEnd:
         prompt = build_reflection_user_prompt(
             code=seed_entry.program.source_code,
             score=0.289,
-            failed_cases=[{"question": "q", "expected": "a", "output": "wrong", "score": 0.0}],
+            failed_cases=[{"question": "q", "rationale": "a", "output": "wrong", "score": 0.0}],
             iteration=5,
             lineage_log=log,
         )

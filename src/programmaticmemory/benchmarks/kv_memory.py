@@ -118,4 +118,4 @@ def load_kv_memory(
         data = [DataItem(raw_text=r, question=q, expected_answer=a) for r, q, a in facts]
 
     # All items are both train (ingest) and val (query) for offline eval
-    return Dataset(train=data, val=data, test=[], scorer=ExactMatchScorer())
+    return Dataset(train=data, val=data, test=[], compare_fn=ExactMatchScorer())
