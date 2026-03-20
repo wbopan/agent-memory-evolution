@@ -163,6 +163,22 @@ class FixedRepresentative:
     def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
         return None
 
+    def get_state(self) -> dict:
+        return {
+            "type": "FixedRepresentative",
+            "train_indices": list(self._train_indices),
+            "val_indices": list(self._val_indices),
+            "test_train_ratio": self._test_train_ratio,
+        }
+
+    @classmethod
+    def from_state(cls, state: dict, dataset: Dataset) -> FixedRepresentative:
+        instance = object.__new__(cls)
+        instance._train_indices = state["train_indices"]
+        instance._val_indices = state["val_indices"]
+        instance._test_train_ratio = state["test_train_ratio"]
+        return instance
+
 
 class SplitValidation:
     """Split val into static (scoring) and rotate (reflection) subsets.
@@ -263,3 +279,33 @@ class SplitValidation:
 
     def test_eval_data(self, dataset: Dataset) -> tuple[list[DataItem], list[DataItem]] | None:
         return None
+
+    def get_state(self) -> dict:
+        return {
+            "type": "SplitValidation",
+            "static_indices": list(self._static_indices),
+            "train_indices": list(self._train_indices),
+            "rotate_pool": list(self._rotate_pool),
+            "rotate_size": self._rotate_size,
+            "test_train_ratio": self._test_train_ratio,
+        }
+
+    @classmethod
+    def from_state(cls, state: dict, dataset: Dataset) -> SplitValidation:
+        """Reconstruct from saved indices, bypassing embedding API."""
+        instance = object.__new__(cls)
+        instance._static_indices = state["static_indices"]
+        instance._train_indices = state["train_indices"]
+        instance._rotate_pool = state["rotate_pool"]
+        instance._rotate_size = state["rotate_size"]
+        instance._test_train_ratio = state["test_train_ratio"]
+        # Re-embed rotate pool (will likely hit disk cache)
+        if instance._rotate_pool:
+            rotate_texts = [dataset.val[i].question for i in instance._rotate_pool]
+            try:
+                instance._rotate_embs = _embed_texts(rotate_texts)
+            except Exception:
+                instance._rotate_embs = None
+        else:
+            instance._rotate_embs = None
+        return instance

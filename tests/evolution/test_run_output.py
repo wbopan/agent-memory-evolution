@@ -323,6 +323,233 @@ class TestLLMCallLogger:
         assert result == {"prompt_tokens": None, "completion_tokens": None, "total_tokens": None}
 
 
+class TestWriteEvalDir:
+    """Tests for RunOutputManager.write_eval_dir."""
+
+    def test_creates_meta_json(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            meta = {"program_hash": "abc123", "overall_score": 0.75}
+            manager.write_eval_dir("iter_1_eval", meta=meta, cases=[])
+            meta_path = manager.run_dir / "evals" / "iter_1_eval" / "meta.json"
+            assert meta_path.exists()
+            loaded = json.loads(meta_path.read_text(encoding="utf-8"))
+            assert loaded == meta
+        finally:
+            manager.close()
+
+    def test_creates_per_item_jsons(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            cases = [
+                {"question": "Q0", "score": 0.0},
+                {"question": "Q1", "score": 1.0},
+                {"question": "Q2", "score": 0.5},
+            ]
+            manager.write_eval_dir("run_eval", meta={}, cases=cases)
+            eval_dir = manager.run_dir / "evals" / "run_eval"
+            assert (eval_dir / "000.json").exists()
+            assert (eval_dir / "001.json").exists()
+            assert (eval_dir / "002.json").exists()
+
+            loaded0 = json.loads((eval_dir / "000.json").read_text(encoding="utf-8"))
+            assert loaded0["question"] == "Q0"
+            loaded2 = json.loads((eval_dir / "002.json").read_text(encoding="utf-8"))
+            assert loaded2["score"] == 0.5
+        finally:
+            manager.close()
+
+    def test_zero_cases_creates_only_meta(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_eval_dir("empty_eval", meta={"score": 0.0}, cases=[])
+            eval_dir = manager.run_dir / "evals" / "empty_eval"
+            assert (eval_dir / "meta.json").exists()
+            # No per-item files
+            assert not (eval_dir / "000.json").exists()
+        finally:
+            manager.close()
+
+    def test_different_names_produce_separate_dirs(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_eval_dir("eval_a", meta={"x": 1}, cases=[{"q": "a"}])
+            manager.write_eval_dir("eval_b", meta={"x": 2}, cases=[{"q": "b"}])
+            assert (manager.run_dir / "evals" / "eval_a" / "meta.json").exists()
+            assert (manager.run_dir / "evals" / "eval_b" / "meta.json").exists()
+            loaded_a = json.loads((manager.run_dir / "evals" / "eval_a" / "meta.json").read_text())
+            assert loaded_a["x"] == 1
+        finally:
+            manager.close()
+
+    def test_filenames_zero_padded_to_three_digits(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            cases = [{"i": i} for i in range(12)]
+            manager.write_eval_dir("padded", meta={}, cases=cases)
+            eval_dir = manager.run_dir / "evals" / "padded"
+            # Check zero-padding
+            assert (eval_dir / "000.json").exists()
+            assert (eval_dir / "009.json").exists()
+            assert (eval_dir / "010.json").exists()
+            assert (eval_dir / "011.json").exists()
+        finally:
+            manager.close()
+
+
+class TestCheckpoint:
+    """Tests for write_checkpoint, load_checkpoint, and from_existing."""
+
+    def test_write_and_load_round_trip(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            state = {"iteration": 5, "best_score": 0.88, "pool": ["hash1", "hash2"]}
+            manager.write_checkpoint(state)
+            loaded = RunOutputManager.load_checkpoint(manager.run_dir)
+            assert loaded == state
+        finally:
+            manager.close()
+
+    def test_load_checkpoint_missing_returns_none(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            result = RunOutputManager.load_checkpoint(manager.run_dir)
+            assert result is None
+        finally:
+            manager.close()
+
+    def test_load_checkpoint_accepts_string_path(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_checkpoint({"k": "v"})
+            loaded = RunOutputManager.load_checkpoint(str(manager.run_dir))
+            assert loaded["k"] == "v"
+        finally:
+            manager.close()
+
+    def test_write_checkpoint_is_atomic_overwrite(self, tmp_path):
+        """A second write_checkpoint should overwrite the first without leaving .tmp."""
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_checkpoint({"iteration": 1})
+            manager.write_checkpoint({"iteration": 2})
+            loaded = RunOutputManager.load_checkpoint(manager.run_dir)
+            assert loaded["iteration"] == 2
+            # No stale .tmp file
+            assert not (manager.run_dir / "state.json.tmp").exists()
+        finally:
+            manager.close()
+
+    def test_write_checkpoint_creates_state_json(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            manager.write_checkpoint({"x": 42})
+            assert (manager.run_dir / "state.json").exists()
+        finally:
+            manager.close()
+
+    def test_checkpoint_preserves_nested_structures(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        try:
+            state = {
+                "pool": [{"name": "seed_0", "score": 0.5}, {"name": "iter_1", "score": 0.7}],
+                "history": [{"iteration": 1, "score": 0.7, "parent_hash": "deadbeef"}],
+            }
+            manager.write_checkpoint(state)
+            loaded = RunOutputManager.load_checkpoint(manager.run_dir)
+            assert loaded["pool"][1]["name"] == "iter_1"
+            assert loaded["history"][0]["parent_hash"] == "deadbeef"
+        finally:
+            manager.close()
+
+
+class TestFromExisting:
+    """Tests for RunOutputManager.from_existing."""
+
+    def test_opens_existing_dir(self, tmp_path):
+        # Create a run first
+        manager = RunOutputManager(tmp_path, config={"key": "value"})
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(run_dir)
+        try:
+            assert resumed.run_dir == run_dir
+        finally:
+            resumed.close()
+
+    def test_does_not_overwrite_config(self, tmp_path):
+        config = {"original": True, "model": "test-model"}
+        manager = RunOutputManager(tmp_path, config=config)
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(run_dir)
+        try:
+            loaded = json.loads((run_dir / "config.json").read_text(encoding="utf-8"))
+            assert loaded == config
+        finally:
+            resumed.close()
+
+    def test_registers_llm_callback(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(run_dir)
+        try:
+            assert resumed._callback in litellm.callbacks
+        finally:
+            resumed.close()
+
+    def test_close_removes_callback(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(run_dir)
+        callback = resumed._callback
+        resumed.close()
+        assert callback not in litellm.callbacks
+
+    def test_accepts_string_path(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(str(run_dir))
+        try:
+            assert resumed.run_dir == run_dir
+        finally:
+            resumed.close()
+
+    def test_can_write_checkpoint_after_resume(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(run_dir)
+        try:
+            resumed.write_checkpoint({"resumed": True, "iteration": 10})
+            loaded = RunOutputManager.load_checkpoint(run_dir)
+            assert loaded["resumed"] is True
+        finally:
+            resumed.close()
+
+    def test_can_write_program_after_resume(self, tmp_path):
+        manager = RunOutputManager(tmp_path, config={})
+        run_dir = manager.run_dir
+        manager.close()
+
+        resumed = RunOutputManager.from_existing(run_dir)
+        try:
+            resumed.write_program(iteration=5, source_code="# resumed program", accepted=True, score=0.9)
+            prog_path = run_dir / "programs" / "iter_5.py"
+            assert prog_path.exists()
+        finally:
+            resumed.close()
+
+
 class TestLoggerTee:
     """Tests for RichLogger log_file tee functionality."""
 
