@@ -32,8 +32,11 @@ def ensure_data(data_dir: str | Path | None = None) -> Path:
     except ImportError as exc:
         raise ImportError("pip install datasets  # required for PRBench") from exc
 
+    # Load only main splits (finance + legal).  The _hard splits are strict
+    # subsets and would duplicate records if loaded separately.
+    # We mark hard items via a second pass against the hard splits.
     records: list[dict] = []
-    for split_name in ["finance", "finance_hard", "legal", "legal_hard"]:
+    for split_name in ["finance", "legal"]:
         try:
             ds = hf_load("ScaleAI/PRBench", split=split_name)
         except Exception:
@@ -41,11 +44,26 @@ def ensure_data(data_dir: str | Path | None = None) -> Path:
         for row in ds:
             row_dict = dict(row)
             if "field" not in row_dict or not row_dict.get("field"):
-                if split_name.startswith("finance"):
-                    row_dict["field"] = "finance"
-                elif split_name.startswith("legal"):
-                    row_dict["field"] = "legal"
+                row_dict["field"] = split_name
+            row_dict["is_hard"] = False
             records.append(row_dict)
+
+    # Mark hard items by matching prompt_0 against the hard splits
+    hard_prompts: set[str] = set()
+    for hard_split in ["finance_hard", "legal_hard"]:
+        try:
+            ds_hard = hf_load("ScaleAI/PRBench", split=hard_split)
+        except Exception:
+            continue
+        for row in ds_hard:
+            p = (dict(row).get("prompt_0") or "")[:200]
+            if p:
+                hard_prompts.add(p)
+
+    for rec in records:
+        p = (rec.get("prompt_0") or "")[:200]
+        if p and p in hard_prompts:
+            rec["is_hard"] = True
 
     with data_file.open("w", encoding="utf-8") as fp:
         for row in records:
@@ -97,12 +115,18 @@ def load_prbench(
             raise ValueError(f"Unknown category {category!r}. Available: {all_categories}")
         records = [r for r in records if (r.get("field") or "").lower() == category]
 
-    rng = random.Random(seed)
-    rng.shuffle(records)
+    # Split: hard items go to val only (they're the hardest, best for eval).
+    # Non-hard items are split by train_ratio into train and val.
+    hard_records = [r for r in records if r.get("is_hard")]
+    normal_records = [r for r in records if not r.get("is_hard")]
 
-    split = int(len(records) * train_ratio)
-    train_records = records[:split]
-    val_records = records[split:]
+    rng = random.Random(seed)
+    rng.shuffle(normal_records)
+
+    split = int(len(normal_records) * train_ratio)
+    train_records = normal_records[:split]
+    val_records = normal_records[split:] + hard_records
+    rng.shuffle(val_records)
 
     train: list[DataItem] = []
     for record in train_records:
@@ -125,6 +149,7 @@ def load_prbench(
                     "domain": (field or "").lower(),
                     "topic": str(record.get("topic", "")),
                     "rubric_criteria": rubric_criteria,
+                    "is_hard": bool(record.get("is_hard")),
                 },
             )
         )
