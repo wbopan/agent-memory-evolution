@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -232,6 +233,57 @@ class RunOutputManager:
     def get_log_path(self) -> Path:
         """Return the path for the run's log file."""
         return self.run_dir / "run.log"
+
+    def write_eval_dir(self, name: str, meta: dict[str, Any], cases: list[dict]) -> None:
+        """Save complete per-item evaluation results to evals/<name>/.
+
+        Creates:
+          evals/<name>/meta.json — metadata (program_hash, overall_score, etc.)
+          evals/<name>/000.json, 001.json, ... — per-item eval results
+        """
+        try:
+            eval_dir = self.run_dir / "evals" / name
+            eval_dir.mkdir(parents=True, exist_ok=True)
+
+            meta_path = eval_dir / "meta.json"
+            meta_path.write_text(json.dumps(meta, indent=2, default=str), encoding="utf-8")
+
+            for i, case in enumerate(cases):
+                case_path = eval_dir / f"{i:03d}.json"
+                case_path.write_text(json.dumps(case, indent=2, default=str), encoding="utf-8")
+
+            get_logger().log(f"Saved eval dir ({len(cases)} items) → {eval_dir}", header="OUTPUT")
+        except Exception as e:
+            get_logger().log(f"Failed to save eval dir to disk: {e}", header="OUTPUT")
+
+    def write_checkpoint(self, state: dict[str, Any]) -> None:
+        """Atomically write state.json (write .tmp then rename)."""
+        try:
+            state_path = self.run_dir / "state.json"
+            tmp_path = self.run_dir / "state.json.tmp"
+            tmp_path.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+            os.replace(tmp_path, state_path)
+            get_logger().log(f"Saved checkpoint → {state_path}", header="OUTPUT")
+        except Exception as e:
+            get_logger().log(f"Failed to save checkpoint to disk: {e}", header="OUTPUT")
+
+    @staticmethod
+    def load_checkpoint(run_dir: str | Path) -> dict[str, Any] | None:
+        """Load state.json or None if not found."""
+        state_path = Path(run_dir) / "state.json"
+        if not state_path.exists():
+            return None
+        return json.loads(state_path.read_text(encoding="utf-8"))
+
+    @classmethod
+    def from_existing(cls, run_dir: str | Path) -> RunOutputManager:
+        """Open an existing run directory for resume (no new dir, no config overwrite)."""
+        instance = object.__new__(cls)
+        instance.run_dir = Path(run_dir)
+        instance._callback = LLMCallLogger()
+        litellm.callbacks.append(instance._callback)  # type: ignore[arg-type]
+        get_logger().log(f"Resuming run from → {instance.run_dir}", header="OUTPUT")
+        return instance
 
     def close(self) -> None:
         """Remove the LLM call logger from litellm callbacks."""
