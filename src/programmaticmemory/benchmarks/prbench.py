@@ -115,9 +115,8 @@ def load_prbench(
             raise ValueError(f"Unknown category {category!r}. Available: {all_categories}")
         records = [r for r in records if (r.get("field") or "").lower() == category]
 
-    # Split: hard items go to val only (they're the hardest, best for eval).
-    # Non-hard items are split by train_ratio into train and val.
-    hard_records = [r for r in records if r.get("is_hard")]
+    # Hard items are excluded from both train and val — they are the hardest
+    # subset and would distort evolution scoring. Only non-hard items are used.
     normal_records = [r for r in records if not r.get("is_hard")]
 
     rng = random.Random(seed)
@@ -125,8 +124,7 @@ def load_prbench(
 
     split = int(len(normal_records) * train_ratio)
     train_records = normal_records[:split]
-    val_records = normal_records[split:] + hard_records
-    rng.shuffle(val_records)
+    val_records = normal_records[split:]
 
     train: list[DataItem] = []
     for record in train_records:
@@ -149,7 +147,6 @@ def load_prbench(
                     "domain": (field or "").lower(),
                     "topic": str(record.get("topic", "")),
                     "rubric_criteria": rubric_criteria,
-                    "is_hard": bool(record.get("is_hard")),
                 },
             )
         )
