@@ -169,11 +169,76 @@ class TestGMemory:
         toolkit.close()
 
 
+class TestMem0:
+    @pytest.mark.uses_chroma
+    def test_compile_and_smoke(self):
+        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        compiled = compile_kb_program(source)
+        assert not isinstance(compiled, CompileError), f"Compile failed: {compiled}"
+
+        toolkit = Toolkit(ToolkitConfig(llm_model="smoke-test/noop", llm_call_budget=1))
+        kb = compiled.kb_cls(toolkit)
+        assert hasattr(kb, "write")
+        assert hasattr(kb, "read")
+        toolkit.close()
+
+    @pytest.mark.uses_chroma
+    def test_read_empty(self):
+        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        compiled = compile_kb_program(source)
+        assert not isinstance(compiled, CompileError)
+
+        toolkit = Toolkit(ToolkitConfig(llm_model="smoke-test/noop", llm_call_budget=1))
+        kb = compiled.kb_cls(toolkit)
+
+        query = compiled.query_cls(query_text="anything")
+        result = kb.read(query)
+        assert result == ""
+        toolkit.close()
+
+    @pytest.mark.uses_chroma
+    def test_write_and_read_without_dedup(self):
+        """Write distinct facts (no dedup triggered), verify retrieval."""
+        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        compiled = compile_kb_program(source)
+        assert not isinstance(compiled, CompileError)
+
+        toolkit = Toolkit(ToolkitConfig(llm_model="smoke-test/noop", llm_call_budget=0))
+        kb = compiled.kb_cls(toolkit)
+
+        kb.write(compiled.ki_cls(summary="Alice works at Google"), raw_text="Alice works at Google as an engineer.")
+        kb.write(compiled.ki_cls(summary="Bob likes hiking"), raw_text="Bob enjoys hiking in the mountains.")
+
+        query = compiled.query_cls(query_text="Where does Alice work?")
+        result = kb.read(query)
+        assert "Alice" in result or "Google" in result
+        toolkit.close()
+
+    @pytest.mark.uses_chroma
+    def test_history_table_populated(self):
+        """Verify SQLite history is written on add."""
+        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        compiled = compile_kb_program(source)
+        assert not isinstance(compiled, CompileError)
+
+        toolkit = Toolkit(ToolkitConfig(llm_model="smoke-test/noop", llm_call_budget=0))
+        kb = compiled.kb_cls(toolkit)
+
+        kb.write(compiled.ki_cls(summary="Test fact"), raw_text="Test fact raw text")
+
+        rows = toolkit.db.execute("SELECT event, new_text FROM mem0_history").fetchall()
+        assert len(rows) == 1
+        assert rows[0][0] == "ADD"
+        assert rows[0][1] == "Test fact"
+        toolkit.close()
+
+
 ALMA_BASELINES = [
     "trajectory_retrieval.py",
     "reasoning_bank.py",
     "dynamic_cheatsheet.py",
     "g_memory.py",
+    "mem0.py",
 ]
 
 

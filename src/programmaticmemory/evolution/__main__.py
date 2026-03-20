@@ -98,6 +98,12 @@ def main() -> None:
     parser.add_argument("--task-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for task agent")
     parser.add_argument("--reflect-model", default="openrouter/openai/gpt-5.3-codex", help="Model for reflection")
     parser.add_argument("--toolkit-model", default="openrouter/deepseek/deepseek-v3.2", help="Model for toolkit LLM")
+    parser.add_argument("--toolkit-budget", type=int, default=1, help="LLM call budget per write/read (default: 1)")
+    parser.add_argument(
+        "--judge-model",
+        default=None,
+        help="Model for rubric-based scoring (HealthBench, PRBench). Defaults to --task-model if not set.",
+    )
     parser.add_argument(
         "--task-lm-thinking-effort",
         choices=["low", "medium", "high"],
@@ -292,6 +298,8 @@ def main() -> None:
         dataset_kwargs = _parse_extra_kwargs(extra)
         # Extra kwargs may also have been saved in the config as individual keys;
         # for resume we rely on the user passing the same positional kwargs if any
+        judge_model = args.judge_model if args.judge_model is not None else args.task_model
+        dataset_kwargs.setdefault("judge_model", judge_model)
         dataset = load_dataset(args.dataset, category=args.category, **dataset_kwargs)
 
         # Split val/test with same params
@@ -423,7 +431,11 @@ def main() -> None:
 
         # Build evaluator / reflector / tracker
         scorer = dataset.scorer or ExactMatchScorer()
-        toolkit_config = ToolkitConfig(llm_model=args.toolkit_model, reasoning_effort=args.task_lm_thinking_effort)
+        toolkit_config = ToolkitConfig(
+            llm_model=args.toolkit_model,
+            reasoning_effort=args.task_lm_thinking_effort,
+            llm_call_budget=args.toolkit_budget,
+        )
         evaluator = MemoryEvaluator(
             scorer=scorer,
             task_model=args.task_model,
@@ -497,6 +509,8 @@ def main() -> None:
 
     # Load dataset (includes scorer, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
+    judge_model = args.judge_model if args.judge_model is not None else args.task_model
+    dataset_kwargs.setdefault("judge_model", judge_model)
     dataset = load_dataset(args.dataset, category=args.category, **dataset_kwargs)
 
     # Split val into evolution-val + held-out test
@@ -564,7 +578,9 @@ def main() -> None:
 
     # Configure
     scorer = dataset.scorer or ExactMatchScorer()
-    toolkit_config = ToolkitConfig(llm_model=args.toolkit_model, reasoning_effort=args.task_lm_thinking_effort)
+    toolkit_config = ToolkitConfig(
+        llm_model=args.toolkit_model, reasoning_effort=args.task_lm_thinking_effort, llm_call_budget=args.toolkit_budget
+    )
     evaluator = MemoryEvaluator(
         scorer=scorer,
         task_model=args.task_model,

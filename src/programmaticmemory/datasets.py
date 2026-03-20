@@ -42,7 +42,13 @@ def load_dataset(
     if name not in _CUSTOM_REGISTRY:
         available = sorted(_CUSTOM_REGISTRY)
         raise ValueError(f"Unknown dataset: {name!r}. Available: {available}")
-    return _CUSTOM_REGISTRY[name](category=category, **kwargs)
+    import inspect
+
+    loader = _CUSTOM_REGISTRY[name]
+    sig = inspect.signature(loader)
+    # Only pass kwargs the loader actually accepts (avoids judge_model etc. breaking loaders)
+    filtered = {k: v for k, v in kwargs.items() if k in sig.parameters}
+    return loader(category=category, **filtered)
 
 
 def list_datasets() -> list[str]:
