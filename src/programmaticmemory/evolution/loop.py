@@ -334,8 +334,15 @@ class EvolutionLoop:
                 self.logger.log(f"References: {ref_desc}", header="EVOLUTION")
 
             lineage_log = build_lineage_log(pool, parent_entry)
+            # Use static val score (parent_entry.score) in the prompt, not the
+            # rotating val score which can be very noisy on small subsets.
             result = self.reflector.reflect_and_mutate(
-                parent, parent_eval_for_reflect, i, references=references or None, lineage_log=lineage_log
+                parent,
+                parent_eval_for_reflect,
+                i,
+                references=references or None,
+                lineage_log=lineage_log,
+                score_override=parent_entry.score,
             )
             if result is None:
                 self.logger.log("Reflection failed to produce valid code, skipping", header="EVOLUTION")
