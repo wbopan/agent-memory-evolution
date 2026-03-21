@@ -245,11 +245,24 @@ def main() -> None:
         default=None,
         help="Resume an interrupted run from the given output directory (e.g. outputs/2026-03-20-09-46-42/)",
     )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="Explicit output directory (e.g. outputs/locomo-no-memory). Auto-resumes if state.json exists.",
+    )
     args, extra = parser.parse_known_args()
 
     if args.freeze_instructions and args.freeze_code:
         print("Error: --freeze-instructions and --freeze-code are mutually exclusive", file=sys.stderr)
         sys.exit(1)
+
+    # --output-dir with existing state.json → auto-resume
+    if args.resume is None and args.output_dir is not None:
+        state_path = args.output_dir / "state.json"
+        if state_path.exists():
+            args.resume = args.output_dir
+            print(f"Auto-resuming from {args.output_dir} (state.json found)")
 
     if args.resume is not None:
         import base64
@@ -579,7 +592,8 @@ def main() -> None:
     # (they cache get_logger() in __init__, so the logger must be final by then)
     output_manager = None
     if not args.no_output:
-        output_manager = RunOutputManager(base_dir="outputs", config=vars(args))
+        run_dir = str(args.output_dir) if args.output_dir else None
+        output_manager = RunOutputManager(base_dir="outputs", config=vars(args), run_dir=run_dir)
         set_logger(RichLogger(log_file=output_manager.get_log_path()))
 
     logger = get_logger()

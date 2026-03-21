@@ -130,16 +130,20 @@ class LLMCallLogger(CustomLogger):
 class RunOutputManager:
     """Manages a timestamped run output directory and wires up LLM call logging."""
 
-    def __init__(self, base_dir: str | Path, config: dict[str, Any]) -> None:
+    def __init__(self, base_dir: str | Path, config: dict[str, Any], run_dir: str | Path | None = None) -> None:
         """Create a new run output directory and register the LLM call logger.
 
         Args:
-            base_dir: Parent directory under which run directories are created.
+            base_dir: Parent directory under which run directories are created (ignored if run_dir is set).
             config: Configuration dict to persist as config.json in the run dir.
+            run_dir: If set, use this exact directory instead of generating a timestamped one.
         """
-        base_dir = Path(base_dir)
-        timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
-        self.run_dir = base_dir / timestamp
+        if run_dir is not None:
+            self.run_dir = Path(run_dir)
+        else:
+            base_dir = Path(base_dir)
+            timestamp = datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
+            self.run_dir = base_dir / timestamp
         self.run_dir.mkdir(parents=True, exist_ok=True)
 
         # Write config

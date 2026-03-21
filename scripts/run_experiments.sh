@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Run Table 1 (main results): No Memory, Vanilla RAG, Ours × LoCoMo + ALFWorld.
-# ALFWorld runs on both eval splits (seen + unseen).
-# Each run writes to outputs/<timestamp>/ with summary.json containing per-category scores.
+# Run Table 1 (main results + baselines) across all 7 dataset settings.
+# Each run has a unique --output-dir, so re-running the script auto-resumes interrupted runs.
 #
 # Usage:
-#   bash scripts/run_experiments.sh
+#   bash scripts/run_experiments.sh              # all (table1 + baselines)
+#   bash scripts/run_experiments.sh table1       # main results only
+#   bash scripts/run_experiments.sh baselines    # ALMA baselines only
 #
-# Results: check outputs/*/summary.json for scores.
+# Results: jq '.test_evaluation' outputs/t1-*/summary.json outputs/bl-*/summary.json
 
 set -euo pipefail
 
@@ -17,9 +18,7 @@ COMMON_HB_DATA="--dataset healthbench --category health_data_tasks --test-size 5
 COMMON_HB_EMERG="--dataset healthbench --category emergency_referrals --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_PR_LEGAL="--dataset prbench --category legal --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_PR_FIN="--dataset prbench --category finance --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-EVOLUTION_LOCOMO="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2"
-EVOLUTION_ALFWORLD="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2"
-EVOLUTION_RUBRIC="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2"
+EVOLUTION="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2 --iterations 20"
 
 run() {
     local label="$1"
@@ -42,17 +41,19 @@ run_table1() {
     run "T1: LoCoMo / No Memory" \
         $COMMON_LOCOMO \
         --seed-program src/programmaticmemory/baselines/no_memory.py \
-        --iterations 0 --eval-strategy none
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-locomo-no-memory
 
     run "T1: LoCoMo / Vanilla RAG" \
         $COMMON_LOCOMO \
         --seed-program seeds/vector_search.py \
-        --iterations 0 --eval-strategy none
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-locomo-vanilla-rag
 
     run "T1: LoCoMo / Ours (evolution)" \
         $COMMON_LOCOMO \
-        $EVOLUTION_LOCOMO \
-        --iterations 20
+        $EVOLUTION \
+        --output-dir outputs/t1-locomo-ours
 
     # --- ALFWorld (both splits) ---
     for SPLIT in unseen seen; do
@@ -60,55 +61,58 @@ run_table1() {
             $COMMON_ALFWORLD \
             --seed-program src/programmaticmemory/baselines/no_memory.py \
             --iterations 0 --eval-strategy none \
+            --output-dir outputs/t1-alfworld-${SPLIT}-no-memory \
             eval_split=$SPLIT
 
         run "T1: ALFWorld $SPLIT / Vanilla RAG" \
             $COMMON_ALFWORLD \
             --seed-program seeds/vector_search.py \
             --iterations 0 --eval-strategy none \
+            --output-dir outputs/t1-alfworld-${SPLIT}-vanilla-rag \
             eval_split=$SPLIT
 
         run "T1: ALFWorld $SPLIT / Ours (evolution)" \
             $COMMON_ALFWORLD \
-            $EVOLUTION_ALFWORLD \
-            --iterations 20 \
+            $EVOLUTION \
+            --output-dir outputs/t1-alfworld-${SPLIT}-ours \
             eval_split=$SPLIT
     done
 
     # --- HealthBench (2 categories) + PRBench (2 categories) ---
     for COMMON_LABEL in \
-        "$COMMON_HB_DATA:HB-data_tasks" \
-        "$COMMON_HB_EMERG:HB-emergency" \
-        "$COMMON_PR_LEGAL:PR-legal" \
-        "$COMMON_PR_FIN:PR-finance"; do
+        "$COMMON_HB_DATA:hb-data-tasks" \
+        "$COMMON_HB_EMERG:hb-emergency" \
+        "$COMMON_PR_LEGAL:pr-legal" \
+        "$COMMON_PR_FIN:pr-finance"; do
         COMMON_DS="${COMMON_LABEL%%:*}"
-        DS_LABEL="${COMMON_LABEL##*:}"
+        DS_SLUG="${COMMON_LABEL##*:}"
 
-        run "T1: $DS_LABEL / No Memory" \
+        run "T1: $DS_SLUG / No Memory" \
             $COMMON_DS \
             --seed-program src/programmaticmemory/baselines/no_memory.py \
-            --iterations 0 --eval-strategy none
+            --iterations 0 --eval-strategy none \
+            --output-dir outputs/t1-${DS_SLUG}-no-memory
 
-        run "T1: $DS_LABEL / Vanilla RAG" \
+        run "T1: $DS_SLUG / Vanilla RAG" \
             $COMMON_DS \
             --seed-program seeds/vector_search.py \
-            --iterations 0 --eval-strategy none
+            --iterations 0 --eval-strategy none \
+            --output-dir outputs/t1-${DS_SLUG}-vanilla-rag
 
-        run "T1: $DS_LABEL / Ours (evolution)" \
+        run "T1: $DS_SLUG / Ours (evolution)" \
             $COMMON_DS \
-            $EVOLUTION_RUBRIC \
-            --iterations 20
+            $EVOLUTION \
+            --output-dir outputs/t1-${DS_SLUG}-ours
     done
 }
 
-# ALMA baselines (Table 1 additional rows): 4 baselines × 3 benchmark settings = 12 runs.
-# Each baseline is evaluated as a seed program with no evolution (--iterations 0).
+# ALMA baselines: 5 baselines × 7 benchmark settings = 35 runs.
 BASELINES=(
-    "trajectory_retrieval:Trajectory Retrieval:"
-    "reasoning_bank:ReasoningBank:"
-    "dynamic_cheatsheet:Dynamic Cheatsheet:"
-    "g_memory:G-Memory:"
-    "mem0:Mem0:--toolkit-budget 10"
+    "trajectory_retrieval:traj-retr:"
+    "reasoning_bank:reason-bank:"
+    "dynamic_cheatsheet:dyn-cheat:"
+    "g_memory:g-memory:"
+    "mem0:mem0:--toolkit-budget 10"
 )
 
 run_baselines() {
@@ -117,41 +121,44 @@ run_baselines() {
     echo "=============================================================="
 
     for entry in "${BASELINES[@]}"; do
-        IFS=: read -r file label extra <<< "$entry"
+        IFS=: read -r file slug extra <<< "$entry"
 
         # --- LoCoMo ---
-        run "BL: LoCoMo / $label" \
+        run "BL: LoCoMo / $slug" \
             $COMMON_LOCOMO \
             --seed-program src/programmaticmemory/baselines/${file}.py \
-            --iterations 0 --eval-strategy none $extra
+            --iterations 0 --eval-strategy none \
+            --output-dir outputs/bl-locomo-${slug} $extra
 
         # --- ALFWorld (both splits) ---
         for SPLIT in unseen seen; do
-            run "BL: ALFWorld $SPLIT / $label" \
+            run "BL: ALFWorld $SPLIT / $slug" \
                 $COMMON_ALFWORLD \
                 --seed-program src/programmaticmemory/baselines/${file}.py \
                 --iterations 0 --eval-strategy none \
+                --output-dir outputs/bl-alfworld-${SPLIT}-${slug} \
                 eval_split=$SPLIT $extra
         done
 
         # --- HealthBench + PRBench (4 categories) ---
         for COMMON_LABEL in \
-            "$COMMON_HB_DATA:HB-data_tasks" \
-            "$COMMON_HB_EMERG:HB-emergency" \
-            "$COMMON_PR_LEGAL:PR-legal" \
-            "$COMMON_PR_FIN:PR-finance"; do
+            "$COMMON_HB_DATA:hb-data-tasks" \
+            "$COMMON_HB_EMERG:hb-emergency" \
+            "$COMMON_PR_LEGAL:pr-legal" \
+            "$COMMON_PR_FIN:pr-finance"; do
             COMMON_DS="${COMMON_LABEL%%:*}"
-            DS_LABEL="${COMMON_LABEL##*:}"
+            DS_SLUG="${COMMON_LABEL##*:}"
 
-            run "BL: $DS_LABEL / $label" \
+            run "BL: $DS_SLUG / $slug" \
                 $COMMON_DS \
                 --seed-program src/programmaticmemory/baselines/${file}.py \
-                --iterations 0 --eval-strategy none $extra
+                --iterations 0 --eval-strategy none \
+                --output-dir outputs/bl-${DS_SLUG}-${slug} $extra
         done
     done
 }
 
-# Dispatch based on argument
+# Dispatch
 case "${1:-all}" in
     table1)     run_table1 ;;
     baselines)  run_baselines ;;
@@ -161,6 +168,5 @@ esac
 
 echo ""
 echo "=============================================================="
-echo "  ALL DONE. Check outputs/*/ for results."
-echo "  Per-category scores: jq '.test_evaluation' outputs/*/summary.json"
+echo "  ALL DONE. Check outputs/t1-*/summary.json and outputs/bl-*/summary.json"
 echo "=============================================================="
