@@ -69,6 +69,33 @@ export DEEPSEEK_API_KEY="sk-..."
 
 # 或 OpenAI 直连
 export OPENAI_API_KEY="sk-..."
+
+# 或 Azure OpenAI（见下方完整示例）
+export AZURE_API_KEY="your-azure-key"
+export AZURE_API_BASE="https://your-resource.openai.azure.com"
+export AZURE_API_VERSION="2025-04-01-preview"
+```
+
+#### Azure OpenAI 完整示例
+
+Azure 端点不提供 embedding API，建议搭配本地 embedding 使用：
+
+```bash
+# Azure 认证
+export AZURE_API_KEY="your-azure-key"
+export AZURE_API_BASE="https://your-resource.openai.azure.com"
+export AZURE_API_VERSION="2025-04-01-preview"
+
+# 模型
+export TASK_MODEL="azure/gpt-5.4-mini"
+export REFLECT_MODEL="azure/gpt-5.3-codex"
+export TOOLKIT_MODEL="azure/gpt-5.4-mini"
+
+# 本地 embedding（跳过 API，使用 FastEmbed）
+export EMBEDDING_MODEL="local"
+
+# 运行
+bash scripts/run_experiments.sh table1
 ```
 
 ### Embedding 模型

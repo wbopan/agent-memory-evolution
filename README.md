@@ -71,7 +71,7 @@ The toolkit available to evolved programs includes SQLite, ChromaDB, and a budge
 
 ## Quick start
 
-Python 3.12+, [uv](https://docs.astral.sh/uv/), an API key (e.g. `OPENROUTER_API_KEY`).
+Python 3.12+, [uv](https://docs.astral.sh/uv/), an API key (e.g. `OPENROUTER_API_KEY` or `AZURE_API_KEY`).
 
 ```bash
 git clone https://github.com/wbopan/agent-memory-evolution.git
