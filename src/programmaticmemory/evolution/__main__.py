@@ -110,6 +110,11 @@ def main() -> None:
         default=None,
         help="Reasoning effort for task/toolkit LLM calls (default: None, no thinking)",
     )
+    parser.add_argument(
+        "--embedding-model",
+        default="openrouter/baai/bge-m3",
+        help="Model for text embeddings (train/val subset selection). Use 'local' to skip API and use FastEmbed locally.",
+    )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")
@@ -327,15 +332,16 @@ def main() -> None:
             if args.eval_strategy == "none":
                 from programmaticmemory.evolution.strategies import NoEval
 
-                eval_strat = NoEval(test_train_ratio=args.test_train_ratio)
+                eval_strat = NoEval(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
             elif args.eval_strategy == "full":
-                eval_strat = FullDataset(test_train_ratio=args.test_train_ratio)
+                eval_strat = FullDataset(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
             elif args.eval_strategy == "representative":
                 eval_strat = FixedRepresentative(
                     dataset,
                     val_size=args.eval_val_size,
                     train_val_ratio=args.eval_train_ratio,
                     test_train_ratio=args.test_train_ratio,
+                    embedding_model=args.embedding_model,
                 )
             elif args.eval_strategy == "rotating":
                 from programmaticmemory.evolution.batching import build_eval_batches
@@ -346,7 +352,12 @@ def main() -> None:
                     num_batches=max(1, len(dataset.val) // args.eval_val_size),
                     batch_train_val_ratio=args.eval_train_ratio,
                 )
-                eval_strat = RotatingBatch(batches_list, top_k=args.eval_top_k, test_train_ratio=args.test_train_ratio)
+                eval_strat = RotatingBatch(
+                    batches_list,
+                    top_k=args.eval_top_k,
+                    test_train_ratio=args.test_train_ratio,
+                    embedding_model=args.embedding_model,
+                )
             elif args.eval_strategy == "split":
                 from programmaticmemory.evolution.strategies import SplitValidation
 
@@ -356,9 +367,10 @@ def main() -> None:
                     rotate_size=args.eval_rotate_size,
                     train_val_ratio=args.eval_train_ratio,
                     test_train_ratio=args.test_train_ratio,
+                    embedding_model=args.embedding_model,
                 )
             else:
-                eval_strat = FullDataset(test_train_ratio=args.test_train_ratio)
+                eval_strat = FullDataset(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
 
         # Build selection strategy
         if args.selection_strategy == "recency_decay":
@@ -522,15 +534,16 @@ def main() -> None:
     if args.eval_strategy == "none":
         from programmaticmemory.evolution.strategies import NoEval
 
-        eval_strat = NoEval(test_train_ratio=args.test_train_ratio)
+        eval_strat = NoEval(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
     elif args.eval_strategy == "full":
-        eval_strat = FullDataset(test_train_ratio=args.test_train_ratio)
+        eval_strat = FullDataset(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
     elif args.eval_strategy == "representative":
         eval_strat = FixedRepresentative(
             dataset,
             val_size=args.eval_val_size,
             train_val_ratio=args.eval_train_ratio,
             test_train_ratio=args.test_train_ratio,
+            embedding_model=args.embedding_model,
         )
     elif args.eval_strategy == "rotating":
         from programmaticmemory.evolution.batching import build_eval_batches
@@ -540,8 +553,14 @@ def main() -> None:
             dataset.val,
             num_batches=max(1, len(dataset.val) // args.eval_val_size),
             batch_train_val_ratio=args.eval_train_ratio,
+            embedding_model=args.embedding_model,
         )
-        eval_strat = RotatingBatch(batches_list, top_k=args.eval_top_k, test_train_ratio=args.test_train_ratio)
+        eval_strat = RotatingBatch(
+            batches_list,
+            top_k=args.eval_top_k,
+            test_train_ratio=args.test_train_ratio,
+            embedding_model=args.embedding_model,
+        )
     elif args.eval_strategy == "split":
         from programmaticmemory.evolution.strategies import SplitValidation
 
@@ -551,6 +570,7 @@ def main() -> None:
             rotate_size=args.eval_rotate_size,
             train_val_ratio=args.eval_train_ratio,
             test_train_ratio=args.test_train_ratio,
+            embedding_model=args.embedding_model,
         )
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger

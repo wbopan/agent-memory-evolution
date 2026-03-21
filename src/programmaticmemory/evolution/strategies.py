@@ -41,8 +41,9 @@ class NoEval:
     score matters and seed-eval cost should be zero.
     """
 
-    def __init__(self, test_train_ratio: int = -1) -> None:
+    def __init__(self, test_train_ratio: int = -1, embedding_model: str = "openrouter/baai/bge-m3") -> None:
         self._test_train_ratio = test_train_ratio
+        self._embedding_model = embedding_model
 
     def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
         return [], []
@@ -57,7 +58,9 @@ class NoEval:
         if not dataset.test:
             return None
         train = (
-            _subset_train_for_eval(dataset.train, dataset.test, self._test_train_ratio)
+            _subset_train_for_eval(
+                dataset.train, dataset.test, self._test_train_ratio, embedding_model=self._embedding_model
+            )
             if self._test_train_ratio > 0
             else dataset.train
         )
@@ -67,8 +70,9 @@ class NoEval:
 class FullDataset:
     """Every iteration uses the full dataset. No final revalidation needed."""
 
-    def __init__(self, test_train_ratio: int = -1) -> None:
+    def __init__(self, test_train_ratio: int = -1, embedding_model: str = "openrouter/baai/bge-m3") -> None:
         self._test_train_ratio = test_train_ratio
+        self._embedding_model = embedding_model
 
     def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
         return dataset.train, dataset.val
@@ -80,7 +84,9 @@ class FullDataset:
         if not dataset.test:
             return None
         train = (
-            _subset_train_for_eval(dataset.train, dataset.test, self._test_train_ratio)
+            _subset_train_for_eval(
+                dataset.train, dataset.test, self._test_train_ratio, embedding_model=self._embedding_model
+            )
             if self._test_train_ratio > 0
             else dataset.train
         )
@@ -97,10 +103,17 @@ class RotatingBatch:
     Final revalidation on full data produces the actual ranking.
     """
 
-    def __init__(self, batches: list[EvalBatch], top_k: int = 3, test_train_ratio: int = -1) -> None:
+    def __init__(
+        self,
+        batches: list[EvalBatch],
+        top_k: int = 3,
+        test_train_ratio: int = -1,
+        embedding_model: str = "openrouter/baai/bge-m3",
+    ) -> None:
         self._batches = batches
         self._top_k = top_k
         self._test_train_ratio = test_train_ratio
+        self._embedding_model = embedding_model
 
     def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
         batch = self._batches[iteration % len(self._batches)]
@@ -119,7 +132,9 @@ class RotatingBatch:
         if not dataset.test:
             return None
         train = (
-            _subset_train_for_eval(dataset.train, dataset.test, self._test_train_ratio)
+            _subset_train_for_eval(
+                dataset.train, dataset.test, self._test_train_ratio, embedding_model=self._embedding_model
+            )
             if self._test_train_ratio > 0
             else dataset.train
         )
@@ -133,13 +148,22 @@ class FixedRepresentative:
     Final revalidation evaluates the top-1 on the full dataset.
     """
 
-    def __init__(self, dataset: Dataset, val_size: int, train_val_ratio: int = 5, test_train_ratio: int = -1) -> None:
+    def __init__(
+        self,
+        dataset: Dataset,
+        val_size: int,
+        train_val_ratio: int = 5,
+        test_train_ratio: int = -1,
+        embedding_model: str = "openrouter/baai/bge-m3",
+    ) -> None:
         self._test_train_ratio = test_train_ratio
+        self._embedding_model = embedding_model
         self._train_indices, self._val_indices = select_representative_subset(
             dataset.train,
             dataset.val,
             val_size=val_size,
             train_val_ratio=train_val_ratio,
+            embedding_model=embedding_model,
         )
 
     def select(self, dataset: Dataset, iteration: int) -> tuple[list[DataItem], list[DataItem]]:
@@ -154,7 +178,9 @@ class FixedRepresentative:
         if not dataset.test:
             return None
         train = (
-            _subset_train_for_eval(dataset.train, dataset.test, self._test_train_ratio)
+            _subset_train_for_eval(
+                dataset.train, dataset.test, self._test_train_ratio, embedding_model=self._embedding_model
+            )
             if self._test_train_ratio > 0
             else dataset.train
         )
@@ -200,6 +226,7 @@ class SplitValidation:
     ) -> None:
         self._test_train_ratio = test_train_ratio
         self._rotate_size = rotate_size
+        self._embedding_model = embedding_model
 
         # Static: clustering-based representative subset (fixed)
         self._train_indices, self._static_indices = select_representative_subset(
@@ -207,6 +234,7 @@ class SplitValidation:
             dataset.val,
             val_size=static_size,
             train_val_ratio=train_val_ratio,
+            embedding_model=embedding_model,
         )
 
         # Rotate pool: val indices not in static
@@ -216,16 +244,7 @@ class SplitValidation:
         # Pre-embed rotate pool for k-means sampling
         if self._rotate_pool:
             rotate_texts = [dataset.val[i].question for i in self._rotate_pool]
-            try:
-                self._rotate_embs = _embed_texts(rotate_texts, model=embedding_model)
-            except Exception:
-                from programmaticmemory.logging.logger import get_logger
-
-                get_logger().log(
-                    f"Rotate pool embedding failed, falling back to random sampling ({len(self._rotate_pool)} items)",
-                    header="CONFIG",
-                )
-                self._rotate_embs = None
+            self._rotate_embs = _embed_texts(rotate_texts, model=embedding_model)
         else:
             self._rotate_embs = None
 
@@ -271,7 +290,9 @@ class SplitValidation:
         if not dataset.test:
             return None
         train = (
-            _subset_train_for_eval(dataset.train, dataset.test, self._test_train_ratio)
+            _subset_train_for_eval(
+                dataset.train, dataset.test, self._test_train_ratio, embedding_model=self._embedding_model
+            )
             if self._test_train_ratio > 0
             else dataset.train
         )
@@ -302,10 +323,7 @@ class SplitValidation:
         # Re-embed rotate pool (will likely hit disk cache)
         if instance._rotate_pool:
             rotate_texts = [dataset.val[i].question for i in instance._rotate_pool]
-            try:
-                instance._rotate_embs = _embed_texts(rotate_texts)
-            except Exception:
-                instance._rotate_embs = None
+            instance._rotate_embs = _embed_texts(rotate_texts, model="openrouter/baai/bge-m3")
         else:
             instance._rotate_embs = None
         return instance

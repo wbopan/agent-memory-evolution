@@ -15,10 +15,35 @@ _EMBED_BATCH_SIZE = 64
 _EMBED_MAX_RETRIES = 3
 
 
+_LOCAL_EMBED_MODEL = None
+
+
+def _fastembed_embed(texts: list[str]) -> np.ndarray:
+    """Local embedding via FastEmbed (ONNX Runtime, CPU, no API calls)."""
+    global _LOCAL_EMBED_MODEL
+    if _LOCAL_EMBED_MODEL is None:
+        from fastembed import TextEmbedding
+
+        _LOCAL_EMBED_MODEL = TextEmbedding(model_name="BAAI/bge-small-en-v1.5")
+    vectors = np.array(list(_LOCAL_EMBED_MODEL.embed(texts)), dtype=np.float64)
+    norms = np.linalg.norm(vectors, axis=1, keepdims=True)
+    return vectors / np.maximum(norms, 1e-10)
+
+
 def _embed_texts(texts: list[str], model: str) -> np.ndarray:
-    """Encode texts via litellm embedding API. Returns L2-normalized vectors."""
+    """Encode texts via litellm embedding API, with local FastEmbed fallback.
+
+    Returns L2-normalized vectors.
+
+    - If ``model`` is ``"local"``, uses FastEmbed directly (no API calls).
+    - Otherwise, tries the litellm embedding API up to 3 times, then falls back
+      to FastEmbed if all attempts fail.
+    """
+    logger = get_logger()
     if not texts:
         return np.empty((0, 0), dtype=np.float64)
+    if model == "local":
+        return _fastembed_embed(texts)
     all_embeddings: list[list[float]] = []
     for start in range(0, len(texts), _EMBED_BATCH_SIZE):
         chunk = texts[start : start + _EMBED_BATCH_SIZE]
@@ -28,7 +53,11 @@ def _embed_texts(texts: list[str], model: str) -> np.ndarray:
                 break
             except Exception:
                 if attempt == _EMBED_MAX_RETRIES - 1:
-                    raise
+                    logger.log(
+                        f"Embedding API failed after {_EMBED_MAX_RETRIES} attempts, falling back to local FastEmbed",
+                        header="EMBED",
+                    )
+                    return _fastembed_embed(texts)
                 time.sleep(2**attempt)
         all_embeddings.extend(d["embedding"] for d in response.data)
     vectors = np.array(all_embeddings, dtype=np.float64)
@@ -292,19 +321,7 @@ def select_representative_subset(
     else:
         val_texts = [item.question for item in val_data]
         logger.log(f"Embedding {len(val_texts)} val texts for representative selection...", header="SUBSET")
-        try:
-            val_embs = _embed_texts(val_texts, model=embedding_model)
-        except Exception as e:
-            logger.log(f"Embedding failed ({e}), falling back to random selection", header="SUBSET")
-            rng = np.random.RandomState(42)
-            val_indices = rng.choice(len(val_data), size=min(val_size, len(val_data)), replace=False).tolist()
-            train_indices = list(range(len(train_data)))
-            if train_val_ratio >= 0:
-                budget = train_val_ratio * len(val_indices)
-                train_indices = rng.choice(len(train_data), size=min(budget, len(train_data)), replace=False).tolist()
-            logger.log(f"Random fallback: {len(val_indices)} val, {len(train_indices)} train", header="SUBSET")
-            return train_indices, val_indices
-
+        val_embs = _embed_texts(val_texts, model=embedding_model)
         labels = _kmeans(val_embs, k=val_size)
         rng = np.random.RandomState(42)
         val_indices = []
@@ -320,22 +337,16 @@ def select_representative_subset(
     if train_texts:
         budget = len(train_data) if train_val_ratio < 0 else train_val_ratio * len(val_indices)
         logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
-        try:
-            train_embs = _embed_texts(train_texts, model=embedding_model)
+        train_embs = _embed_texts(train_texts, model=embedding_model)
 
-            val_texts_for_embed = [item.question for item in val_data]
-            if val_size < len(val_data):
-                subset_val_embs = val_embs[val_indices]
-            else:
-                val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
-                subset_val_embs = val_embs_full[val_indices]
+        val_texts_for_embed = [item.question for item in val_data]
+        if val_size < len(val_data):
+            subset_val_embs = val_embs[val_indices]
+        else:
+            val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
+            subset_val_embs = val_embs_full[val_indices]
 
-            train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
-        except Exception as e:
-            logger.log(f"Train embedding failed ({e}), falling back to random selection", header="SUBSET")
-            rng = np.random.RandomState(42)
-            train_indices = rng.choice(len(train_data), size=min(int(budget), len(train_data)), replace=False).tolist()
-            coverage = 0.0
+        train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
     else:
         train_indices: list[int] = []
         coverage = 0.0

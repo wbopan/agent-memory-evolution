@@ -1,32 +1,30 @@
 #!/usr/bin/env bash
-# Run Table 1 (main results): No Memory, Vanilla RAG, Ours × LoCoMo + ALFWorld.
-# ALFWorld runs on both eval splits (seen + unseen).
-# Each run writes to outputs/<timestamp>/ with summary.json containing per-category scores.
+# Smoke test for run_experiments.sh — covers all paths with minimal data.
+# Validates the full pipeline before handing off to collaborators.
 #
 # Usage:
-#   bash scripts/run_experiments.sh
-#
-# Results: check outputs/*/summary.json for scores.
+#   bash scripts/run_smoke_experiments.sh              # all (table1 + baselines)
+#   bash scripts/run_smoke_experiments.sh table1       # main results only
+#   bash scripts/run_smoke_experiments.sh baselines    # ALMA baselines only
 
 set -euo pipefail
 
 MODELS="--task-model openrouter/deepseek/deepseek-v3.2 --reflect-model openrouter/openai/gpt-5.3-codex --toolkit-model openrouter/deepseek/deepseek-v3.2"
-COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_HB_DATA="--dataset healthbench --category health_data_tasks --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_HB_EMERG="--dataset healthbench --category emergency_referrals --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_PR_LEGAL="--dataset prbench --category legal --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_PR_FIN="--dataset prbench --category finance --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-EVOLUTION_LOCOMO="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2"
-EVOLUTION_ALFWORLD="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2"
-EVOLUTION_RUBRIC="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2"
+SMOKE="--test-size 3 --test-train-ratio 1 --batch-concurrency 2 --no-weave $MODELS"
+COMMON_LOCOMO="--dataset locomo $SMOKE"
+COMMON_ALFWORLD="--dataset alfworld $SMOKE"
+COMMON_HB_DATA="--dataset healthbench --category health_data_tasks $SMOKE"
+COMMON_HB_EMERG="--dataset healthbench --category emergency_referrals $SMOKE"
+COMMON_PR_LEGAL="--dataset prbench --category legal $SMOKE"
+COMMON_PR_FIN="--dataset prbench --category finance $SMOKE"
+EVOLUTION="--eval-strategy split --eval-rotate-size 1 --eval-static-size 2 --eval-train-ratio 1 --iterations 1 --max-fix-attempts 1"
 
 run() {
     local label="$1"
     shift
     echo ""
     echo "================================================================"
-    echo "  $label"
+    echo "  SMOKE: $label"
     echo "================================================================"
     echo "  Command: uv run python -m programmaticmemory.evolution $*"
     echo ""
@@ -35,7 +33,7 @@ run() {
 
 run_table1() {
     echo "=============================================================="
-    echo "  TABLE 1 — MAIN RESULTS"
+    echo "  SMOKE TABLE 1 — MAIN RESULTS"
     echo "=============================================================="
 
     # --- LoCoMo ---
@@ -51,8 +49,7 @@ run_table1() {
 
     run "T1: LoCoMo / Ours (evolution)" \
         $COMMON_LOCOMO \
-        $EVOLUTION_LOCOMO \
-        --iterations 20
+        $EVOLUTION
 
     # --- ALFWorld (both splits) ---
     for SPLIT in unseen seen; do
@@ -70,8 +67,7 @@ run_table1() {
 
         run "T1: ALFWorld $SPLIT / Ours (evolution)" \
             $COMMON_ALFWORLD \
-            $EVOLUTION_ALFWORLD \
-            --iterations 20 \
+            $EVOLUTION \
             eval_split=$SPLIT
     done
 
@@ -96,13 +92,11 @@ run_table1() {
 
         run "T1: $DS_LABEL / Ours (evolution)" \
             $COMMON_DS \
-            $EVOLUTION_RUBRIC \
-            --iterations 20
+            $EVOLUTION
     done
 }
 
-# ALMA baselines (Table 1 additional rows): 4 baselines × 3 benchmark settings = 12 runs.
-# Each baseline is evaluated as a seed program with no evolution (--iterations 0).
+# ALMA baselines: 5 baselines × 7 benchmark settings = 35 runs
 BASELINES=(
     "trajectory_retrieval:Trajectory Retrieval:"
     "reasoning_bank:ReasoningBank:"
@@ -113,7 +107,7 @@ BASELINES=(
 
 run_baselines() {
     echo "=============================================================="
-    echo "  TABLE 1 — ALMA BASELINES"
+    echo "  SMOKE TABLE 1 — ALMA BASELINES"
     echo "=============================================================="
 
     for entry in "${BASELINES[@]}"; do
@@ -151,7 +145,7 @@ run_baselines() {
     done
 }
 
-# Dispatch based on argument
+# Dispatch
 case "${1:-all}" in
     table1)     run_table1 ;;
     baselines)  run_baselines ;;
@@ -161,6 +155,6 @@ esac
 
 echo ""
 echo "=============================================================="
-echo "  ALL DONE. Check outputs/*/ for results."
-echo "  Per-category scores: jq '.test_evaluation' outputs/*/summary.json"
+echo "  SMOKE DONE. All paths validated."
+echo "  Check outputs/*/ for results."
 echo "=============================================================="

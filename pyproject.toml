@@ -19,6 +19,8 @@ dependencies = [
     "chromadb>=1.0.0",
     "codex-apply-patch>=0.4.0",
     "chardet<6",
+    "alfworld>=0.2.2",
+    "fastembed>=0.6.0",
 ]
 
 [project.optional-dependencies]
@@ -32,9 +34,6 @@ agentboard = [
     "scienceworld",
     "minigrid>=2.3.0",
     "pddlgym",
-]
-alfworld = [
-    "alfworld>=0.2.2",
 ]
 webarena = [
     "browsergym-core",
@@ -61,7 +60,6 @@ markers = [
     "uses_chroma: test requires a real ChromaDB EphemeralClient",
     "llm: tests that call real LLM APIs (use disk cache for replay)",
     "agentboard: tests that require agentboard environment packages (scienceworld, minigrid, pddlgym)",
-    "alfworld: tests that require alfworld package",
     "webarena: tests that require browsergym and playwright",
 ]
 

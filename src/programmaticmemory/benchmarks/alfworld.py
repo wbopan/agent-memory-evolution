@@ -397,7 +397,7 @@ def _run_episode(
     max_steps: int,
     always_on_knowledge: str = "",
     reasoning_effort: str | None = None,
-    ) -> tuple[str, float, str]:
+) -> tuple[str, float, str]:
     """Run a single ALFWorld episode in its own process.
 
     Module-level function (not a method) so it can be pickled for
@@ -679,7 +679,8 @@ def load_alfworld(
     train_typed = _parse_trials(train_dir, for_train=True, trajectories=train_trajectories)
 
     # Parse val split
-    val_split_name = f"valid_{eval_split}"
+    # ALFWorld directory naming: valid_unseen and valid_train (not valid_seen)
+    val_split_name = "valid_unseen" if eval_split == "unseen" else "valid_train"
     val_trajectories = _load_trajectories(dest_dir, val_split_name)
     valid_dir = json_dir / val_split_name
     val_typed = _parse_trials(valid_dir, for_train=False, trajectories=val_trajectories)
