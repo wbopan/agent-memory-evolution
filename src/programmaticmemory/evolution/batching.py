@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import time
 from dataclasses import dataclass
 
@@ -44,22 +45,43 @@ def _embed_texts(texts: list[str], model: str) -> np.ndarray:
         return np.empty((0, 0), dtype=np.float64)
     if model == "local":
         return _fastembed_embed(texts)
-    all_embeddings: list[list[float]] = []
-    for start in range(0, len(texts), _EMBED_BATCH_SIZE):
-        chunk = texts[start : start + _EMBED_BATCH_SIZE]
+    chunks = [texts[start : start + _EMBED_BATCH_SIZE] for start in range(0, len(texts), _EMBED_BATCH_SIZE)]
+
+    def _embed_chunk(chunk: list[str]) -> list[list[float]]:
         for attempt in range(_EMBED_MAX_RETRIES):
             try:
                 response = litellm.embedding(model=model, input=chunk, caching=True)
-                break
+                return [d["embedding"] for d in response.data]
             except Exception:
                 if attempt == _EMBED_MAX_RETRIES - 1:
-                    logger.log(
-                        f"Embedding API failed after {_EMBED_MAX_RETRIES} attempts, falling back to local FastEmbed",
-                        header="EMBED",
-                    )
-                    return _fastembed_embed(texts)
+                    raise
                 time.sleep(2**attempt)
-        all_embeddings.extend(d["embedding"] for d in response.data)
+        return []  # unreachable
+
+    if len(chunks) == 1:
+        try:
+            all_embeddings = _embed_chunk(chunks[0])
+        except Exception:
+            logger.log(
+                f"Embedding API failed after {_EMBED_MAX_RETRIES} attempts, falling back to local FastEmbed",
+                header="EMBED",
+            )
+            return _fastembed_embed(texts)
+    else:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(chunks), 8)) as pool:
+            futures = {pool.submit(_embed_chunk, c): i for i, c in enumerate(chunks)}
+            chunk_results: list[list[list[float]] | None] = [None] * len(chunks)
+            try:
+                for fut in concurrent.futures.as_completed(futures):
+                    idx = futures[fut]
+                    chunk_results[idx] = fut.result()
+            except Exception:
+                logger.log(
+                    f"Embedding API failed after {_EMBED_MAX_RETRIES} attempts, falling back to local FastEmbed",
+                    header="EMBED",
+                )
+                return _fastembed_embed(texts)
+        all_embeddings = [emb for cr in chunk_results for emb in cr]  # type: ignore[union-attr]
     vectors = np.array(all_embeddings, dtype=np.float64)
     norms = np.linalg.norm(vectors, axis=1, keepdims=True)
     return vectors / np.maximum(norms, 1e-10)
@@ -238,10 +260,12 @@ def build_eval_batches(
     train_texts = [item.raw_text if item.raw_text else item.question for item in train_data]
     val_texts = [item.question for item in val_data]
 
-    logger.log(f"Embedding {len(train_texts)} train texts...", header="BATCH")
-    train_embs = _embed_texts(train_texts, model=embedding_model)
-    logger.log(f"Embedding {len(val_texts)} val texts...", header="BATCH")
-    val_embs = _embed_texts(val_texts, model=embedding_model)
+    logger.log(f"Embedding {len(train_texts)} train + {len(val_texts)} val texts in parallel...", header="BATCH")
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as embed_pool:
+        train_fut = embed_pool.submit(_embed_texts, train_texts, embedding_model)
+        val_fut = embed_pool.submit(_embed_texts, val_texts, embedding_model)
+        train_embs = train_fut.result()
+        val_embs = val_fut.result()
     logger.log(f"Embeddings complete: train={train_embs.shape}, val={val_embs.shape}", header="BATCH")
 
     # Step 2: Cluster val embeddings
@@ -337,16 +361,24 @@ def select_representative_subset(
     if train_texts:
         budget = len(train_data) if train_val_ratio < 0 else train_val_ratio * len(val_indices)
         logger.log(f"Embedding {len(train_texts)} train texts...", header="SUBSET")
-        train_embs = _embed_texts(train_texts, model=embedding_model)
+        try:
+            train_embs = _embed_texts(train_texts, model=embedding_model)
 
-        val_texts_for_embed = [item.question for item in val_data]
-        if val_size < len(val_data):
-            subset_val_embs = val_embs[val_indices]
-        else:
-            val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
-            subset_val_embs = val_embs_full[val_indices]
+            val_texts_for_embed = [item.question for item in val_data]
+            if val_size < len(val_data):
+                subset_val_embs = val_embs[val_indices]
+            else:
+                val_embs_full = _embed_texts(val_texts_for_embed, model=embedding_model)
+                subset_val_embs = val_embs_full[val_indices]
 
-        train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
+            train_indices, coverage = _select_train_subset(subset_val_embs, train_embs, budget=budget)
+        except Exception:
+            logger.log("Train embedding failed, falling back to random train selection", header="SUBSET")
+            import random as _rand
+
+            rng = _rand.Random(42)
+            train_indices = rng.sample(range(len(train_data)), min(budget, len(train_data)))
+            coverage = 0.0
     else:
         train_indices: list[int] = []
         coverage = 0.0

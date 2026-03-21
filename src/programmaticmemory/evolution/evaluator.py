@@ -213,7 +213,7 @@ class LLMJudgeScorer:
         verdict = "correct" if score >= 1.0 else "incorrect"
         return (
             score,
-            f"LLM judge (binary correct/incorrect assessment). Verdict: {verdict}. Expected answer: \"{expected}\"",
+            f'LLM judge (binary correct/incorrect assessment). Verdict: {verdict}. Expected answer: "{expected}"',
         )
 
 
@@ -286,11 +286,18 @@ class RubricValScorer:
         *,
         reasoning_effort: str | None = None,
     ) -> list[tuple[str, float, str]]:
-        """Generate responses and grade each against rubric criteria."""
-        results: list[tuple[str, float, str]] = []
+        """Generate responses and grade each against rubric criteria.
 
-        for item, memory_text in zip(items, retrieved):  # noqa: B905
-            response = self._generate_response(
+        Two-wave parallelization using the shared thread pool:
+        Wave 1 — generate all responses in parallel.
+        Wave 2 — grade all (item × criterion) pairs in parallel.
+        """
+        pool = _get_batch_pool()
+
+        # Wave 1: parallel response generation
+        resp_futures = [
+            pool.submit(
+                self._generate_response,
                 item,
                 memory_text,
                 task_model,
@@ -298,18 +305,40 @@ class RubricValScorer:
                 always_on_knowledge,
                 reasoning_effort=reasoning_effort,
             )
+            for item, memory_text in zip(items, retrieved)  # noqa: B905
+        ]
+        responses = [f.result() for f in resp_futures]
 
+        # Prepare per-item criteria and conversation texts
+        per_item_criteria: list[list[dict]] = []
+        conv_texts: list[str] = []
+        for item, response in zip(items, responses):  # noqa: B905
             criteria = item.metadata.get("rubric_criteria", [])
+            per_item_criteria.append(criteria)
+            conv_texts.append(self._format_conversation(item, response) if criteria else "")
+
+        # Wave 2: parallel criterion grading — flatten all (item, criterion) pairs
+        grade_futures: list[tuple[int, int, concurrent.futures.Future]] = []
+        for i, criteria in enumerate(per_item_criteria):
+            for j, criterion in enumerate(criteria):
+                fut = pool.submit(self._grade_single_criterion, conv_texts[i], criterion)
+                grade_futures.append((i, j, fut))
+
+        # Reassemble grades per item
+        grades_by_item: dict[int, list[bool]] = {
+            i: [False] * len(criteria) for i, criteria in enumerate(per_item_criteria)
+        }
+        for i, j, fut in grade_futures:
+            grades_by_item[i][j] = fut.result()
+
+        # Score + rationale assembly
+        results: list[tuple[str, float, str]] = []
+        for i, (response, criteria) in enumerate(zip(responses, per_item_criteria)):  # noqa: B905
             if not criteria:
                 results.append((response, 0.0, "Rubric-based scoring. No rubric criteria found."))
                 continue
 
-            conversation_text = self._format_conversation(item, response)
-            grades = []
-            for criterion in criteria:
-                met = self._grade_single_criterion(conversation_text, criterion)
-                grades.append(met)
-
+            grades = grades_by_item[i]
             score = _calculate_rubric_score(criteria, grades)
             met_count = sum(1 for met in grades if met)
             total = len(criteria)
@@ -592,34 +621,41 @@ class MemoryEvaluator:
                     always_on_knowledge=compiled.always_on_knowledge,
                 )
 
-            # Score val
-            self.logger.log(f"Val (score): evaluating on {len(val_score)} items", header="EVAL")
-            score_result = self._evaluate_val(
-                kb,
-                compiled.query_cls,
-                query_schema,
-                val_score,
-                list(train_logs),
-                toolkit,
+            # Score val + Reflect val — independent, run in parallel
+            self.logger.log(
+                f"Val (score+reflect): evaluating on {len(val_score)}+{len(val_reflect)} items in parallel",
+                header="EVAL",
+            )
+            val_kwargs = dict(
                 instruction_query=compiled.instruction_query,
                 instruction_response=compiled.instruction_response,
                 always_on_knowledge=compiled.always_on_knowledge,
             )
-            score_result.train_examples = train_examples
+            with concurrent.futures.ThreadPoolExecutor(max_workers=2) as dual_pool:
+                score_future = dual_pool.submit(
+                    self._evaluate_val,
+                    kb,
+                    compiled.query_cls,
+                    query_schema,
+                    val_score,
+                    list(train_logs),
+                    toolkit,
+                    **val_kwargs,
+                )
+                reflect_future = dual_pool.submit(
+                    self._evaluate_val,
+                    kb,
+                    compiled.query_cls,
+                    query_schema,
+                    val_reflect,
+                    list(train_logs),
+                    toolkit,
+                    **val_kwargs,
+                )
+                score_result = score_future.result()
+                reflect_result = reflect_future.result()
 
-            # Reflect val
-            self.logger.log(f"Val (reflect): evaluating on {len(val_reflect)} items", header="EVAL")
-            reflect_result = self._evaluate_val(
-                kb,
-                compiled.query_cls,
-                query_schema,
-                val_reflect,
-                list(train_logs),
-                toolkit,
-                instruction_query=compiled.instruction_query,
-                instruction_response=compiled.instruction_response,
-                always_on_knowledge=compiled.always_on_knowledge,
-            )
+            score_result.train_examples = train_examples
             reflect_result.train_examples = train_examples
 
             return score_result, reflect_result
@@ -1346,9 +1382,10 @@ class MemoryEvaluator:
             watcher = threading.Thread(target=_stall_watcher, daemon=True)
             watcher.start()
 
+            future_to_idx = {f: i for i, f in enumerate(futures)}
             try:
                 for future in concurrent.futures.as_completed(futures):
-                    idx = futures.index(future)
+                    idx = future_to_idx[future]
                     try:
                         resp = future.result()
                         results[idx] = resp.choices[0].message.content

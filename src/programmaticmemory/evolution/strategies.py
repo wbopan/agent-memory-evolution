@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import concurrent.futures
 import random
 
 import numpy as np
@@ -28,8 +29,11 @@ def _subset_train_for_eval(
         return train
     train_texts = [item.raw_text if item.raw_text else item.question for item in train]
     eval_texts = [item.question for item in eval_items]
-    train_embs = _embed_texts(train_texts, model=embedding_model)
-    eval_embs = _embed_texts(eval_texts, model=embedding_model)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        train_fut = pool.submit(_embed_texts, train_texts, embedding_model)
+        eval_fut = pool.submit(_embed_texts, eval_texts, embedding_model)
+        train_embs = train_fut.result()
+        eval_embs = eval_fut.result()
     indices, _ = _select_train_subset(eval_embs, train_embs, budget=budget)
     return [train[i] for i in indices]
 
@@ -323,7 +327,10 @@ class SplitValidation:
         # Re-embed rotate pool (will likely hit disk cache)
         if instance._rotate_pool:
             rotate_texts = [dataset.val[i].question for i in instance._rotate_pool]
-            instance._rotate_embs = _embed_texts(rotate_texts, model="openrouter/baai/bge-m3")
+            try:
+                instance._rotate_embs = _embed_texts(rotate_texts, model="openrouter/baai/bge-m3")
+            except Exception:
+                instance._rotate_embs = None
         else:
             instance._rotate_embs = None
         return instance

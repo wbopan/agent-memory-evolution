@@ -153,7 +153,9 @@ class TestFixedRepresentative:
         with patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel:
             mock_sel.return_value = ([0], [0])
             FixedRepresentative(ds, val_size=3, train_val_ratio=4)
-            mock_sel.assert_called_once_with(ds.train, ds.val, val_size=3, train_val_ratio=4)
+            mock_sel.assert_called_once_with(
+                ds.train, ds.val, val_size=3, train_val_ratio=4, embedding_model="openrouter/baai/bge-m3"
+            )
 
     def test_final_candidates_returns_best(self):
         ds = _make_dataset()
