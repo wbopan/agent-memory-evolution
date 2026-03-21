@@ -17,7 +17,12 @@
 
 set -euo pipefail
 
-MODELS="--task-model openrouter/deepseek/deepseek-v3.2 --reflect-model openrouter/openai/gpt-5.3-codex --toolkit-model openrouter/deepseek/deepseek-v3.2"
+# Model IDs — override via env vars. Default uses OpenRouter provider prefix.
+TASK_MODEL="${TASK_MODEL:-openrouter/deepseek/deepseek-v3.2}"
+REFLECT_MODEL="${REFLECT_MODEL:-openrouter/openai/gpt-5.3-codex}"
+TOOLKIT_MODEL="${TOOLKIT_MODEL:-openrouter/deepseek/deepseek-v3.2}"
+EMBED_MODEL="${EMBEDDING_MODEL:-openrouter/baai/bge-m3}"
+MODELS="--task-model $TASK_MODEL --reflect-model $REFLECT_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL"
 COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 EVOLUTION="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2 --iterations 20"
 

@@ -7,11 +7,19 @@
 #   bash scripts/run_experiments.sh table1       # main results only
 #   bash scripts/run_experiments.sh baselines    # ALMA baselines only
 #
+# Override models via environment variables:
+#   TASK_MODEL=deepseek/deepseek-v3.2 REFLECT_MODEL=openai/gpt-5.3-codex TOOLKIT_MODEL=deepseek/deepseek-v3.2 bash scripts/run_experiments.sh
+#
 # Results: jq '.test_evaluation' outputs/t1-*/summary.json outputs/bl-*/summary.json
 
 set -euo pipefail
 
-MODELS="--task-model openrouter/deepseek/deepseek-v3.2 --reflect-model openrouter/openai/gpt-5.3-codex --toolkit-model openrouter/deepseek/deepseek-v3.2"
+# Model IDs — override via env vars. Default uses OpenRouter provider prefix.
+TASK_MODEL="${TASK_MODEL:-openrouter/deepseek/deepseek-v3.2}"
+REFLECT_MODEL="${REFLECT_MODEL:-openrouter/openai/gpt-5.3-codex}"
+TOOLKIT_MODEL="${TOOLKIT_MODEL:-openrouter/deepseek/deepseek-v3.2}"
+EMBED_MODEL="${EMBEDDING_MODEL:-openrouter/baai/bge-m3}"
+MODELS="--task-model $TASK_MODEL --reflect-model $REFLECT_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL"
 COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_HB_DATA="--dataset healthbench --category health_data_tasks --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
