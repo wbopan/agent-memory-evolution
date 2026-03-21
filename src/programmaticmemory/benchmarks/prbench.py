@@ -12,11 +12,12 @@ from programmaticmemory.evolution.evaluator import RubricValScorer
 from programmaticmemory.evolution.types import DataItem, Dataset
 
 _WEIGHT_MAP = {
-    "critically_important": 10,
+    "critically important": 10,
     "important": 5,
-    "nice_to_have": 2,
-    "critically_detrimental": -10,
+    "slightly important": 2,
+    "slightly detrimental": -2,
     "detrimental": -5,
+    "critically detrimental": -10,
 }
 
 
@@ -79,16 +80,33 @@ def _format_prompt(record: dict) -> str:
 
 
 def _encode_rubric(rubric_items: list[dict]) -> list[dict[str, object]]:
-    """Build rubric criteria list from PRBench rubric entries."""
+    """Build rubric criteria list from PRBench rubric entries.
+
+    PRBench HuggingFace data nests rubric fields under an ``annotations`` key.
+    Each annotation has a ``weight_class`` string and a matching numeric weight
+    field (e.g. ``important_weight: 7``).  We prefer the explicit numeric weight
+    when available, falling back to the class-level default from ``_WEIGHT_MAP``.
+    """
     criteria: list[dict[str, object]] = []
     for item in rubric_items or []:
         if not isinstance(item, dict):
             continue
-        desc = item.get("criteria_description", "")
+        # HuggingFace format nests under "annotations"; unit-test fixtures are flat
+        ann = item.get("annotations", item)
+        desc = ann.get("criteria_description", "")
         if not isinstance(desc, str) or not desc.strip():
             continue
-        weight_class = item.get("weight_class", "nice_to_have")
-        points = _WEIGHT_MAP.get(weight_class, 2)
+        weight_class = ann.get("weight_class", "important")
+        # Try the explicit numeric weight field (e.g. "important_weight": 7)
+        weight_key = weight_class.replace(" ", "_") + "_weight"
+        explicit_weight = ann.get(weight_key)
+        if isinstance(explicit_weight, (int, float)) and explicit_weight != 0:
+            points = int(explicit_weight)
+            # Detrimental classes should be negative
+            if "detrimental" in weight_class and points > 0:
+                points = -points
+        else:
+            points = _WEIGHT_MAP.get(weight_class, 2)
         criteria.append({"criterion": desc.strip(), "points": points})
 
     return criteria
