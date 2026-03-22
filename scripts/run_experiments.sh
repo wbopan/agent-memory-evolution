@@ -29,14 +29,15 @@ COMMON_PR_FIN="--dataset prbench --category finance --test-size 50 --test-train-
 # Per-dataset evolution configs.  Two tiers:
 #   Large (HB/LoCoMo): test=100, static=60, rotate_pool≥60
 #   Small (PR/ALFWorld): test=50, static=50, rotate_pool≥50 (best effort)
+# eval-rotate-size omitted → default=5 (sufficient for reflection; rubric benchmarks are expensive per item)
 EVOL_BASE="--eval-strategy split --eval-train-ratio 2 --iterations 20"
-EVOL_LOCOMO="$EVOL_BASE --eval-static-size 60 --eval-rotate-size 60"       # val=1986, test=100, evo=1886
-EVOL_ALF_UNSEEN="$EVOL_BASE --eval-static-size 50 --eval-rotate-size 50"   # val=150,  test=50,  evo=100
-EVOL_ALF_SEEN="$EVOL_BASE --eval-static-size 32 --eval-rotate-size 20"     # val=102,  test=50,  evo=52 (data-limited)
-EVOL_HB_DATA="$EVOL_BASE --eval-static-size 60 --eval-rotate-size 60"     # val=220,  test=100, evo=120
-EVOL_HB_EMERG="$EVOL_BASE --eval-static-size 60 --eval-rotate-size 60"    # val=222,  test=100, evo=122
-EVOL_PR_LEGAL="$EVOL_BASE --eval-static-size 50 --eval-rotate-size 50"    # val=150,  test=50,  evo=100
-EVOL_PR_FIN="$EVOL_BASE --eval-static-size 50 --eval-rotate-size 50"      # val=150,  test=50,  evo=100
+EVOL_LOCOMO="$EVOL_BASE --eval-static-size 60"       # val=1986, test=100, evo=1886, rotate_pool=1826
+EVOL_ALF_UNSEEN="$EVOL_BASE --eval-static-size 50"   # val=150,  test=50,  evo=100,  rotate_pool=50
+EVOL_ALF_SEEN="$EVOL_BASE --eval-static-size 32"     # val=102,  test=50,  evo=52,   rotate_pool=20
+EVOL_HB_DATA="$EVOL_BASE --eval-static-size 60"      # val=220,  test=100, evo=120,  rotate_pool=60
+EVOL_HB_EMERG="$EVOL_BASE --eval-static-size 60"     # val=222,  test=100, evo=122,  rotate_pool=62
+EVOL_PR_LEGAL="$EVOL_BASE --eval-static-size 50"     # val=150,  test=50,  evo=100,  rotate_pool=50
+EVOL_PR_FIN="$EVOL_BASE --eval-static-size 50"       # val=150,  test=50,  evo=100,  rotate_pool=50
 
 run() {
     local label="$1"
