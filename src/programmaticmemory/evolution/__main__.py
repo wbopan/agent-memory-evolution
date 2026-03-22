@@ -236,8 +236,8 @@ def main() -> None:
     parser.add_argument(
         "--batch-concurrency",
         type=int,
-        default=4,
-        help="Max concurrent LLM calls in batch evaluation (default: 4)",
+        default=64,
+        help="Max concurrent LLM calls in batch evaluation (default: 64)",
     )
     parser.add_argument(
         "--resume",

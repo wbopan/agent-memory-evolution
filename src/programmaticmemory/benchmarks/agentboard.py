@@ -301,7 +301,7 @@ def _run_episode(
             progress,
             (
                 f"AgentBoard episode (progress rate: fraction of subgoals completed). "
-                f"Progress: {progress:.2f}. Task: \"{objective}\". "
+                f'Progress: {progress:.2f}. Task: "{objective}". '
                 f"Environment: {env_type}"
             ),
         )
@@ -313,7 +313,7 @@ def _run_episode(
 
 
 class AgentBoardValScorer:
-    def __init__(self, max_steps: int = 30, max_workers: int = 10, episode_timeout: float = 300.0) -> None:
+    def __init__(self, max_steps: int = 30, max_workers: int = 50, episode_timeout: float = 300.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
         self.episode_timeout = episode_timeout

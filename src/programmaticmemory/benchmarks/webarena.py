@@ -693,7 +693,7 @@ def _run_episode(
         return (
             trajectory,
             reward,
-            f"WebArena episode (binary success: complete the web task). Result: SUCCESS in {steps}/{max_steps} steps. Task: \"{intent}\"",
+            f'WebArena episode (binary success: complete the web task). Result: SUCCESS in {steps}/{max_steps} steps. Task: "{intent}"',
         )
     last_action = action_history[-1] if action_history else "none"
     last_observation = ""
@@ -723,7 +723,7 @@ class WebArenaValScorer:
     isolate Playwright / browser state between episodes.
     """
 
-    def __init__(self, max_steps: int = 30, max_workers: int = 4, episode_timeout: float = 600.0) -> None:
+    def __init__(self, max_steps: int = 30, max_workers: int = 50, episode_timeout: float = 600.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
         self.episode_timeout = episode_timeout

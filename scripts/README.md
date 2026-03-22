@@ -187,7 +187,7 @@ done
 | 问题 | 解决方案 |
 |------|---------|
 | Embedding API 报错 | 设置 `EMBEDDING_MODEL=local` 或添加 `--embedding-model local` |
-| Rate limit / 限速 | 降低 `--batch-concurrency`（默认 4，改为 2） |
+| Rate limit / 限速 | 降低 `--batch-concurrency`（默认 64，改为 2） |
 | ALFWorld 数据缺失 | `uv run python -c "from programmaticmemory.benchmarks.alfworld import ensure_data; ensure_data()"` |
 | HealthBench/PRBench 数据缺失 | 首次运行时自动从 HuggingFace 下载 |
 | 运行中断 | 直接重新执行同一脚本，自动恢复 |

@@ -583,7 +583,7 @@ class ALFWorldValScorer:
     (TextWorld's tatsu-based parsers use global singletons that are not thread-safe).
     """
 
-    def __init__(self, max_steps: int = 50, max_workers: int = 8, episode_timeout: float = 300.0) -> None:
+    def __init__(self, max_steps: int = 50, max_workers: int = 50, episode_timeout: float = 300.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
         self.episode_timeout = episode_timeout

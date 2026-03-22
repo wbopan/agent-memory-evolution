@@ -44,7 +44,7 @@ from programmaticmemory.logging.logger import get_logger
 # thread dies.  A long-lived pool means threads (and their cache connections)
 # are reused across calls.
 _BATCH_POOL: concurrent.futures.ThreadPoolExecutor | None = None
-_BATCH_POOL_SIZE = 10
+_BATCH_POOL_SIZE = 64
 
 
 def _get_batch_pool() -> concurrent.futures.ThreadPoolExecutor:
@@ -61,9 +61,6 @@ def set_batch_pool_size(size: int) -> None:
     _BATCH_POOL = None  # reset so next call creates a new pool
 
 
-# Shared pool for _guarded_write / _guarded_read timeout enforcement.
-_GUARD_POOL = concurrent.futures.ThreadPoolExecutor(max_workers=4)
-
 MEMORY_OP_TIMEOUT = 60.0
 MEMORY_READ_MAX_CHARS = 3000
 
@@ -79,7 +76,7 @@ def _guarded_write(kb: Any, item: Any, raw_text: str, timeout: float = MEMORY_OP
     if hasattr(kb, "toolkit"):
         kb.toolkit.reset_llm_budget()
     t0 = _time.monotonic()
-    future = _GUARD_POOL.submit(kb.write, item, raw_text)
+    future = _get_batch_pool().submit(kb.write, item, raw_text)
     try:
         future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
@@ -100,7 +97,7 @@ def _guarded_read(
     if hasattr(kb, "toolkit"):
         kb.toolkit.reset_llm_budget()
     t0 = _time.monotonic()
-    future = _GUARD_POOL.submit(kb.read, query)
+    future = _get_batch_pool().submit(kb.read, query)
     try:
         result = future.result(timeout=timeout)
     except concurrent.futures.TimeoutError:
