@@ -24,7 +24,10 @@ TOOLKIT_MODEL="${TOOLKIT_MODEL:-openrouter/deepseek/deepseek-v3.2}"
 EMBED_MODEL="${EMBEDDING_MODEL:-openrouter/baai/bge-m3}"
 MODELS="--task-model $TASK_MODEL --reflect-model $REFLECT_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL"
 COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
-EVOLUTION="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2 --iterations 20"
+# Per-dataset evolution configs — must match run_experiments.sh
+# eval-rotate-size omitted → default=5 (sufficient for reflection)
+EVOL_BASE="--eval-strategy split --eval-train-ratio 2 --iterations 20"
+EVOL_LOCOMO="$EVOL_BASE --eval-static-size 60"       # val=1986, test=100, evo=1886, rotate_pool=1826
 
 run() {
     local label="$1"
@@ -38,10 +41,10 @@ run() {
     uv run python -m programmaticmemory.evolution "$@"
 }
 
-run_freeze_inst()  { run "T2: LoCoMo / - Instruction constants" $COMMON_LOCOMO $EVOLUTION --freeze-instructions --output-dir outputs/t2-locomo-freeze-inst; }
-run_freeze_code()  { run "T2: LoCoMo / - Code structure"        $COMMON_LOCOMO $EVOLUTION --freeze-code          --output-dir outputs/t2-locomo-freeze-code; }
-run_linear()       { run "T2: LoCoMo / - Population (linear)"   $COMMON_LOCOMO $EVOLUTION --selection-strategy max --output-dir outputs/t2-locomo-linear; }
-run_no_diversity() { run "T2: LoCoMo / - Population diversity"  $COMMON_LOCOMO $EVOLUTION --selection-strategy max --seed-program seeds/single/empty.py --output-dir outputs/t2-locomo-no-diversity; }
+run_freeze_inst()  { run "T2: LoCoMo / - Instruction constants" $COMMON_LOCOMO $EVOL_LOCOMO --freeze-instructions --output-dir outputs/t2-locomo-freeze-inst; }
+run_freeze_code()  { run "T2: LoCoMo / - Code structure"        $COMMON_LOCOMO $EVOL_LOCOMO --freeze-code          --output-dir outputs/t2-locomo-freeze-code; }
+run_linear()       { run "T2: LoCoMo / - Population (linear)"   $COMMON_LOCOMO $EVOL_LOCOMO --selection-strategy max --output-dir outputs/t2-locomo-linear; }
+run_no_diversity() { run "T2: LoCoMo / - Population diversity"  $COMMON_LOCOMO $EVOL_LOCOMO --selection-strategy max --seed-program seeds/single/empty.py --output-dir outputs/t2-locomo-no-diversity; }
 
 run_all() {
     echo "=============================================================="
