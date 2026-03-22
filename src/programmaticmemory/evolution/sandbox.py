@@ -331,7 +331,7 @@ def freeze_instruction_constants(parent_source: str, child_source: str) -> str:
             rf"^({name}\s*=\s*)("
             r'"{3}[\s\S]*?"{3}'
             r"|'{3}[\s\S]*?'{3}"
-            r"|\([\s\S]*?\)"
+            r"|\([\s\S]*?\n\)"
             r'|"(?:[^"\\]|\\.)*"'
             r"|'(?:[^'\\]|\\.)*'"
             r")",

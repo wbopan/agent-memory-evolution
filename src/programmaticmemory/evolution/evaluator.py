@@ -307,7 +307,12 @@ class RubricValScorer:
             )
             for item, memory_text in zip(items, retrieved)  # noqa: B905
         ]
-        responses = [f.result() for f in resp_futures]
+        responses: list[str] = []
+        for f in resp_futures:
+            try:
+                responses.append(f.result())
+            except Exception:
+                responses.append("")
 
         # Prepare per-item criteria and conversation texts
         per_item_criteria: list[list[dict]] = []
@@ -329,7 +334,10 @@ class RubricValScorer:
             i: [False] * len(criteria) for i, criteria in enumerate(per_item_criteria)
         }
         for i, j, fut in grade_futures:
-            grades_by_item[i][j] = fut.result()
+            try:
+                grades_by_item[i][j] = fut.result()
+            except Exception:
+                grades_by_item[i][j] = False
 
         # Score + rationale assembly
         results: list[tuple[str, float, str]] = []
