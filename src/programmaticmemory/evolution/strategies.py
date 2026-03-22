@@ -313,6 +313,7 @@ class SplitValidation:
             "rotate_pool": list(self._rotate_pool),
             "rotate_size": self._rotate_size,
             "test_train_ratio": self._test_train_ratio,
+            "embedding_model": self._embedding_model,
         }
 
     @classmethod
@@ -324,6 +325,7 @@ class SplitValidation:
         instance._rotate_pool = state["rotate_pool"]
         instance._rotate_size = state["rotate_size"]
         instance._test_train_ratio = state["test_train_ratio"]
+        instance._embedding_model = state.get("embedding_model", "openrouter/baai/bge-m3")
         # Re-embed rotate pool (will likely hit disk cache)
         if instance._rotate_pool:
             rotate_texts = [dataset.val[i].question for i in instance._rotate_pool]

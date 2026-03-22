@@ -115,7 +115,7 @@ def _encode_rubric(rubric_items: list[dict]) -> list[dict[str, object]]:
 @register_dataset("prbench")
 def load_prbench(
     *,
-    train_ratio: float = 0.5,
+    train_ratio: float = 0.4,
     category: str | None = None,
     seed: int = 42,
     data_dir: str | Path | None = None,

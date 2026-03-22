@@ -66,7 +66,7 @@ def _encode_rubric(rubrics: list[dict]) -> list[dict[str, object]]:
 @register_dataset("healthbench")
 def load_healthbench(
     *,
-    train_ratio: float = 0.6,
+    train_ratio: float = 0.54,
     category: str | None = None,
     seed: int = 42,
     data_dir: str | Path | None = None,

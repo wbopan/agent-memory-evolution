@@ -21,12 +21,22 @@ TOOLKIT_MODEL="${TOOLKIT_MODEL:-openrouter/deepseek/deepseek-v3.2}"
 EMBED_MODEL="${EMBEDDING_MODEL:-openrouter/baai/bge-m3}"
 MODELS="--task-model $TASK_MODEL --reflect-model $REFLECT_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL"
 COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_ALFWORLD="--dataset alfworld --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
+COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_HB_DATA="--dataset healthbench --category health_data_tasks --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_HB_EMERG="--dataset healthbench --category emergency_referrals --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_PR_LEGAL="--dataset prbench --category legal --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_PR_FIN="--dataset prbench --category finance --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
-EVOLUTION="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2 --iterations 20"
+# Per-dataset evolution configs.  Two tiers:
+#   Large (HB/LoCoMo): test=100, static=60, rotate_pool≥60
+#   Small (PR/ALFWorld): test=50, static=50, rotate_pool≥50 (best effort)
+EVOL_BASE="--eval-strategy split --eval-train-ratio 2 --iterations 20"
+EVOL_LOCOMO="$EVOL_BASE --eval-static-size 60 --eval-rotate-size 60"       # val=1986, test=100, evo=1886
+EVOL_ALF_UNSEEN="$EVOL_BASE --eval-static-size 50 --eval-rotate-size 50"   # val=150,  test=50,  evo=100
+EVOL_ALF_SEEN="$EVOL_BASE --eval-static-size 32 --eval-rotate-size 20"     # val=102,  test=50,  evo=52 (data-limited)
+EVOL_HB_DATA="$EVOL_BASE --eval-static-size 60 --eval-rotate-size 60"     # val=220,  test=100, evo=120
+EVOL_HB_EMERG="$EVOL_BASE --eval-static-size 60 --eval-rotate-size 60"    # val=222,  test=100, evo=122
+EVOL_PR_LEGAL="$EVOL_BASE --eval-static-size 50 --eval-rotate-size 50"    # val=150,  test=50,  evo=100
+EVOL_PR_FIN="$EVOL_BASE --eval-static-size 50 --eval-rotate-size 50"      # val=150,  test=50,  evo=100
 
 run() {
     local label="$1"
@@ -38,6 +48,24 @@ run() {
     echo "  Command: uv run python -m programmaticmemory.evolution $*"
     echo ""
     uv run python -m programmaticmemory.evolution "$@"
+}
+
+_run_ds_group() {
+    local COMMON_DS="$1" DS_SLUG="$2" EVOL_DS="$3"
+    run "T1: $DS_SLUG / No Memory" \
+        $COMMON_DS \
+        --seed-program src/programmaticmemory/baselines/no_memory.py \
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-${DS_SLUG}-no-memory
+    run "T1: $DS_SLUG / Vanilla RAG" \
+        $COMMON_DS \
+        --seed-program seeds/vector_search.py \
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-${DS_SLUG}-vanilla-rag
+    run "T1: $DS_SLUG / Ours (evolution)" \
+        $COMMON_DS \
+        $EVOL_DS \
+        --output-dir outputs/t1-${DS_SLUG}-ours
 }
 
 run_table1() {
@@ -60,58 +88,52 @@ run_table1() {
 
     run "T1: LoCoMo / Ours (evolution)" \
         $COMMON_LOCOMO \
-        $EVOLUTION \
+        $EVOL_LOCOMO \
         --output-dir outputs/t1-locomo-ours
 
-    # --- ALFWorld (both splits) ---
-    for SPLIT in unseen seen; do
-        run "T1: ALFWorld $SPLIT / No Memory" \
-            $COMMON_ALFWORLD \
-            --seed-program src/programmaticmemory/baselines/no_memory.py \
-            --iterations 0 --eval-strategy none \
-            --output-dir outputs/t1-alfworld-${SPLIT}-no-memory \
-            eval_split=$SPLIT
+    # --- ALFWorld unseen ---
+    run "T1: ALFWorld unseen / No Memory" \
+        $COMMON_ALFWORLD \
+        --seed-program src/programmaticmemory/baselines/no_memory.py \
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-alfworld-unseen-no-memory \
+        eval_split=unseen
+    run "T1: ALFWorld unseen / Vanilla RAG" \
+        $COMMON_ALFWORLD \
+        --seed-program seeds/vector_search.py \
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-alfworld-unseen-vanilla-rag \
+        eval_split=unseen
+    run "T1: ALFWorld unseen / Ours (evolution)" \
+        $COMMON_ALFWORLD \
+        $EVOL_ALF_UNSEEN \
+        --output-dir outputs/t1-alfworld-unseen-ours \
+        eval_split=unseen
 
-        run "T1: ALFWorld $SPLIT / Vanilla RAG" \
-            $COMMON_ALFWORLD \
-            --seed-program seeds/vector_search.py \
-            --iterations 0 --eval-strategy none \
-            --output-dir outputs/t1-alfworld-${SPLIT}-vanilla-rag \
-            eval_split=$SPLIT
-
-        run "T1: ALFWorld $SPLIT / Ours (evolution)" \
-            $COMMON_ALFWORLD \
-            $EVOLUTION \
-            --output-dir outputs/t1-alfworld-${SPLIT}-ours \
-            eval_split=$SPLIT
-    done
+    # --- ALFWorld seen ---
+    run "T1: ALFWorld seen / No Memory" \
+        $COMMON_ALFWORLD \
+        --seed-program src/programmaticmemory/baselines/no_memory.py \
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-alfworld-seen-no-memory \
+        eval_split=seen
+    run "T1: ALFWorld seen / Vanilla RAG" \
+        $COMMON_ALFWORLD \
+        --seed-program seeds/vector_search.py \
+        --iterations 0 --eval-strategy none \
+        --output-dir outputs/t1-alfworld-seen-vanilla-rag \
+        eval_split=seen
+    run "T1: ALFWorld seen / Ours (evolution)" \
+        $COMMON_ALFWORLD \
+        $EVOL_ALF_SEEN \
+        --output-dir outputs/t1-alfworld-seen-ours \
+        eval_split=seen
 
     # --- HealthBench (2 categories) + PRBench (2 categories) ---
-    for COMMON_LABEL in \
-        "$COMMON_HB_DATA:hb-data-tasks" \
-        "$COMMON_HB_EMERG:hb-emergency" \
-        "$COMMON_PR_LEGAL:pr-legal" \
-        "$COMMON_PR_FIN:pr-finance"; do
-        COMMON_DS="${COMMON_LABEL%%:*}"
-        DS_SLUG="${COMMON_LABEL##*:}"
-
-        run "T1: $DS_SLUG / No Memory" \
-            $COMMON_DS \
-            --seed-program src/programmaticmemory/baselines/no_memory.py \
-            --iterations 0 --eval-strategy none \
-            --output-dir outputs/t1-${DS_SLUG}-no-memory
-
-        run "T1: $DS_SLUG / Vanilla RAG" \
-            $COMMON_DS \
-            --seed-program seeds/vector_search.py \
-            --iterations 0 --eval-strategy none \
-            --output-dir outputs/t1-${DS_SLUG}-vanilla-rag
-
-        run "T1: $DS_SLUG / Ours (evolution)" \
-            $COMMON_DS \
-            $EVOLUTION \
-            --output-dir outputs/t1-${DS_SLUG}-ours
-    done
+    _run_ds_group "$COMMON_HB_DATA"  "hb-data-tasks" "$EVOL_HB_DATA"
+    _run_ds_group "$COMMON_HB_EMERG" "hb-emergency"  "$EVOL_HB_EMERG"
+    _run_ds_group "$COMMON_PR_LEGAL" "pr-legal"       "$EVOL_PR_LEGAL"
+    _run_ds_group "$COMMON_PR_FIN"   "pr-finance"     "$EVOL_PR_FIN"
 }
 
 # ALMA baselines: 5 baselines × 7 benchmark settings = 35 runs.
