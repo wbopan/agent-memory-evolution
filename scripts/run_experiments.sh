@@ -24,8 +24,8 @@ COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave 
 COMMON_ALFWORLD="--dataset alfworld --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_HB_DATA="--dataset healthbench --category health_data_tasks --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_HB_EMERG="--dataset healthbench --category emergency_referrals --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_PR_LEGAL="--dataset prbench --category legal --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
-COMMON_PR_FIN="--dataset prbench --category finance --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
+COMMON_PR_LEGAL="--dataset prbench --category legal --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
+COMMON_PR_FIN="--dataset prbench --category finance --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 EVOLUTION="--eval-strategy split --eval-rotate-size 5 --eval-static-size 50 --eval-train-ratio 2 --iterations 20"
 
 run() {
