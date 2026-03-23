@@ -5,7 +5,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-import litellm
 import weave
 
 from programmaticmemory.evolution.patcher import apply_patch
@@ -17,7 +16,7 @@ from programmaticmemory.evolution.prompts import (
     build_reflection_user_prompt,
 )
 from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program, smoke_test
-from programmaticmemory.evolution.toolkit import ToolkitConfig
+from programmaticmemory.evolution.toolkit import ToolkitConfig, completion_with_retry
 from programmaticmemory.evolution.types import EvalResult, KBProgram
 from programmaticmemory.logging.logger import get_logger
 
@@ -104,13 +103,12 @@ class Reflector:
         else:
             user_prompt = build_compile_fix_prompt(code=code, error_type=error_type, error_details=error_details)
 
-        response = litellm.completion(
+        response = completion_with_retry(
             model=self.model,
             messages=[
                 {"role": "system", "content": " "},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=16384,
             caching=True,
             reasoning_effort="high",
         )
@@ -192,13 +190,12 @@ class Reflector:
 
         self.logger.log(f"Reflecting on iteration {iteration}, score={prompt_score:.3f}", header="REFLECT")
 
-        response = litellm.completion(
+        response = completion_with_retry(
             model=self.model,
             messages=[
                 {"role": "system", "content": " "},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=16384,
             caching=True,
             reasoning_effort="high",
         )

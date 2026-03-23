@@ -20,7 +20,7 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-import litellm
+from programmaticmemory.evolution.toolkit import completion_with_retry
 
 # Monkey-patch TextWorld PDDL parser to handle Fast Downward internal variables.
 # Fast Downward's SAS translation creates dummy atoms (e.g. "Atom dummy(val1)")
@@ -564,10 +564,9 @@ def _select_action(
     extra: dict = {}
     if reasoning_effort is not None:
         extra["reasoning_effort"] = reasoning_effort
-    resp = litellm.completion(
+    resp = completion_with_retry(
         model=task_model,
         messages=[{"role": "user", "content": prompt}],
-        max_tokens=64,
         caching=True,
         **extra,
     )
@@ -583,7 +582,7 @@ class ALFWorldValScorer:
     (TextWorld's tatsu-based parsers use global singletons that are not thread-safe).
     """
 
-    def __init__(self, max_steps: int = 50, max_workers: int = 50, episode_timeout: float = 300.0) -> None:
+    def __init__(self, max_steps: int = 50, max_workers: int = 20, episode_timeout: float = 300.0) -> None:
         self.max_steps = max_steps
         self.max_workers = max_workers
         self.episode_timeout = episode_timeout

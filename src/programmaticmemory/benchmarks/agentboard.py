@@ -9,10 +9,9 @@ from __future__ import annotations
 import random
 import re
 
-import litellm
-
 from programmaticmemory.datasets import register_dataset
 from programmaticmemory.evolution.evaluator import ExactMatchScorer
+from programmaticmemory.evolution.toolkit import completion_with_retry
 from programmaticmemory.evolution.types import DataItem, Dataset
 
 try:
@@ -235,8 +234,8 @@ def _select_action(
     extra: dict = {}
     if reasoning_effort is not None:
         extra["reasoning_effort"] = reasoning_effort
-    resp = litellm.completion(
-        model=task_model, messages=[{"role": "user", "content": prompt}], max_tokens=64, caching=True, **extra
+    resp = completion_with_retry(
+        model=task_model, messages=[{"role": "user", "content": prompt}], caching=True, **extra
     )
     raw = resp.choices[0].message.content.strip()
     return _parse_action_response(raw, valid_actions)

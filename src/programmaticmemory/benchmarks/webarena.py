@@ -454,7 +454,8 @@ def load_webarena(
 # Agent action selection
 # ---------------------------------------------------------------------------
 
-import litellm  # noqa: E402
+
+from programmaticmemory.evolution.toolkit import completion_with_retry  # noqa: E402
 
 _ACTION_PROMPT = """\
 You are a web automation agent. You observe a web page as an accessibility tree \
@@ -544,13 +545,12 @@ def _select_action(
     if reasoning_effort is not None:
         extra["reasoning_effort"] = reasoning_effort
 
-    resp = litellm.completion(
+    resp = completion_with_retry(
         model=task_model,
         messages=[
             {"role": "system", "content": " "},
             {"role": "user", "content": "\n".join(parts)},
         ],
-        max_tokens=512,
         caching=True,
         **extra,
     )

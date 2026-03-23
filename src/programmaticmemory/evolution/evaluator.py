@@ -12,7 +12,6 @@ import json
 import re
 from typing import Any, NamedTuple
 
-import litellm
 import weave
 
 from programmaticmemory.evolution.prompts import (
@@ -26,7 +25,7 @@ from programmaticmemory.evolution.sandbox import (
     compile_kb_program,
     extract_dataclass_schema,
 )
-from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig
+from programmaticmemory.evolution.toolkit import Toolkit, ToolkitConfig, completion_with_retry
 from programmaticmemory.evolution.types import (
     DataItem,
     EvalResult,
@@ -187,7 +186,7 @@ class LLMJudgeScorer:
         self.model = model
 
     def __call__(self, output: str, expected: str) -> tuple[float, str]:
-        response = litellm.completion(
+        response = completion_with_retry(
             model=self.model,
             messages=[
                 {"role": "system", "content": " "},
@@ -395,7 +394,7 @@ class RubricValScorer:
         if reasoning_effort is not None:
             extra["reasoning_effort"] = reasoning_effort
 
-        resp = litellm.completion(
+        resp = completion_with_retry(
             model=task_model,
             messages=[{"role": "user", "content": prompt}],
             caching=True,
@@ -422,10 +421,9 @@ class RubricValScorer:
 
         for _attempt in range(3):
             try:
-                resp = litellm.completion(
+                resp = completion_with_retry(
                     model=self.judge_model,
                     messages=[{"role": "user", "content": prompt}],
-                    max_tokens=self.max_judge_tokens,
                     caching=True,
                 )
                 text = resp.choices[0].message.content.strip()
@@ -1338,7 +1336,7 @@ class MemoryEvaluator:
         fail_count = 0
         futures = [
             pool.submit(
-                litellm.completion,
+                completion_with_retry,
                 model=self.task_model,
                 messages=[{"role": "system", "content": " "}, *msgs],
                 caching=True,

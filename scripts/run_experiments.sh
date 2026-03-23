@@ -1,26 +1,28 @@
 #!/usr/bin/env bash
-# Run Table 1 (main results + baselines) across all 7 dataset settings.
+# Run Table 1 (main results + baselines) and Table 2 (ablation) across all dataset settings.
 # Each run has a unique --output-dir, so re-running the script auto-resumes interrupted runs.
 #
 # Usage:
-#   bash scripts/run_experiments.sh              # all (table1 + baselines)
+#   bash scripts/run_experiments.sh              # all (table1 + baselines + ablation)
 #   bash scripts/run_experiments.sh table1       # main results only
 #   bash scripts/run_experiments.sh baselines    # ALMA baselines only
+#   bash scripts/run_experiments.sh ablation     # ablation study only (Table 2)
 #
 # Override models via environment variables:
 #   TASK_MODEL=deepseek/deepseek-v3.2 REFLECT_MODEL=openai/gpt-5.3-codex TOOLKIT_MODEL=deepseek/deepseek-v3.2 bash scripts/run_experiments.sh
 #
-# Results: jq '.test_evaluation' outputs/t1-*/summary.json outputs/bl-*/summary.json
+# Results: jq '.test_evaluation' outputs/t1-*/summary.json outputs/bl-*/summary.json outputs/t2-*/summary.json
 
 set -euo pipefail
 
-# Model IDs — override via env vars. Default uses OpenRouter provider prefix.
-TASK_MODEL="${TASK_MODEL:-openrouter/deepseek/deepseek-v3.2}"
-REFLECT_MODEL="${REFLECT_MODEL:-openrouter/openai/gpt-5.3-codex}"
-TOOLKIT_MODEL="${TOOLKIT_MODEL:-openrouter/deepseek/deepseek-v3.2}"
+# Model IDs — override via env vars. Default uses Azure provider prefix.
+TASK_MODEL="${TASK_MODEL:-azure/gpt-5.4-mini}"
+REFLECT_MODEL="${REFLECT_MODEL:-azure/gpt-5.3-codex}"
+TOOLKIT_MODEL="${TOOLKIT_MODEL:-azure/gpt-5.4-mini}"
 EMBED_MODEL="${EMBEDDING_MODEL:-openrouter/baai/bge-m3}"
 BATCH_CONCURRENCY="${BATCH_CONCURRENCY:-64}"
-MODELS="--task-model $TASK_MODEL --reflect-model $REFLECT_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL --batch-concurrency $BATCH_CONCURRENCY"
+THINKING_EFFORT="${THINKING_EFFORT:-medium}"
+MODELS="--task-model $TASK_MODEL --reflect-model $REFLECT_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL --batch-concurrency $BATCH_CONCURRENCY --task-lm-thinking-effort $THINKING_EFFORT"
 COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_HB_DATA="--dataset healthbench --category health_data_tasks --test-size 100 --test-train-ratio 3 --no-weave $MODELS"
@@ -190,15 +192,51 @@ run_baselines() {
     done
 }
 
+# Table 2 — Ablation study: 4 variants × LoCoMo only.
+# Full system scores come from Table 1 (t1-locomo-ours) — not re-run here.
+#
+# Variants:
+#   freeze-inst   — freeze instruction constants (only code evolves)
+#   freeze-code   — freeze code structure (only instructions evolve)
+#   linear        — linear evolution (--selection-strategy max, no population diversity)
+#   no-diversity  — linear + single seed (no population diversity at all)
+
+run_ablation() {
+    echo "=============================================================="
+    echo "  TABLE 2 — ABLATION STUDY (4 variants × LoCoMo)"
+    echo "=============================================================="
+
+    run "T2: LoCoMo / - Instruction constants" \
+        $COMMON_LOCOMO $EVOL_LOCOMO \
+        --freeze-instructions \
+        --output-dir outputs/t2-locomo-freeze-inst
+
+    run "T2: LoCoMo / - Code structure" \
+        $COMMON_LOCOMO $EVOL_LOCOMO \
+        --freeze-code \
+        --output-dir outputs/t2-locomo-freeze-code
+
+    run "T2: LoCoMo / - Population (linear)" \
+        $COMMON_LOCOMO $EVOL_LOCOMO \
+        --selection-strategy max \
+        --output-dir outputs/t2-locomo-linear
+
+    run "T2: LoCoMo / - Population diversity" \
+        $COMMON_LOCOMO $EVOL_LOCOMO \
+        --selection-strategy max --seed-program seeds/single/empty.py \
+        --output-dir outputs/t2-locomo-no-diversity
+}
+
 # Dispatch
 case "${1:-all}" in
     table1)     run_table1 ;;
     baselines)  run_baselines ;;
-    all)        run_table1; run_baselines ;;
-    *)          echo "Usage: $0 [table1|baselines|all]"; exit 1 ;;
+    ablation)   run_ablation ;;
+    all)        run_table1; run_baselines; run_ablation ;;
+    *)          echo "Usage: $0 [table1|baselines|ablation|all]"; exit 1 ;;
 esac
 
 echo ""
 echo "=============================================================="
-echo "  ALL DONE. Check outputs/t1-*/summary.json and outputs/bl-*/summary.json"
+echo "  ALL DONE. Check outputs/t1-*/summary.json, outputs/bl-*/summary.json, outputs/t2-*/summary.json"
 echo "=============================================================="

@@ -628,11 +628,11 @@ class TestALFWorldValScorer:
         """_select_action matches LLM output against admissible commands."""
         from programmaticmemory.benchmarks.alfworld import _select_action
 
-        with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
+        with patch("programmaticmemory.benchmarks.alfworld.completion_with_retry") as mock_litellm:
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = "take lamp 1"
-            mock_litellm.completion.return_value = mock_resp
+            mock_litellm.return_value = mock_resp
 
             action = _select_action("Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model")
         assert action == "take lamp 1"
@@ -641,11 +641,11 @@ class TestALFWorldValScorer:
         """Falls back to substring match when exact match fails."""
         from programmaticmemory.benchmarks.alfworld import _select_action
 
-        with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
+        with patch("programmaticmemory.benchmarks.alfworld.completion_with_retry") as mock_litellm:
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = "I'll take lamp 1 from the desk"
-            mock_litellm.completion.return_value = mock_resp
+            mock_litellm.return_value = mock_resp
 
             action = _select_action("Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model")
         assert action == "take lamp 1"
@@ -654,11 +654,11 @@ class TestALFWorldValScorer:
         """Falls back to first admissible when no match found."""
         from programmaticmemory.benchmarks.alfworld import _select_action
 
-        with patch("programmaticmemory.benchmarks.alfworld.litellm") as mock_litellm:
+        with patch("programmaticmemory.benchmarks.alfworld.completion_with_retry") as mock_litellm:
             mock_resp = MagicMock()
             mock_resp.choices = [MagicMock()]
             mock_resp.choices[0].message.content = "something completely unrelated"
-            mock_litellm.completion.return_value = mock_resp
+            mock_litellm.return_value = mock_resp
 
             action = _select_action("Find lamp", "tips", "obs1", "", ["take lamp 1", "go to desk 1"], "mock/model")
         assert action == "take lamp 1"
@@ -696,7 +696,9 @@ class TestALFWorldValScorer:
 
         with (
             patch("concurrent.futures.ProcessPoolExecutor", _FakeProcessPool),
-            patch("programmaticmemory.benchmarks.alfworld._run_episode", return_value=("transcript", 1.0, "rationale")) as mock_run,
+            patch(
+                "programmaticmemory.benchmarks.alfworld._run_episode", return_value=("transcript", 1.0, "rationale")
+            ) as mock_run,
         ):
             results = scorer.score_batch(items, retrieved, "mock/model", "instruction", "")
 

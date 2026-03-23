@@ -313,6 +313,7 @@ class TestSplitValidationState:
         instance._rotate_size = 3
         instance._test_train_ratio = -1
         instance._rotate_embs = None
+        instance._embedding_model = "openrouter/baai/bge-m3"
         return instance
 
     def test_get_state_returns_correct_type(self):

@@ -10,6 +10,12 @@ import litellm
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 
+@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+def completion_with_retry(**kwargs: object) -> litellm.ModelResponse:
+    """litellm.completion with tenacity retry on transient API errors."""
+    return litellm.completion(**kwargs)
+
+
 class MemoryLogger:
     """Internal logger for knowledge base programs to record debug info."""
 
@@ -65,13 +71,11 @@ class Toolkit:
         self._llm_calls_used += 1
         return self._llm_call_with_retry(messages, **kwargs)
 
-    @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
     def _llm_call_with_retry(self, messages: list[dict], **kwargs: object) -> str:
-        """Internal LLM call with tenacity retry (only retries API errors, not budget)."""
-        kwargs.setdefault("max_tokens", 512)
+        """Internal LLM call with retry (only retries API errors, not budget)."""
         if self._reasoning_effort is not None:
             kwargs.setdefault("reasoning_effort", self._reasoning_effort)
-        response = litellm.completion(
+        response = completion_with_retry(
             model=self.llm_model, messages=[{"role": "system", "content": " "}, *messages], caching=True, **kwargs
         )
         return response.choices[0].message.content
