@@ -1327,6 +1327,7 @@ class MemoryEvaluator:
         if self.reasoning_effort is not None:
             extra["reasoning_effort"] = self.reasoning_effort
 
+        per_call_timeout = 120.0  # cancel individual calls that hang beyond this
         pool = _get_batch_pool()
         self.logger.log(
             f"{label}: submitting {len(all_messages)} calls (pool_size={_BATCH_POOL_SIZE})",
@@ -1340,6 +1341,7 @@ class MemoryEvaluator:
                 model=self.task_model,
                 messages=[{"role": "system", "content": " "}, *msgs],
                 caching=True,
+                timeout=per_call_timeout,
                 **extra,
             )
             for msgs in all_messages

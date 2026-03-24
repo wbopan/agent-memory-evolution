@@ -17,6 +17,7 @@ _NON_RETRYABLE = (
     litellm.AuthenticationError,
     litellm.NotFoundError,
     litellm.BadRequestError,
+    litellm.Timeout,
 )
 
 
