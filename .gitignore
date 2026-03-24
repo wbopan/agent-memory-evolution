@@ -17,6 +17,5 @@ CLAUDE.md
 TASKS.md
 knowledge/
 exps/
-scripts/
 .pre-commit-config.yaml
 tests/evolution/.llm_cache/
