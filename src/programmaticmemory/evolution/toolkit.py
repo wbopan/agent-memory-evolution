@@ -2,15 +2,51 @@
 
 from __future__ import annotations
 
+import logging
 import sqlite3
 from dataclasses import dataclass
 
 import chromadb
 import litellm
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
+logger = logging.getLogger(__name__)
+
+_NON_RETRYABLE = (
+    litellm.ContentPolicyViolationError,
+    litellm.AuthenticationError,
+    litellm.NotFoundError,
+    litellm.BadRequestError,
+)
 
 
-@retry(stop=stop_after_attempt(10), wait=wait_exponential(min=1, max=30))
+def _should_retry(exc: BaseException) -> bool:
+    # BadRequestError is the parent of ContentPolicyViolationError;
+    # keep both explicit for clarity. Never retry these.
+    return not isinstance(exc, _NON_RETRYABLE)
+
+
+def _log_retry(retry_state):
+    exc = retry_state.outcome.exception()
+    wait = retry_state.next_action.sleep
+    model = retry_state.kwargs.get("model", "unknown")
+    logger.warning(
+        "[LLM RETRY] model=%s attempt=%d/%d wait=%.1fs error=%s: %s",
+        model,
+        retry_state.attempt_number,
+        3,
+        wait,
+        type(exc).__name__,
+        exc,
+    )
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(min=1, max=30),
+    retry=retry_if_exception(_should_retry),
+    before_sleep=_log_retry,
+)
 def completion_with_retry(**kwargs: object) -> litellm.ModelResponse:
     """litellm.completion with tenacity retry on transient API errors."""
     return litellm.completion(**kwargs)
@@ -73,6 +109,8 @@ class Toolkit:
 
     def _llm_call_with_retry(self, messages: list[dict], **kwargs: object) -> str:
         """Internal LLM call with retry (only retries API errors, not budget)."""
+        if self.llm_model == "smoke-test/noop":
+            return "smoke-test-response"
         if self._reasoning_effort is not None:
             kwargs.setdefault("reasoning_effort", self._reasoning_effort)
         response = completion_with_retry(
