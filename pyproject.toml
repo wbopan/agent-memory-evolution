@@ -21,6 +21,7 @@ dependencies = [
     "chardet<6",
     "alfworld>=0.2.2",
     "fastembed>=0.6.0",
+    "azure-identity>=1.17.0",
 ]
 
 [project.optional-dependencies]
