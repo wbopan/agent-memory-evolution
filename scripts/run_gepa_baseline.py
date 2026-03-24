@@ -7,7 +7,7 @@ Usage:
     uv run python scripts/run_gepa_baseline.py \
         --dataset locomo --category 8 \
         --max-metric-calls 200 \
-        --seed-program seeds/vector_search.py
+        --seed-program src/programmaticmemory/seeds/vector_search.py
 
 The script wraps our MemoryEvaluator inside a GEPAAdapter so that GEPA controls
 the optimization loop while using the exact same evaluation pipeline (same task

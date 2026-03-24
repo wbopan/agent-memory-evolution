@@ -63,7 +63,7 @@ _run_ds_group() {
         --output-dir outputs/t1-${DS_SLUG}-no-memory
     run "T1: $DS_SLUG / Vanilla RAG" \
         $COMMON_DS \
-        --seed-program seeds/vector_search.py \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
         --iterations 0 --eval-strategy none \
         --output-dir outputs/t1-${DS_SLUG}-vanilla-rag
     run "T1: $DS_SLUG / Ours (evolution)" \
@@ -86,7 +86,7 @@ run_table1() {
 
     run "T1: LoCoMo / Vanilla RAG" \
         $COMMON_LOCOMO \
-        --seed-program seeds/vector_search.py \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
         --iterations 0 --eval-strategy none \
         --output-dir outputs/t1-locomo-vanilla-rag
 
@@ -104,7 +104,7 @@ run_table1() {
         eval_split=unseen
     run "T1: ALFWorld unseen / Vanilla RAG" \
         $COMMON_ALFWORLD \
-        --seed-program seeds/vector_search.py \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
         --iterations 0 --eval-strategy none \
         --output-dir outputs/t1-alfworld-unseen-vanilla-rag \
         eval_split=unseen
@@ -123,7 +123,7 @@ run_table1() {
         eval_split=seen
     run "T1: ALFWorld seen / Vanilla RAG" \
         $COMMON_ALFWORLD \
-        --seed-program seeds/vector_search.py \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
         --iterations 0 --eval-strategy none \
         --output-dir outputs/t1-alfworld-seen-vanilla-rag \
         eval_split=seen
@@ -223,7 +223,7 @@ run_ablation() {
 
     run "T2: LoCoMo / - Population diversity" \
         $COMMON_LOCOMO $EVOL_LOCOMO \
-        --selection-strategy max --seed-program seeds/single/empty.py \
+        --selection-strategy max --seed-program src/programmaticmemory/seeds/llm_summarizer.py \
         --output-dir outputs/t2-locomo-no-diversity
 }
 

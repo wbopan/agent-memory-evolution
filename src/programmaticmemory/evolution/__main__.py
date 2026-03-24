@@ -189,8 +189,8 @@ def main() -> None:
         default=5,
         help="Rotate val sample size per iteration for split strategy — used for reflection (default: 5)",
     )
-    # Default seed-program: <repo>/seeds/
-    _default_seed_program = Path(__file__).resolve().parents[3] / "seeds"
+    # Default seed-program: src/programmaticmemory/seeds/
+    _default_seed_program = Path(__file__).resolve().parents[1] / "seeds"
     parser.add_argument(
         "--seed-program",
         type=Path,

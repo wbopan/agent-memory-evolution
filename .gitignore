@@ -14,9 +14,9 @@ outputs/
 wandb/
 .env
 CLAUDE.md
+TASKS.md
 knowledge/
 exps/
 scripts/
-baselines/
 .pre-commit-config.yaml
 tests/evolution/.llm_cache/

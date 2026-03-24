@@ -44,7 +44,7 @@ run_table1() {
 
     run "T1: LoCoMo / Vanilla RAG" \
         $COMMON_LOCOMO \
-        --seed-program seeds/vector_search.py \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
         --iterations 0 --eval-strategy none
 
     run "T1: LoCoMo / Ours (evolution)" \
@@ -61,7 +61,7 @@ run_table1() {
 
         run "T1: ALFWorld $SPLIT / Vanilla RAG" \
             $COMMON_ALFWORLD \
-            --seed-program seeds/vector_search.py \
+            --seed-program src/programmaticmemory/seeds/vector_search.py \
             --iterations 0 --eval-strategy none \
             eval_split=$SPLIT
 
@@ -87,7 +87,7 @@ run_table1() {
 
         run "T1: $DS_LABEL / Vanilla RAG" \
             $COMMON_DS \
-            --seed-program seeds/vector_search.py \
+            --seed-program src/programmaticmemory/seeds/vector_search.py \
             --iterations 0 --eval-strategy none
 
         run "T1: $DS_LABEL / Ours (evolution)" \
