@@ -78,13 +78,24 @@ export AZURE_API_VERSION="2025-04-01-preview"
 
 #### Azure OpenAI 完整示例
 
+系统通过 `azure_config.py` 自动检测 `azure/` 前缀的模型，并配置 LiteLLM 的 Azure 认证。支持两种认证方式：
+
+1. **API Key**（推荐）：设置 `AZURE_API_KEY` 环境变量
+2. **DefaultAzureCredential**（无密钥）：不设置 `AZURE_API_KEY` 时，系统自动启用 Azure AD token 刷新（需安装 `azure-identity`，已包含在项目依赖中）。适用于 Managed Identity、Azure CLI 登录等场景。
+
+两种方式都需要提供 `AZURE_API_BASE`（通过环境变量或 `--azure-api-base` 参数）。
+
 Azure 端点不提供 embedding API，建议搭配本地 embedding 使用：
 
 ```bash
-# Azure 认证
+# Azure 认证（方式一：API Key）
 export AZURE_API_KEY="your-azure-key"
 export AZURE_API_BASE="https://your-resource.openai.azure.com"
-export AZURE_API_VERSION="2025-04-01-preview"
+export AZURE_API_VERSION="2025-04-01-preview"  # 可选，有默认值
+
+# Azure 认证（方式二：无密钥，使用 DefaultAzureCredential）
+# 不设置 AZURE_API_KEY，确保已通过 az login 或 Managed Identity 认证
+export AZURE_API_BASE="https://your-resource.openai.azure.com"
 
 # 模型
 export TASK_MODEL="azure/gpt-5.4-mini"
