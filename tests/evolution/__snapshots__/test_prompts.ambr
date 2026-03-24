@@ -2128,8 +2128,8 @@
       1. seed_0  
       2. iter_1, iter_4  
       3. iter_1  
-      4. Removed `toolkit.llm_completion()` and replaced it with deterministic token-overlap retrieval (`KnowledgeBase._token_overlap()`).  
-      5. Avoid removing LLM-based query-focused summarization in `read()` and replacing it with pure deterministic token-overlap logic.
+      4. Removing `toolkit.llm_completion()` in `read()` (replacing LLM summarization with deterministic token-overlap retrieval)  
+      5. Avoid removing the LLM-based read path or reverting to token-overlap-only deterministic retrieval.
     ''',
     'prompt': '''
       You are analyzing a reflection prompt for a code evolution system. Read the <lineage_log> section carefully and answer these questions. Answer each with ONLY the requested information, no explanation.

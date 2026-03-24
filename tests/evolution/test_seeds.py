@@ -12,7 +12,7 @@ from programmaticmemory.evolution.sandbox import CompiledProgram, compile_kb_pro
 from programmaticmemory.evolution.toolkit import ToolkitConfig
 from programmaticmemory.evolution.types import DataItem, KBProgram
 
-SEEDS_DIR = Path(__file__).resolve().parents[2] / "seeds"
+SEEDS_DIR = Path(__file__).resolve().parents[2] / "src" / "programmaticmemory" / "seeds"
 MODEL = "openrouter/deepseek/deepseek-v3.2"
 
 SEED_FILES = sorted(SEEDS_DIR.glob("*.py"))
