@@ -35,11 +35,6 @@ agentboard = [
     "minigrid>=2.3.0",
     "pddlgym",
 ]
-webarena = [
-    "browsergym-core",
-    "browsergym-webarena",
-    "playwright",
-]
 dev = [
     "pytest",
     "pyright",
@@ -61,7 +56,6 @@ markers = [
     "uses_chroma: test requires a real ChromaDB EphemeralClient",
     "llm: tests that call real LLM APIs (use disk cache for replay)",
     "agentboard: tests that require agentboard environment packages (scienceworld, minigrid, pddlgym)",
-    "webarena: tests that require browsergym and playwright",
 ]
 
 [tool.ruff]

@@ -613,7 +613,7 @@ def main() -> None:
     # Configure
     compare_fn = dataset.compare_fn or ExactMatchScorer()
     toolkit_config = ToolkitConfig(
-        llm_model=args.toolkit_model, reasoning_effort=args.task_lm_thinking_effort, llm_call_budget=args.toolkit_budget
+        llm_model=args.toolkit_model, reasoning_effort=None, llm_call_budget=args.toolkit_budget
     )
     evaluator = MemoryEvaluator(
         compare_fn=compare_fn,

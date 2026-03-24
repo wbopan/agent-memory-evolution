@@ -10,7 +10,7 @@ import litellm
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10))
+@retry(stop=stop_after_attempt(10), wait=wait_exponential(min=1, max=30))
 def completion_with_retry(**kwargs: object) -> litellm.ModelResponse:
     """litellm.completion with tenacity retry on transient API errors."""
     return litellm.completion(**kwargs)
