@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+import threading
 from dataclasses import dataclass
 
 import chromadb
@@ -78,6 +79,51 @@ class ToolkitConfig:
     reasoning_effort: str | None = None
 
 
+class _ThreadSafeSQLiteConnection:
+    """Proxy that serializes all access to an in-memory SQLite connection.
+
+    Evolved KB programs call ``self.toolkit.db.execute(...)``, ``self.toolkit.db.cursor()``,
+    etc. directly.  When multiple threads share the same Toolkit (parallel kb.read()),
+    concurrent access causes ``InterfaceError: bad parameter or other API misuse``.
+    This wrapper routes every attribute/method call through a lock.
+    """
+
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        object.__setattr__(self, "_conn", conn)
+        object.__setattr__(self, "_lock", threading.Lock())
+
+    def execute(self, *args: object, **kwargs: object) -> sqlite3.Cursor:
+        with self._lock:
+            return self._conn.execute(*args, **kwargs)  # type: ignore[arg-type]
+
+    def executemany(self, *args: object, **kwargs: object) -> sqlite3.Cursor:
+        with self._lock:
+            return self._conn.executemany(*args, **kwargs)  # type: ignore[arg-type]
+
+    def executescript(self, *args: object, **kwargs: object) -> sqlite3.Cursor:
+        with self._lock:
+            return self._conn.executescript(*args, **kwargs)  # type: ignore[arg-type]
+
+    def commit(self) -> None:
+        with self._lock:
+            self._conn.commit()
+
+    def rollback(self) -> None:
+        with self._lock:
+            self._conn.rollback()
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+    def cursor(self) -> sqlite3.Cursor:
+        with self._lock:
+            return self._conn.cursor()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._conn, name)
+
+
 class Toolkit:
     """Resource bundle passed to Knowledge Base Program instances.
 
@@ -86,7 +132,9 @@ class Toolkit:
     """
 
     def __init__(self, config: ToolkitConfig) -> None:
-        self.db: sqlite3.Connection = sqlite3.connect(":memory:", check_same_thread=False)
+        self.db: sqlite3.Connection | _ThreadSafeSQLiteConnection = _ThreadSafeSQLiteConnection(
+            sqlite3.connect(":memory:", check_same_thread=False)
+        )
         self.chroma: chromadb.ClientAPI = chromadb.EphemeralClient()
         self.llm_model: str = config.llm_model
         self.logger: MemoryLogger = MemoryLogger()
