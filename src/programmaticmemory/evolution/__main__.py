@@ -7,6 +7,7 @@ positional `key=value` args (e.g. `num_items=10 difficulty=simple`).
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import sys
 from pathlib import Path
@@ -114,6 +115,17 @@ def main() -> None:
         "--embedding-model",
         default="openrouter/baai/bge-m3",
         help="Model for text embeddings (train/val subset selection). Use 'local' to skip API and use FastEmbed locally.",
+    )
+    parser.add_argument(
+        "--azure-api-base",
+        default=os.environ.get("AZURE_API_BASE"),
+        help="Azure OpenAI endpoint URL (e.g. https://myresource.openai.azure.com/). "
+        "Also reads AZURE_API_BASE env var.",
+    )
+    parser.add_argument(
+        "--azure-api-version",
+        default="2024-12-01-preview",
+        help="Azure OpenAI API version (default: 2024-12-01-preview)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
@@ -311,6 +323,12 @@ def main() -> None:
         from programmaticmemory.cache import configure_cache
 
         configure_cache("disk")
+
+        # Configure Azure auth if any model uses azure/ prefix
+        from programmaticmemory.evolution.azure_config import configure_azure_auth
+
+        all_models = [args.task_model, args.reflect_model, args.toolkit_model, args.judge_model, args.embedding_model]
+        configure_azure_auth(all_models, args.azure_api_base, args.azure_api_version)
 
         # Load dataset
         dataset_kwargs = _parse_extra_kwargs(extra)
@@ -531,6 +549,12 @@ def main() -> None:
     from programmaticmemory.cache import configure_cache
 
     configure_cache("disk")
+
+    # Configure Azure auth if any model uses azure/ prefix
+    from programmaticmemory.evolution.azure_config import configure_azure_auth
+
+    all_models = [args.task_model, args.reflect_model, args.toolkit_model, args.judge_model, args.embedding_model]
+    configure_azure_auth(all_models, args.azure_api_base, args.azure_api_version)
 
     # Load dataset (includes scorer, etc.)
     dataset_kwargs = _parse_extra_kwargs(extra)
