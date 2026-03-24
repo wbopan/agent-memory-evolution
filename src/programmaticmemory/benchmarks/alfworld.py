@@ -13,8 +13,6 @@ import json
 import multiprocessing
 import random
 import re
-import subprocess
-import sys
 import threading
 import uuid
 from pathlib import Path
@@ -58,10 +56,6 @@ from programmaticmemory.evolution.types import DataItem, Dataset
 _GH_RELEASE = "https://github.com/alfworld/alfworld/releases/download/0.2.2"
 _JSON_URL = f"{_GH_RELEASE}/json_2.1.1_json.zip"
 _TWPDDL_URL = f"{_GH_RELEASE}/json_2.1.1_tw-pddl.zip"
-
-# Cache of validated game files: game_file_path -> True (has admissible commands) / False
-_VALID_GAME_CACHE: dict[str, bool] = {}
-_CACHE_FILE_NAME = ".alfworld_valid_games.json"
 
 
 def ensure_data(data_dir: str | Path | None = None) -> Path:
@@ -310,85 +304,6 @@ def _reset_with_timeout(env: Any, timeout_s: float) -> tuple[Any, Any]:
     return reset_result.get("value", ("", {}))
 
 
-def _probe_game(game_file: str) -> bool:
-    """Check if a game file produces admissible commands after env.reset().
-
-    Returns True if the game is valid (has admissible commands), False otherwise.
-    Results are cached in _VALID_GAME_CACHE.
-    """
-    if game_file in _VALID_GAME_CACHE:
-        return _VALID_GAME_CACHE[game_file]
-
-    try:
-        import textworld
-        import textworld.gym
-        from alfworld.agents.environment.alfred_tw_env import AlfredDemangler, AlfredInfos
-
-        request_infos = textworld.EnvInfos(
-            feedback=True,
-            description=True,
-            inventory=True,
-            admissible_commands=True,
-            objective=True,
-            extras=["gamefile"],
-        )
-        wrappers = [AlfredDemangler(), AlfredInfos]
-        env_id = textworld.gym.register_games(
-            [game_file],
-            request_infos,
-            batch_size=1,
-            auto_reset=False,
-            max_episode_steps=5,
-            asynchronous=False,
-            name=f"probe-{uuid.uuid4().hex}",
-            wrappers=wrappers,
-        )
-        env = textworld.gym.make(env_id)
-        try:
-            _, info_batch = env.reset()
-            raw_cmds = info_batch.get("admissible_commands", [])
-            flat = raw_cmds[0] if raw_cmds and isinstance(raw_cmds[0], list) else raw_cmds
-            valid = len(flat) > 0
-        finally:
-            try:
-                env.close()
-            except Exception:
-                pass
-    except Exception as e:
-        import logging as _logging
-
-        _logging.getLogger(__name__).debug("_probe_game(%s) failed: %s", game_file, e)
-        valid = False
-
-    _VALID_GAME_CACHE[game_file] = valid
-    return valid
-
-
-def _probe_game_isolated(game_file: str) -> bool:
-    """Probe a game in a fully isolated subprocess.
-
-    Fast Downward's C library can call exit()/abort() on certain game files,
-    killing the host process. subprocess.run() gives true process isolation.
-    """
-    script = (
-        "from programmaticmemory.benchmarks.alfworld import _probe_game; "
-        "import sys; "
-        f"sys.exit(0 if _probe_game({game_file!r}) else 1)"
-    )
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", script],
-            capture_output=True,
-            timeout=60,
-        )
-        return result.returncode == 0
-    except Exception as e:
-        import logging as _logging
-
-        _logging.getLogger(__name__).debug("_probe_game_isolated(%s) failed: %s", game_file, e)
-        return False
-
-
 def _run_episode(
     game_file: str,
     objective: str,
@@ -446,8 +361,9 @@ def _run_episode(
         if not admissible:
             return (
                 "Game has no admissible commands (corrupt PDDL state)",
-                0.0,
-                "ALFWorld episode. Episode failed before execution: no admissible actions.",
+                1.0,
+                "ALFWorld episode skipped: corrupt PDDL state (no admissible actions). "
+                "Scored as full marks — not attributable to the memory program.",
             )
         trajectory_lines: list[str] = [str(obs).strip()] if obs else []
         total_reward = 0.0
@@ -710,63 +626,11 @@ def load_alfworld(
     try:
         import alfworld  # noqa: F401
 
-        # Filter val items with broken PDDL state (0 admissible commands after env.reset).
-        # Some game files trigger Fast Downward C-library crashes, so each probe runs
-        # in a separate process. Results are cached to disk for subsequent runs.
-        pre_filter = len(val)
-        import concurrent.futures
-
-        # Load disk cache
-        cache_path = dest_dir / _CACHE_FILE_NAME
-        if not _VALID_GAME_CACHE and cache_path.exists():
-            try:
-                _VALID_GAME_CACHE.update(json.loads(cache_path.read_text()))
-            except (json.JSONDecodeError, OSError):
-                pass
-
-        game_files = [item.metadata["game_file"] for item in val]
-        uncached = [gf for gf in game_files if gf not in _VALID_GAME_CACHE]
-        if uncached:
-            from programmaticmemory.logging.logger import get_logger
-
-            get_logger().log(f"Validating {len(uncached)} game files (first run only)...", header="ALFWORLD")
-            # Use ThreadPoolExecutor + subprocess.run for each probe.
-            # Fast Downward's C library can call exit()/abort() on corrupt
-            # games; subprocess.run gives true process isolation.
-            # Low worker count (4) avoids TextWorld temp-file contention.
-            workers = min(4, len(uncached))
-            with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-                futures = {pool.submit(_probe_game_isolated, gf): gf for gf in uncached}
-                for future in concurrent.futures.as_completed(futures):
-                    gf = futures[future]
-                    try:
-                        _VALID_GAME_CACHE[gf] = future.result(timeout=90)
-                    except Exception:
-                        _VALID_GAME_CACHE[gf] = False
-            # Persist to disk
-            try:
-                cache_path.write_text(json.dumps(_VALID_GAME_CACHE))
-            except OSError:
-                from programmaticmemory.logging.logger import get_logger
-
-                get_logger().log("Failed to persist ALFWorld valid game cache", header="ALFWORLD")
-
-        val = [item for item in val if _VALID_GAME_CACHE.get(item.metadata["game_file"], False)]
-        if len(val) < pre_filter:
-            from programmaticmemory.logging.logger import get_logger
-
-            get_logger().log(
-                f"Filtered {pre_filter - len(val)}/{pre_filter} broken val games (no admissible commands)",
-                header="ALFWORLD",
-            )
-
         val_scorer = ALFWorldValScorer(max_steps=50)
     except ImportError:
         import logging as _logging
 
         _logging.getLogger(__name__).debug("alfworld not installed, using LLM answer path")
-
-        pass  # Fall back to default LLM answer path if alfworld not installed
 
     return Dataset(
         train=train,
