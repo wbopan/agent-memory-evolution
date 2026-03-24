@@ -102,6 +102,12 @@ indent-style = "space"
 skip-magic-trailing-comma = false
 line-ending = "auto"
 
+[dependency-groups]
+dev = [
+    "pytest>=9.0.2",
+    "ruff>=0.15.4",
+]
+
 [tool.ruff.lint.isort]
 known-first-party = ["programmaticmemory"]
 

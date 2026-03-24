@@ -2814,6 +2814,12 @@ full = [
     { name = "tqdm" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "ruff" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "alfworld", specifier = ">=0.2.2" },
@@ -2841,6 +2847,12 @@ requires-dist = [
     { name = "weave", extras = ["litellm"], specifier = ">=0.51.0" },
 ]
 provides-extras = ["full", "agentboard", "dev"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.0.2" },
+    { name = "ruff", specifier = ">=0.15.4" },
+]
 
 [[package]]
 name = "prompt-toolkit"
