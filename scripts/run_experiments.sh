@@ -227,16 +227,41 @@ run_ablation() {
         --output-dir outputs/t2-locomo-no-diversity
 }
 
+# GEPA baseline: prompt-only optimization (ALWAYS_ON_KNOWLEDGE).
+# Same data splits, train subsets, scorer, and model params as Engram ours runs.
+GEPA_COMMON="--task-model $TASK_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL --batch-concurrency $BATCH_CONCURRENCY --task-lm-thinking-effort $THINKING_EFFORT --max-metric-calls 200 --reflection-model $REFLECT_MODEL"
+
+run_gepa() {
+    echo "=============================================================="
+    echo "  TABLE 1 — GEPA BASELINE"
+    echo "=============================================================="
+
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset locomo --test-size 100 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_LOCOMO \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-locomo
+
+    # Add other datasets as needed:
+    # uv run python scripts/run_gepa_baseline.py \
+    #     --dataset alfworld --test-size 50 --test-train-ratio 3 \
+    #     $GEPA_COMMON $EVOL_ALF_UNSEEN \
+    #     --seed-program src/programmaticmemory/seeds/vector_search.py \
+    #     --output-dir outputs/gepa-alfworld-unseen \
+    #     eval_split=unseen
+}
+
 # Dispatch
 case "${1:-all}" in
     table1)     run_table1 ;;
     baselines)  run_baselines ;;
     ablation)   run_ablation ;;
-    all)        run_table1; run_baselines; run_ablation ;;
-    *)          echo "Usage: $0 [table1|baselines|ablation|all]"; exit 1 ;;
+    gepa)       run_gepa ;;
+    all)        run_table1; run_baselines; run_ablation; run_gepa ;;
+    *)          echo "Usage: $0 [table1|baselines|ablation|gepa|all]"; exit 1 ;;
 esac
 
 echo ""
 echo "=============================================================="
-echo "  ALL DONE. Check outputs/t1-*/summary.json, outputs/bl-*/summary.json, outputs/t2-*/summary.json"
+echo "  ALL DONE. Check outputs/t1-*/summary.json, outputs/bl-*/summary.json, outputs/gepa-*/summary.json, outputs/t2-*/summary.json"
 echo "=============================================================="
