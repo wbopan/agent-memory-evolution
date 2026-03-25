@@ -12,7 +12,7 @@ from programmaticmemory.evolution.checkpoint import (
     serialize_failed_case,
     serialize_pool_entry,
 )
-from programmaticmemory.evolution.strategies import FixedRepresentative, SplitValidation
+from programmaticmemory.evolution.strategies import SplitValidation
 from programmaticmemory.evolution.types import (
     DataItem,
     Dataset,
@@ -381,53 +381,3 @@ class TestSplitValidationState:
         assert len(val_items) == len(sv._static_indices)
 
 
-# ---------------------------------------------------------------------------
-# FixedRepresentative get_state / from_state
-# ---------------------------------------------------------------------------
-
-
-class TestFixedRepresentativeState:
-    def _make_instance(self) -> FixedRepresentative:
-        """Build a FixedRepresentative bypassing the embedding API."""
-        instance = object.__new__(FixedRepresentative)
-        instance._train_indices = [0, 1, 2, 3, 4]
-        instance._val_indices = [0, 1, 2]
-        instance._test_train_ratio = -1
-        return instance
-
-    def test_get_state_returns_correct_type(self):
-        fr = self._make_instance()
-        state = fr.get_state()
-        assert state["type"] == "FixedRepresentative"
-
-    def test_get_state_contains_all_keys(self):
-        fr = self._make_instance()
-        state = fr.get_state()
-        assert "train_indices" in state
-        assert "val_indices" in state
-        assert "test_train_ratio" in state
-
-    def test_round_trip_indices(self):
-        ds = _make_dataset()
-        fr = self._make_instance()
-        state = fr.get_state()
-        fr2 = FixedRepresentative.from_state(state, ds)
-        assert fr2._train_indices == fr._train_indices
-        assert fr2._val_indices == fr._val_indices
-        assert fr2._test_train_ratio == fr._test_train_ratio
-
-    def test_state_is_json_safe(self):
-        import json
-
-        fr = self._make_instance()
-        state = fr.get_state()
-        json.dumps(state)
-
-    def test_select_works_after_from_state(self):
-        ds = _make_dataset()
-        fr = self._make_instance()
-        state = fr.get_state()
-        fr2 = FixedRepresentative.from_state(state, ds)
-        train_items, val_items = fr2.select(ds, iteration=1)
-        assert len(train_items) == len(fr._train_indices)
-        assert len(val_items) == len(fr._val_indices)

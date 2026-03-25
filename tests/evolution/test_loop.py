@@ -6,14 +6,28 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from programmaticmemory.evolution.batching import EvalBatch
 from programmaticmemory.evolution.evaluator import ExactMatchScorer, MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.prompts import INITIAL_KB_PROGRAM
 from programmaticmemory.evolution.reflector import ReflectionResult, Reflector
 from programmaticmemory.evolution.sandbox import CompileError, compile_kb_program
-from programmaticmemory.evolution.strategies import FullDataset, RotatingBatch
 from programmaticmemory.evolution.types import DataItem, Dataset, EvalResult, FailedCase, KBProgram
+
+
+class MockStrategy:
+    """Minimal EvalStrategy stub for tests that don't care about strategy behaviour."""
+
+    def select(self, dataset, iteration):
+        return dataset.train, dataset.val
+
+    def final_candidates(self, pool):
+        return [pool.best]
+
+    def final_eval_data(self, dataset):
+        return None
+
+    def test_eval_data(self, dataset):
+        return None
 
 
 def _make_dataset():
@@ -37,6 +51,7 @@ class TestEvolutionLoop:
             reflector=reflector,
             dataset=dataset,
             max_iterations=0,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -65,6 +80,7 @@ class TestEvolutionLoop:
             reflector=reflector,
             dataset=dataset,
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -93,6 +109,7 @@ class TestEvolutionLoop:
             dataset=dataset,
             initial_programs=[initial],
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -119,6 +136,7 @@ class TestEvolutionLoop:
             dataset=dataset,
             initial_programs=[seed1, seed2],
             max_iterations=0,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -140,6 +158,7 @@ class TestEvolutionLoop:
             reflector=reflector,
             dataset=dataset,
             max_iterations=2,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -163,6 +182,7 @@ class TestEvolutionLoop:
             dataset=dataset,
             max_iterations=2,
             tracker=tracker,
+            eval_strategy=MockStrategy(),
         )
         loop.run()
 
@@ -192,6 +212,7 @@ class TestEvolutionLoop:
             dataset=dataset,
             max_iterations=10,
             stop_condition=stop,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -219,6 +240,7 @@ class TestEvolutionLoop:
             dataset=dataset,
             max_iterations=1,
             tracker=tracker,
+            eval_strategy=MockStrategy(),
         )
         loop.run()
 
@@ -246,6 +268,7 @@ class TestEvolutionLoop:
             dataset=dataset,
             initial_programs=[initial],
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -280,6 +303,7 @@ class TestEvolutionLoopRuntimeFix:
             dataset=dataset,
             initial_programs=[initial],
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -311,6 +335,7 @@ class TestEvolutionLoopRuntimeFix:
             dataset=dataset,
             initial_programs=[initial],
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -342,6 +367,7 @@ class TestEvolutionLoopRuntimeFix:
             dataset=dataset,
             initial_programs=[initial],
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -349,134 +375,6 @@ class TestEvolutionLoopRuntimeFix:
         assert evaluator.evaluate.call_count == 4
         assert state.best_score == 0.7
 
-
-class TestBatchRotation:
-    def _make_batches_and_dataset(self):
-        """Create 2 batches over a dataset of 4 train + 4 val items."""
-        train = [DataItem(raw_text=f"train_{i}", question=f"tq{i}?", expected_answer=f"ta{i}") for i in range(4)]
-        val = [DataItem(raw_text="", question=f"vq{i}?", expected_answer=f"va{i}") for i in range(4)]
-        ds = Dataset(train=train, val=val, test=[])
-        batches = [
-            EvalBatch(val_indices=[0, 1], train_indices=[0, 1], coverage=0.9),
-            EvalBatch(val_indices=[2, 3], train_indices=[2, 3], coverage=0.8),
-        ]
-        return ds, batches
-
-    def test_seeds_evaluated_on_batch_0(self):
-        """All seeds should be evaluated using batch 0 data."""
-        ds, batches = self._make_batches_and_dataset()
-        evaluator = MagicMock(spec=MemoryEvaluator)
-        evaluator.evaluate.return_value = EvalResult(score=0.5)
-        reflector = MagicMock(spec=Reflector)
-
-        loop = EvolutionLoop(
-            evaluator=evaluator,
-            reflector=reflector,
-            dataset=ds,
-            max_iterations=0,
-            eval_strategy=RotatingBatch(batches),
-        )
-        loop.run()
-
-        # First call is seed eval on batch 0; final eval follows on full dataset
-        call_args = evaluator.evaluate.call_args_list[0]
-        train_arg = call_args[0][1]
-        val_arg = call_args[0][2]
-        assert len(train_arg) == 2
-        assert len(val_arg) == 2
-        assert train_arg[0].raw_text == "train_0"
-        assert train_arg[1].raw_text == "train_1"
-        assert val_arg[0].question == "vq0?"
-        assert val_arg[1].question == "vq1?"
-
-    def test_iterations_rotate_through_batches(self):
-        """Iteration 1 uses batch 1, iteration 2 wraps to batch 0."""
-        ds, batches = self._make_batches_and_dataset()
-        child = KBProgram(source_code="child", generation=1)
-
-        evaluator = MagicMock(spec=MemoryEvaluator)
-        evaluator.evaluate.side_effect = [
-            EvalResult(score=0.5, failed_cases=[]),  # seed on batch 0
-            EvalResult(score=0.6),  # iter 1 on batch 1
-            EvalResult(score=0.7),  # iter 2 on batch 0 (wrap)
-            EvalResult(score=0.7),  # final eval candidate 1
-            EvalResult(score=0.6),  # final eval candidate 2
-            EvalResult(score=0.5),  # final eval candidate 3
-        ]
-        reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
-        reflector.max_fix_attempts = 3
-
-        loop = EvolutionLoop(
-            evaluator=evaluator,
-            reflector=reflector,
-            dataset=ds,
-            max_iterations=2,
-            eval_strategy=RotatingBatch(batches),
-        )
-        loop.run()
-
-        # Check iteration 1 used batch 1 (train_indices=[2,3], val_indices=[2,3])
-        iter1_call = evaluator.evaluate.call_args_list[1]
-        assert iter1_call[0][1][0].raw_text == "train_2"
-        assert iter1_call[0][2][0].question == "vq2?"
-
-        # Check iteration 2 wrapped to batch 0 (train_indices=[0,1], val_indices=[0,1])
-        iter2_call = evaluator.evaluate.call_args_list[2]
-        assert iter2_call[0][1][0].raw_text == "train_0"
-        assert iter2_call[0][2][0].question == "vq0?"
-
-    def test_runtime_fix_uses_same_batch(self):
-        """Runtime violation re-eval should use the same batch as initial child eval."""
-        ds, batches = self._make_batches_and_dataset()
-        child = KBProgram(source_code="child", generation=1)
-
-        evaluator = MagicMock(spec=MemoryEvaluator)
-        evaluator.evaluate.side_effect = [
-            EvalResult(score=0.5),  # seed on batch 0
-            EvalResult(score=0.0, runtime_violation="timeout"),  # iter 1 on batch 1
-            EvalResult(score=0.8),  # re-eval on batch 1
-            EvalResult(score=0.8),  # final eval candidate 1
-            EvalResult(score=0.5),  # final eval candidate 2
-        ]
-        reflector = MagicMock(spec=Reflector)
-        reflector.reflect_and_mutate.return_value = ReflectionResult(program=child)
-        reflector.fix_runtime_violation.return_value = "fixed"
-        reflector.max_fix_attempts = 3
-
-        loop = EvolutionLoop(
-            evaluator=evaluator,
-            reflector=reflector,
-            dataset=ds,
-            max_iterations=1,
-            eval_strategy=RotatingBatch(batches),
-        )
-        loop.run()
-
-        # Both iter 1 evals (initial + fix) should use batch 1
-        iter1_initial = evaluator.evaluate.call_args_list[1]
-        iter1_fix = evaluator.evaluate.call_args_list[2]
-        assert iter1_initial[0][1][0].raw_text == "train_2"
-        assert iter1_fix[0][1][0].raw_text == "train_2"
-
-    def test_no_batches_uses_full_dataset(self):
-        """Without batches, full ds.train/ds.val are used (existing behavior)."""
-        ds, _batches = self._make_batches_and_dataset()
-        evaluator = MagicMock(spec=MemoryEvaluator)
-        evaluator.evaluate.return_value = EvalResult(score=0.5)
-        reflector = MagicMock(spec=Reflector)
-
-        loop = EvolutionLoop(
-            evaluator=evaluator,
-            reflector=reflector,
-            dataset=ds,
-            max_iterations=0,
-        )
-        loop.run()
-
-        call_args = evaluator.evaluate.call_args
-        assert len(call_args[0][1]) == 4  # full train
-        assert len(call_args[0][2]) == 4  # full val
 
 
 class TestFinalEvaluation:
@@ -518,7 +416,7 @@ class TestFinalEvaluation:
         assert next(iter(state.final_scores.values())) == 0.8
 
     def test_final_eval_skipped_when_strategy_returns_none(self):
-        """FullDataset-like strategy skips final evaluation."""
+        """Strategy that returns None from final_eval_data skips final evaluation."""
         dataset = _make_dataset()
         evaluator = MagicMock(spec=MemoryEvaluator)
         evaluator.evaluate.return_value = EvalResult(score=0.5)
@@ -529,7 +427,7 @@ class TestFinalEvaluation:
             reflector=reflector,
             dataset=dataset,
             max_iterations=0,
-            eval_strategy=FullDataset(),
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -563,6 +461,7 @@ class TestFreezeInstructions:
             initial_programs=[parent],
             max_iterations=1,
             freeze_instructions=True,
+            eval_strategy=MockStrategy(),
         )
         state = loop.run()
 
@@ -598,6 +497,7 @@ class TestLoopSkipMetrics:
             max_iterations=1,
             tracker=tracker,
             freeze_instructions=True,
+            eval_strategy=MockStrategy(),
         )
         loop.run()
 
@@ -631,6 +531,7 @@ class TestLoopSkipMetrics:
             max_iterations=1,
             tracker=tracker,
             freeze_code=True,
+            eval_strategy=MockStrategy(),
         )
         loop.run()
 
@@ -926,6 +827,7 @@ class TestSplitValidationLoop:
             reflector=reflector,
             dataset=dataset,
             max_iterations=1,
+            eval_strategy=MockStrategy(),
         )
         loop.run()
 

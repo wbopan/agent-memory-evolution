@@ -15,7 +15,6 @@ from programmaticmemory.evolution.checkpoint import deserialize_pool_entry
 from programmaticmemory.evolution.evaluator import MemoryEvaluator
 from programmaticmemory.evolution.loop import EvolutionLoop
 from programmaticmemory.evolution.reflector import ReflectionResult, Reflector
-from programmaticmemory.evolution.strategies import FullDataset
 from programmaticmemory.evolution.types import (
     DataItem,
     Dataset,
@@ -84,6 +83,22 @@ def _make_eval_result(score: float) -> EvalResult:
     )
 
 
+class _MockStrategy:
+    """Minimal EvalStrategy stub for resume e2e tests."""
+
+    def select(self, dataset, iteration):
+        return dataset.train, dataset.val
+
+    def final_candidates(self, pool):
+        return [pool.best]
+
+    def final_eval_data(self, dataset):
+        return None
+
+    def test_eval_data(self, dataset):
+        return None
+
+
 def _strip_header(source: str) -> str:
     """Strip the '# <name>  score=...  <label>' header comment that write_program prepends."""
     lines = source.splitlines(keepends=True)
@@ -137,7 +152,7 @@ class TestResumeE2E:
             initial_programs=[seed0, seed1],
             max_iterations=1,
             strategy=SoftmaxSelection(temperature=0.15),
-            eval_strategy=FullDataset(),
+            eval_strategy=_MockStrategy(),
             output_manager=output_manager,
         )
         loop.run()
@@ -240,7 +255,7 @@ class TestResumeE2E:
             initial_programs=[seed0, seed1],  # not used in resume path
             max_iterations=2,
             strategy=SoftmaxSelection(temperature=0.15),
-            eval_strategy=FullDataset(),
+            eval_strategy=_MockStrategy(),
             output_manager=output_manager2,
             start_iteration=1,
             resumed_pool=restored_pool,

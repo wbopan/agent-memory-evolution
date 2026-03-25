@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
 from programmaticmemory.evolution.__main__ import split_val_test
-from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
 from programmaticmemory.evolution.types import DataItem, Dataset
 
 
@@ -88,78 +85,6 @@ class TestSplitValTest:
             split_val_test(ds, test_size=-2, seed=42)
 
 
-class TestStrategyFinalEvalTest:
-    """Strategy final_eval_data and test_eval_data use dataset.test correctly."""
-
-    def test_full_dataset_final_eval_uses_test(self) -> None:
-        """FullDataset.final_eval_data returns (train, test) when test is non-empty, None when empty."""
-        strategy = FullDataset()
-        ds_no_test = Dataset(train=_make_items(5), val=_make_items(10), test=[])
-        assert strategy.final_eval_data(ds_no_test) is None
-
-        test_items = _make_items(3)
-        ds_with_test = Dataset(train=_make_items(5), val=_make_items(10), test=test_items)
-        result = strategy.final_eval_data(ds_with_test)
-        assert result is not None
-        assert result == (ds_with_test.train, test_items)
-
-    @patch("programmaticmemory.evolution.strategies.select_representative_subset")
-    def test_fixed_representative_final_eval_uses_test(self, mock_select: object) -> None:
-        """FixedRepresentative.final_eval_data returns (train, test) when test is non-empty, None when empty."""
-        n_train, n_val = 5, 10
-        mock_select.return_value = (list(range(n_train)), list(range(n_val)))  # type: ignore[union-attr]
-
-        ds_no_test = Dataset(train=_make_items(n_train), val=_make_items(n_val), test=[])
-        strategy = FixedRepresentative(ds_no_test, val_size=n_val)
-        assert strategy.final_eval_data(ds_no_test) is None
-
-        test_items = _make_items(4)
-        ds_with_test = Dataset(train=_make_items(n_train), val=_make_items(n_val), test=test_items)
-        result = strategy.final_eval_data(ds_with_test)
-        assert result is not None
-        assert result == (ds_with_test.train, test_items)
-
-    def test_rotating_batch_final_eval_unchanged(self) -> None:
-        """RotatingBatch.final_eval_data still returns (train, val) for revalidation ranking."""
-        from programmaticmemory.evolution.batching import EvalBatch
-
-        batches = [EvalBatch(val_indices=[0, 1], train_indices=[0], coverage=1.0)]
-        strategy = RotatingBatch(batches)
-        ds = Dataset(train=_make_items(5), val=_make_items(10), test=_make_items(3))
-        result = strategy.final_eval_data(ds)
-        assert result == (ds.train, ds.val)
-
-    def test_rotating_batch_test_eval_data(self) -> None:
-        """RotatingBatch.test_eval_data returns (train, test) when non-empty, None when empty."""
-        from programmaticmemory.evolution.batching import EvalBatch
-
-        batches = [EvalBatch(val_indices=[0, 1], train_indices=[0], coverage=1.0)]
-        strategy = RotatingBatch(batches)
-
-        ds_no_test = Dataset(train=_make_items(5), val=_make_items(10), test=[])
-        assert strategy.test_eval_data(ds_no_test) is None
-
-        test_items = _make_items(3)
-        ds_with_test = Dataset(train=_make_items(5), val=_make_items(10), test=test_items)
-        result = strategy.test_eval_data(ds_with_test)
-        assert result is not None
-        assert result == (ds_with_test.train, test_items)
-
-    def test_full_dataset_test_eval_data_none(self) -> None:
-        """FullDataset.test_eval_data always returns None."""
-        strategy = FullDataset()
-        ds = Dataset(train=_make_items(5), val=_make_items(10), test=_make_items(3))
-        assert strategy.test_eval_data(ds) is None
-
-    @patch("programmaticmemory.evolution.strategies.select_representative_subset")
-    def test_fixed_representative_test_eval_data_none(self, mock_select: object) -> None:
-        """FixedRepresentative.test_eval_data always returns None."""
-        n_train, n_val = 5, 10
-        mock_select.return_value = (list(range(n_train)), list(range(n_val)))  # type: ignore[union-attr]
-        ds = Dataset(train=_make_items(n_train), val=_make_items(n_val), test=_make_items(3))
-        strategy = FixedRepresentative(ds, val_size=n_val)
-        assert strategy.test_eval_data(ds) is None
-
 
 class TestLoopTestEval:
     """Tests for two-stage test evaluation in the evolution loop."""
@@ -226,6 +151,19 @@ class TestLoopTestEval:
 
         ds = Dataset(train=_make_items(3), val=_make_items(5), test=[])
 
+        class _NoTestStrategy:
+            def select(self, dataset, iteration):
+                return dataset.train, dataset.val
+
+            def final_candidates(self, pool):
+                return [pool.best]
+
+            def final_eval_data(self, dataset):
+                return None
+
+            def test_eval_data(self, dataset):
+                return None
+
         evaluator = MagicMock()
         evaluator.evaluate.return_value = EvalResult(score=0.5)
         reflector = MagicMock()
@@ -235,7 +173,7 @@ class TestLoopTestEval:
             reflector=reflector,
             dataset=ds,
             max_iterations=0,
-            eval_strategy=FullDataset(),
+            eval_strategy=_NoTestStrategy(),
         )
         state = loop.run()
 
