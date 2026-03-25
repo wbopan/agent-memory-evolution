@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import concurrent.futures
 import time
-from dataclasses import dataclass
 
 import litellm
 import numpy as np
@@ -221,100 +220,6 @@ def _balance_clusters(
     balanced[k - 1] = balanced[k - 1] + pool
 
     return balanced
-
-
-@dataclass
-class EvalBatch:
-    """A co-selected evaluation batch with val and train subsets."""
-
-    val_indices: list[int]
-    train_indices: list[int]
-    coverage: float
-
-
-def build_eval_batches(
-    train_data: list[DataItem],
-    val_data: list[DataItem],
-    num_batches: int = 10,
-    batch_train_val_ratio: int = 5,
-    coverage_threshold: float | None = None,
-    embedding_model: str = "openrouter/baai/bge-m3",
-) -> list[EvalBatch]:
-    """Build K co-selected evaluation batches.
-
-    Clusters val questions, then greedily selects train items for each cluster
-    using facility location to maximize coverage.
-    """
-    logger = get_logger()
-    k = num_batches
-    target_m = len(val_data) // k
-
-    logger.log(
-        f"Building {k} eval batches: train={len(train_data)}, val={len(val_data)}, "
-        f"target_val_per_batch={target_m}, batch_train_val_ratio={batch_train_val_ratio}, "
-        f"model={embedding_model}",
-        header="BATCH",
-    )
-
-    # Step 1: Embed all texts
-    train_texts = [item.raw_text if item.raw_text else item.question for item in train_data]
-    val_texts = [item.question for item in val_data]
-
-    logger.log(f"Embedding {len(train_texts)} train + {len(val_texts)} val texts in parallel...", header="BATCH")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as embed_pool:
-        train_fut = embed_pool.submit(_embed_texts, train_texts, embedding_model)
-        val_fut = embed_pool.submit(_embed_texts, val_texts, embedding_model)
-        train_embs = train_fut.result()
-        val_embs = val_fut.result()
-    logger.log(f"Embeddings complete: train={train_embs.shape}, val={val_embs.shape}", header="BATCH")
-
-    # Step 2: Cluster val embeddings
-    if k == 1:
-        clusters = [list(range(len(val_data)))]
-    else:
-        labels = _kmeans(val_embs, k=k)
-        raw_sizes = [int((labels == i).sum()) for i in range(k)]
-        logger.log(f"K-means raw cluster sizes: {raw_sizes}", header="BATCH")
-
-        centers = np.zeros((k, val_embs.shape[1]))
-        for i in range(k):
-            mask = labels == i
-            if mask.any():
-                centers[i] = val_embs[mask].mean(axis=0)
-        norms = np.linalg.norm(centers, axis=1, keepdims=True)
-        centers = centers / np.maximum(norms, 1e-10)
-
-        clusters = _balance_clusters(labels, val_embs, centers, target_size=target_m)
-        balanced_sizes = [len(c) for c in clusters]
-        logger.log(f"Balanced cluster sizes: {balanced_sizes}", header="BATCH")
-
-    # Step 3: Facility location for each cluster
-    batches: list[EvalBatch] = []
-    for i, val_indices in enumerate(clusters):
-        budget = len(train_data) if batch_train_val_ratio < 0 else batch_train_val_ratio * len(val_indices)
-        cluster_val_embs = val_embs[val_indices]
-        train_indices, coverage = _select_train_subset(
-            cluster_val_embs, train_embs, budget=budget, threshold=coverage_threshold
-        )
-        logger.log(
-            f"Batch {i}: val={len(val_indices)}, train={len(train_indices)}, coverage={coverage:.4f}",
-            header="BATCH",
-        )
-        batches.append(EvalBatch(val_indices=val_indices, train_indices=train_indices, coverage=coverage))
-
-    # Step 4: Quality summary
-    coverages = [b.coverage for b in batches]
-    mean_cov = float(np.mean(coverages))
-    std_cov = float(np.std(coverages))
-    logger.log(
-        f"Coverage summary: min={min(coverages):.4f}, max={max(coverages):.4f}, mean={mean_cov:.4f}, std={std_cov:.4f}",
-        header="BATCH",
-    )
-    for i, b in enumerate(batches):
-        if std_cov > 0 and b.coverage < mean_cov - 2 * std_cov:
-            logger.log(f"WARNING: Batch {i} coverage {b.coverage:.4f} is >2 std below mean", header="BATCH")
-
-    return batches
 
 
 def select_representative_subset(
