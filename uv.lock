@@ -1121,6 +1121,15 @@ http = [
 ]
 
 [[package]]
+name = "gepa"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/62/10f5a8f24c075e3b64f952be73ba8e15f0055584bbcdf9ce48d754a36679/gepa-0.1.1.tar.gz", hash = "sha256:643fda01c23de4c9f01306e01305dd69facc29bcb34ad59e4cd07e6621d34aa1", size = 272251, upload-time = "2026-03-16T10:17:53.131Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dc/b7/8c72dedbb950d88a6f64588fcbc590d2a21e2b9f19b36aa6c5016c54ec75/gepa-0.1.1-py3-none-any.whl", hash = "sha256:71ead7c591eafcc727b83509cdc4182f20264800a6ddf8520d61419daeb47466", size = 244246, upload-time = "2026-03-16T10:17:51.922Z" },
+]
+
+[[package]]
 name = "gitdb"
 version = "4.0.12"
 source = { registry = "https://pypi.org/simple" }
@@ -2813,6 +2822,9 @@ full = [
     { name = "tiktoken" },
     { name = "tqdm" },
 ]
+gepa = [
+    { name = "gepa" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -2823,6 +2835,7 @@ requires-dist = [
     { name = "codex-apply-patch", specifier = ">=0.4.0" },
     { name = "datasets", marker = "extra == 'full'", specifier = ">=2.14.6" },
     { name = "fastembed", specifier = ">=0.6.0" },
+    { name = "gepa", marker = "extra == 'gepa'", specifier = ">=0.1.0" },
     { name = "litellm", specifier = ">=1.81.5" },
     { name = "litellm", extras = ["caching"], marker = "extra == 'full'", specifier = ">=1.81.5" },
     { name = "minigrid", marker = "extra == 'agentboard'", specifier = ">=2.3.0" },
@@ -2840,7 +2853,7 @@ requires-dist = [
     { name = "tqdm", marker = "extra == 'full'", specifier = ">=4.66.1" },
     { name = "weave", extras = ["litellm"], specifier = ">=0.51.0" },
 ]
-provides-extras = ["full", "agentboard", "dev"]
+provides-extras = ["full", "agentboard", "gepa", "dev"]
 
 [[package]]
 name = "prompt-toolkit"

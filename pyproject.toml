@@ -36,6 +36,9 @@ agentboard = [
     "minigrid>=2.3.0",
     "pddlgym",
 ]
+gepa = [
+    "gepa>=0.1.0",
+]
 dev = [
     "pytest",
     "pyright",
