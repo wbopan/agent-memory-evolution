@@ -23,7 +23,6 @@ from programmaticmemory.evolution.sandbox import (
     freeze_instruction_constants,
     smoke_test,
 )
-from programmaticmemory.evolution.strategies import FullDataset
 from programmaticmemory.evolution.types import (
     Dataset,
     EvalResult,
@@ -124,7 +123,7 @@ class EvolutionLoop:
         self.stop_condition = stop_condition
         self.tracker = tracker
         self.output_manager = output_manager
-        self.eval_strategy = eval_strategy or FullDataset()
+        self.eval_strategy = eval_strategy
         self.freeze_instructions = freeze_instructions
         self.freeze_code = freeze_code
         self.use_references = use_references
