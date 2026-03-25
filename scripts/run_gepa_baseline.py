@@ -11,6 +11,7 @@ Usage:
         --seed-program src/programmaticmemory/seeds/vector_search.py \
         --max-metric-calls 200 --output-dir outputs/gepa-locomo
 """
+
 from __future__ import annotations
 
 import argparse
@@ -184,6 +185,9 @@ class AlwaysOnAdapter:
 
         scores = eval_result.per_case_scores or [0.0] * n
         outputs = eval_result.per_case_outputs or [""] * n
+        # Pad to batch size (GEPA contract: len == len(batch))
+        scores = (scores + [0.0] * n)[:n]
+        outputs = (outputs + [""] * n)[:n]
 
         trajectories = None
         if capture_traces:
@@ -379,6 +383,9 @@ def main() -> None:
 
     # --- Test evaluation (same pipeline as Engram final_eval_data) ---
     best_source = inject_always_on_knowledge(seed_source, best_aok)
+    if best_source == seed_source and best_aok != seed_aok:
+        print("Error: inject_always_on_knowledge produced no change — check seed format", file=sys.stderr)
+        sys.exit(1)
     best_program = KBProgram(source_code=best_source)
 
     test_score = None
