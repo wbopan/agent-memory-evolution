@@ -165,29 +165,10 @@ def main() -> None:
         help="Decay rate per generation for recency_decay selection (default: 0.8)",
     )
     parser.add_argument(
-        "--eval-strategy",
-        choices=["none", "full", "representative", "rotating", "split"],
-        default="representative",
-        help="Evaluation strategy: none (skip seed/iter eval, test only), full (every iter uses full data), "
-        "representative (clustering-based fixed subset), rotating (batch rotation) (default: representative)",
-    )
-    parser.add_argument(
-        "--eval-val-size",
-        type=int,
-        default=30,
-        help="Val subset size for representative/rotating strategies (default: 30)",
-    )
-    parser.add_argument(
         "--eval-train-ratio",
         type=int,
         default=5,
-        help="Train items per val item for representative/rotating strategies (default: 5)",
-    )
-    parser.add_argument(
-        "--eval-top-k",
-        type=int,
-        default=3,
-        help="Number of candidates for final revalidation in rotating strategy (default: 3)",
+        help="Train items per val item for SplitValidation strategy (default: 5)",
     )
     parser.add_argument(
         "--eval-static-size",
@@ -342,66 +323,20 @@ def main() -> None:
         split_val_test(dataset, test_size=args.test_size, seed=args.seed)
 
         # Restore eval strategy
-        eval_strategy_state = checkpoint.get("eval_strategy_state")
-        if eval_strategy_state is not None:
-            strategy_type = eval_strategy_state.get("type")
-            if strategy_type == "SplitValidation":
-                from programmaticmemory.evolution.strategies import SplitValidation
+        from programmaticmemory.evolution.strategies import SplitValidation
 
-                eval_strat = SplitValidation.from_state(eval_strategy_state, dataset)
-            elif strategy_type == "FixedRepresentative":
-                from programmaticmemory.evolution.strategies import FixedRepresentative
-
-                eval_strat = FixedRepresentative.from_state(eval_strategy_state, dataset)
-            else:
-                # Unknown type — recreate from args
-                eval_strategy_state = None
-
-        if eval_strategy_state is None:
-            from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
-
-            if args.eval_strategy == "none":
-                from programmaticmemory.evolution.strategies import NoEval
-
-                eval_strat = NoEval(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
-            elif args.eval_strategy == "full":
-                eval_strat = FullDataset(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
-            elif args.eval_strategy == "representative":
-                eval_strat = FixedRepresentative(
-                    dataset,
-                    val_size=args.eval_val_size,
-                    train_val_ratio=args.eval_train_ratio,
-                    test_train_ratio=args.test_train_ratio,
-                    embedding_model=args.embedding_model,
-                )
-            elif args.eval_strategy == "rotating":
-                from programmaticmemory.evolution.batching import build_eval_batches
-
-                batches_list = build_eval_batches(
-                    dataset.train,
-                    dataset.val,
-                    num_batches=max(1, len(dataset.val) // args.eval_val_size),
-                    batch_train_val_ratio=args.eval_train_ratio,
-                )
-                eval_strat = RotatingBatch(
-                    batches_list,
-                    top_k=args.eval_top_k,
-                    test_train_ratio=args.test_train_ratio,
-                    embedding_model=args.embedding_model,
-                )
-            elif args.eval_strategy == "split":
-                from programmaticmemory.evolution.strategies import SplitValidation
-
-                eval_strat = SplitValidation(
-                    dataset,
-                    static_size=args.eval_static_size,
-                    rotate_size=args.eval_rotate_size,
-                    train_val_ratio=args.eval_train_ratio,
-                    test_train_ratio=args.test_train_ratio,
-                    embedding_model=args.embedding_model,
-                )
-            else:
-                eval_strat = FullDataset(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
+        eval_state = checkpoint.get("eval_strategy_state")
+        if eval_state:
+            eval_strat = SplitValidation.from_state(dataset, eval_state)
+        else:
+            eval_strat = SplitValidation(
+                dataset,
+                static_size=args.eval_static_size,
+                rotate_size=args.eval_rotate_size,
+                train_val_ratio=args.eval_train_ratio,
+                test_train_ratio=args.test_train_ratio,
+                embedding_model=args.embedding_model,
+            )
 
         # Build selection strategy
         if args.selection_strategy == "recency_decay":
@@ -566,49 +501,16 @@ def main() -> None:
     split_val_test(dataset, test_size=args.test_size, seed=args.seed)
 
     # Build eval strategy
-    from programmaticmemory.evolution.strategies import FixedRepresentative, FullDataset, RotatingBatch
+    from programmaticmemory.evolution.strategies import SplitValidation
 
-    if args.eval_strategy == "none":
-        from programmaticmemory.evolution.strategies import NoEval
-
-        eval_strat = NoEval(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
-    elif args.eval_strategy == "full":
-        eval_strat = FullDataset(test_train_ratio=args.test_train_ratio, embedding_model=args.embedding_model)
-    elif args.eval_strategy == "representative":
-        eval_strat = FixedRepresentative(
-            dataset,
-            val_size=args.eval_val_size,
-            train_val_ratio=args.eval_train_ratio,
-            test_train_ratio=args.test_train_ratio,
-            embedding_model=args.embedding_model,
-        )
-    elif args.eval_strategy == "rotating":
-        from programmaticmemory.evolution.batching import build_eval_batches
-
-        batches_list = build_eval_batches(
-            dataset.train,
-            dataset.val,
-            num_batches=max(1, len(dataset.val) // args.eval_val_size),
-            batch_train_val_ratio=args.eval_train_ratio,
-            embedding_model=args.embedding_model,
-        )
-        eval_strat = RotatingBatch(
-            batches_list,
-            top_k=args.eval_top_k,
-            test_train_ratio=args.test_train_ratio,
-            embedding_model=args.embedding_model,
-        )
-    elif args.eval_strategy == "split":
-        from programmaticmemory.evolution.strategies import SplitValidation
-
-        eval_strat = SplitValidation(
-            dataset,
-            static_size=args.eval_static_size,
-            rotate_size=args.eval_rotate_size,
-            train_val_ratio=args.eval_train_ratio,
-            test_train_ratio=args.test_train_ratio,
-            embedding_model=args.embedding_model,
-        )
+    eval_strat = SplitValidation(
+        dataset,
+        static_size=args.eval_static_size,
+        rotate_size=args.eval_rotate_size,
+        train_val_ratio=args.eval_train_ratio,
+        test_train_ratio=args.test_train_ratio,
+        embedding_model=args.embedding_model,
+    )
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
 
