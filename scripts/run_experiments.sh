@@ -33,7 +33,7 @@ COMMON_PR_FIN="--dataset prbench --category finance --test-size 50 --test-train-
 #   Large (HB/LoCoMo): test=100, static=60, rotate_pool≥60
 #   Small (PR/ALFWorld): test=50, static=50, rotate_pool≥50 (best effort)
 # eval-rotate-size omitted → default=5 (sufficient for reflection; rubric benchmarks are expensive per item)
-EVOL_BASE="--eval-strategy split --eval-train-ratio 2 --iterations 20"
+EVOL_BASE="--eval-train-ratio 2 --iterations 20 --eval-rotate-size 5 --no-references"
 EVOL_LOCOMO="$EVOL_BASE --eval-static-size 60"       # val=1986, test=100, evo=1886, rotate_pool=1826
 EVOL_ALF_UNSEEN="$EVOL_BASE --eval-static-size 50"   # val=150,  test=50,  evo=100,  rotate_pool=50
 EVOL_ALF_SEEN="$EVOL_BASE --eval-static-size 32"     # val=102,  test=50,  evo=52,   rotate_pool=20
@@ -59,12 +59,12 @@ _run_ds_group() {
     run "T1: $DS_SLUG / No Memory" \
         $COMMON_DS \
         --seed-program src/programmaticmemory/baselines/no_memory.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-${DS_SLUG}-no-memory
     run "T1: $DS_SLUG / Vanilla RAG" \
         $COMMON_DS \
         --seed-program src/programmaticmemory/seeds/vector_search.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-${DS_SLUG}-vanilla-rag
     run "T1: $DS_SLUG / Ours (evolution)" \
         $COMMON_DS \
@@ -81,13 +81,13 @@ run_table1() {
     run "T1: LoCoMo / No Memory" \
         $COMMON_LOCOMO \
         --seed-program src/programmaticmemory/baselines/no_memory.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-locomo-no-memory
 
     run "T1: LoCoMo / Vanilla RAG" \
         $COMMON_LOCOMO \
         --seed-program src/programmaticmemory/seeds/vector_search.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-locomo-vanilla-rag
 
     run "T1: LoCoMo / Ours (evolution)" \
@@ -99,13 +99,13 @@ run_table1() {
     run "T1: ALFWorld unseen / No Memory" \
         $COMMON_ALFWORLD \
         --seed-program src/programmaticmemory/baselines/no_memory.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-alfworld-unseen-no-memory \
         eval_split=unseen
     run "T1: ALFWorld unseen / Vanilla RAG" \
         $COMMON_ALFWORLD \
         --seed-program src/programmaticmemory/seeds/vector_search.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-alfworld-unseen-vanilla-rag \
         eval_split=unseen
     run "T1: ALFWorld unseen / Ours (evolution)" \
@@ -118,13 +118,13 @@ run_table1() {
     run "T1: ALFWorld seen / No Memory" \
         $COMMON_ALFWORLD \
         --seed-program src/programmaticmemory/baselines/no_memory.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-alfworld-seen-no-memory \
         eval_split=seen
     run "T1: ALFWorld seen / Vanilla RAG" \
         $COMMON_ALFWORLD \
         --seed-program src/programmaticmemory/seeds/vector_search.py \
-        --iterations 0 --eval-strategy none \
+        --iterations 0 \
         --output-dir outputs/t1-alfworld-seen-vanilla-rag \
         eval_split=seen
     run "T1: ALFWorld seen / Ours (evolution)" \
@@ -161,7 +161,7 @@ run_baselines() {
         run "BL: LoCoMo / $slug" \
             $COMMON_LOCOMO \
             --seed-program src/programmaticmemory/baselines/${file}.py \
-            --iterations 0 --eval-strategy none \
+            --iterations 0 \
             --output-dir outputs/bl-locomo-${slug} $extra
 
         # --- ALFWorld (both splits) ---
@@ -169,7 +169,7 @@ run_baselines() {
             run "BL: ALFWorld $SPLIT / $slug" \
                 $COMMON_ALFWORLD \
                 --seed-program src/programmaticmemory/baselines/${file}.py \
-                --iterations 0 --eval-strategy none \
+                --iterations 0 \
                 --output-dir outputs/bl-alfworld-${SPLIT}-${slug} \
                 eval_split=$SPLIT $extra
         done
@@ -186,7 +186,7 @@ run_baselines() {
             run "BL: $DS_SLUG / $slug" \
                 $COMMON_DS \
                 --seed-program src/programmaticmemory/baselines/${file}.py \
-                --iterations 0 --eval-strategy none \
+                --iterations 0 \
                 --output-dir outputs/bl-${DS_SLUG}-${slug} $extra
         done
     done

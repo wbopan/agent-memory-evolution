@@ -88,7 +88,7 @@ uv run python -m programmaticmemory.evolution \
 # evaluate a single program without evolution
 uv run python -m programmaticmemory.evolution \
   --dataset mini_locomo --seed-program seeds/vector_search.py \
-  --iterations 0 --eval-strategy none --no-weave
+  --iterations 0 --no-weave
 ```
 
 For ALFWorld: `uv pip install -e ".[alfworld]"` then `--dataset alfworld`.
