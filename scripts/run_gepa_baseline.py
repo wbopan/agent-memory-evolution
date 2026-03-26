@@ -26,6 +26,7 @@ from typing import Any
 
 from gepa.api import optimize
 from gepa.core.adapter import EvaluationBatch
+from gepa.utils.stop_condition import MaxCandidateProposalsStopper
 
 from programmaticmemory.cache import configure_cache
 from programmaticmemory.datasets import load_dataset
@@ -264,7 +265,8 @@ def main() -> None:
     parser.add_argument("--eval-rotate-size", type=int, default=5)
     # --- GEPA-specific flags ---
     parser.add_argument("--reflection-model", default="openrouter/openai/gpt-5.3-codex")
-    parser.add_argument("--max-metric-calls", type=int, default=200)
+    parser.add_argument("--max-proposals", type=int, default=20,
+                        help="Number of candidate proposals (iterations). Matches --iterations in ours.")
     parser.add_argument("--reflection-minibatch-size", type=int, default=5)
     parser.add_argument("--seed-program", type=Path, required=True)
     parser.add_argument("--output-dir", type=str, required=True)
@@ -351,7 +353,7 @@ def main() -> None:
 
     print(f"Frozen skeleton: {args.seed_program.name}")
     print(f"Seed ALWAYS_ON_KNOWLEDGE: {seed_aok[:100]!r}...")
-    print(f"Max metric calls: {args.max_metric_calls}")
+    print(f"Max proposals (iterations): {args.max_proposals}")
     print(f"Reflection model: {args.reflection_model}")
     print("=" * 60)
 
@@ -366,7 +368,7 @@ def main() -> None:
         candidate_selection_strategy="pareto",
         frontier_type="instance",
         reflection_minibatch_size=args.reflection_minibatch_size,
-        max_metric_calls=args.max_metric_calls,
+        stop_callbacks=MaxCandidateProposalsStopper(max_proposals=args.max_proposals),
         run_dir=args.output_dir,
         seed=args.seed,
         skip_perfect_score=True,
@@ -455,7 +457,7 @@ def main() -> None:
         "test_evaluation": None,
         "gepa": {
             "method": "always_on_knowledge_only",
-            "max_metric_calls": args.max_metric_calls,
+            "max_proposals": args.max_proposals,
             "total_metric_calls": result.total_metric_calls,
             "candidates_explored": len(result.candidates),
             "best_val_score": best_val_score,

@@ -19,3 +19,5 @@ knowledge/
 exps/
 .pre-commit-config.yaml
 tests/evolution/.llm_cache/
+.superpowers/
+docs/superpowers/

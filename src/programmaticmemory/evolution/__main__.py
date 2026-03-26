@@ -327,7 +327,7 @@ def main() -> None:
 
         eval_state = checkpoint.get("eval_strategy_state")
         if eval_state:
-            eval_strat = SplitValidation.from_state(dataset, eval_state)
+            eval_strat = SplitValidation.from_state(eval_state, dataset)
         else:
             eval_strat = SplitValidation(
                 dataset,

@@ -229,26 +229,63 @@ run_ablation() {
 
 # GEPA baseline: prompt-only optimization (ALWAYS_ON_KNOWLEDGE).
 # Same data splits, train subsets, scorer, and model params as Engram ours runs.
-GEPA_COMMON="--task-model $TASK_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL --batch-concurrency $BATCH_CONCURRENCY --task-lm-thinking-effort $THINKING_EFFORT --max-metric-calls 200 --reflection-model $REFLECT_MODEL"
+GEPA_COMMON="--task-model $TASK_MODEL --toolkit-model $TOOLKIT_MODEL --embedding-model $EMBED_MODEL --batch-concurrency $BATCH_CONCURRENCY --task-lm-thinking-effort $THINKING_EFFORT --max-proposals 20 --reflection-model $REFLECT_MODEL"
 
 run_gepa() {
     echo "=============================================================="
     echo "  TABLE 1 — GEPA BASELINE"
     echo "=============================================================="
 
+    # --- LoCoMo ---
     uv run python scripts/run_gepa_baseline.py \
         --dataset locomo --test-size 100 --test-train-ratio 3 \
         $GEPA_COMMON $EVOL_LOCOMO \
         --seed-program src/programmaticmemory/seeds/vector_search.py \
         --output-dir outputs/gepa-locomo
 
-    # Add other datasets as needed:
-    # uv run python scripts/run_gepa_baseline.py \
-    #     --dataset alfworld --test-size 50 --test-train-ratio 3 \
-    #     $GEPA_COMMON $EVOL_ALF_UNSEEN \
-    #     --seed-program src/programmaticmemory/seeds/vector_search.py \
-    #     --output-dir outputs/gepa-alfworld-unseen \
-    #     eval_split=unseen
+    # --- ALFWorld unseen ---
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset alfworld --test-size 50 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_ALF_UNSEEN \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-alfworld-unseen \
+        eval_split=unseen
+
+    # --- ALFWorld seen ---
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset alfworld --test-size 50 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_ALF_SEEN \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-alfworld-seen \
+        eval_split=seen
+
+    # --- HealthBench data_tasks ---
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset healthbench --category health_data_tasks --test-size 100 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_HB_DATA \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-hb-data-tasks
+
+    # --- HealthBench emergency ---
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset healthbench --category emergency_referrals --test-size 100 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_HB_EMERG \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-hb-emergency
+
+    # --- PRBench legal ---
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset prbench --category legal --test-size 50 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_PR_LEGAL \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-pr-legal
+
+    # --- PRBench finance ---
+    uv run python scripts/run_gepa_baseline.py \
+        --dataset prbench --category finance --test-size 50 --test-train-ratio 3 \
+        $GEPA_COMMON $EVOL_PR_FIN \
+        --seed-program src/programmaticmemory/seeds/vector_search.py \
+        --output-dir outputs/gepa-pr-finance
 }
 
 # Dispatch
