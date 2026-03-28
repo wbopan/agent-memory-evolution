@@ -21,3 +21,6 @@ exps/
 tests/evolution/.llm_cache/
 .superpowers/
 docs/superpowers/
+node_modules/
+package.json
+package-lock.json
