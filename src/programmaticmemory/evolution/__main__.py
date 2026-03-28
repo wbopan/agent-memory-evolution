@@ -128,6 +128,13 @@ def main() -> None:
         help="Azure OpenAI API version (default: 2024-12-01-preview)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
+    parser.add_argument(
+        "--evolution-seed",
+        type=int,
+        default=None,
+        help="Separate seed for evolution randomness (parent selection, rotation sampling). "
+        "Defaults to --seed if not set. Data split always uses --seed.",
+    )
     parser.add_argument("--no-weave", action="store_true", help="Disable weave/wandb tracking")
     parser.add_argument("--no-output", action="store_true", help="Disable local output directory")
     parser.add_argument("--weave-project", default="programmaticmemory", help="Weave project name")
@@ -322,12 +329,14 @@ def main() -> None:
         # Split val/test with same params
         split_val_test(dataset, test_size=args.test_size, seed=args.seed)
 
+        evolution_seed = args.evolution_seed if args.evolution_seed is not None else args.seed
+
         # Restore eval strategy
         from programmaticmemory.evolution.strategies import SplitValidation
 
         eval_state = checkpoint.get("eval_strategy_state")
         if eval_state:
-            eval_strat = SplitValidation.from_state(eval_state, dataset)
+            eval_strat = SplitValidation.from_state(eval_state, dataset, evolution_seed=evolution_seed)
         else:
             eval_strat = SplitValidation(
                 dataset,
@@ -336,6 +345,7 @@ def main() -> None:
                 train_val_ratio=args.eval_train_ratio,
                 test_train_ratio=args.test_train_ratio,
                 embedding_model=args.embedding_model,
+                evolution_seed=evolution_seed,
             )
 
         # Build selection strategy
@@ -500,6 +510,10 @@ def main() -> None:
     # Split val into evolution-val + held-out test
     split_val_test(dataset, test_size=args.test_size, seed=args.seed)
 
+    # Re-seed for evolution (separate from data split seed)
+    evolution_seed = args.evolution_seed if args.evolution_seed is not None else args.seed
+    random.seed(evolution_seed)
+
     # Build eval strategy
     from programmaticmemory.evolution.strategies import SplitValidation
 
@@ -510,6 +524,7 @@ def main() -> None:
         train_val_ratio=args.eval_train_ratio,
         test_train_ratio=args.test_train_ratio,
         embedding_model=args.embedding_model,
+        evolution_seed=evolution_seed,
     )
 
     from programmaticmemory.logging.logger import RichLogger, get_logger, set_logger
@@ -525,7 +540,8 @@ def main() -> None:
     logger = get_logger()
     logger.log(
         f"Dataset={args.dataset}, train={len(dataset.train)}, val={len(dataset.val)}, "
-        f"test={len(dataset.test)}, task_model={args.task_model}, reflect_model={args.reflect_model}",
+        f"test={len(dataset.test)}, task_model={args.task_model}, reflect_model={args.reflect_model}, "
+        f"evolution_seed={evolution_seed}",
         header="CONFIG",
     )
     if args.category:
