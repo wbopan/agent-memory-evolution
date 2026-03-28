@@ -170,3 +170,69 @@ class TestSplitValidation:
             strategy = SplitValidation(ds, static_size=1, rotate_size=2)
 
         assert strategy.final_eval_data(ds) is None
+
+
+def test_evolution_seed_affects_rotation_sampling(mock_chromadb):
+    """Different evolution seeds should produce different rotation val samples."""
+    items = [DataItem(raw_text=f"text_{i}", question=f"q_{i}", expected_answer=f"a_{i}") for i in range(40)]
+    dataset = Dataset(train=items[:20], val=items[20:], test=[])
+
+    with (
+        patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel,
+        patch("programmaticmemory.evolution.strategies._embed_texts") as mock_emb,
+    ):
+        # 20 val items, 5 static → 15 rotate pool
+        mock_sel.return_value = (list(range(20)), list(range(5)))
+        mock_emb.return_value = np.random.randn(15, 8)
+        strat_seed1 = SplitValidation(
+            dataset, static_size=5, rotate_size=3, embedding_model="local", evolution_seed=1
+        )
+        mock_sel.return_value = (list(range(20)), list(range(5)))
+        mock_emb.return_value = np.random.randn(15, 8)
+        strat_seed2 = SplitValidation(
+            dataset, static_size=5, rotate_size=3, embedding_model="local", evolution_seed=2
+        )
+
+    # They should differ for at least one iteration in 0..4
+    any_differ = False
+    for it in range(5):
+        r1 = [item.question for item in strat_seed1.select_reflection_val(dataset, it)]
+        r2 = [item.question for item in strat_seed2.select_reflection_val(dataset, it)]
+        if r1 != r2:
+            any_differ = True
+            break
+    assert any_differ, "Different evolution seeds should produce different rotation samples"
+
+
+def test_evolution_seed_persisted_in_state(mock_chromadb):
+    """evolution_seed should survive get_state/from_state round-trip."""
+    items = [DataItem(raw_text=f"text_{i}", question=f"q_{i}", expected_answer=f"a_{i}") for i in range(40)]
+    dataset = Dataset(train=items[:20], val=items[20:], test=[])
+
+    with (
+        patch("programmaticmemory.evolution.strategies.select_representative_subset") as mock_sel,
+        patch("programmaticmemory.evolution.strategies._embed_texts") as mock_emb,
+    ):
+        mock_sel.return_value = (list(range(20)), list(range(5)))
+        mock_emb.return_value = np.random.randn(15, 8)
+        strat = SplitValidation(
+            dataset, static_size=5, rotate_size=3, embedding_model="local", evolution_seed=99
+        )
+
+    state = strat.get_state()
+    assert state["evolution_seed"] == 99
+
+    with (
+        patch("programmaticmemory.evolution.strategies._embed_texts") as mock_emb,
+    ):
+        mock_emb.return_value = np.random.randn(15, 8)
+        restored = SplitValidation.from_state(state, dataset)
+    assert restored._evolution_seed == 99
+
+    # Override via from_state kwarg
+    with (
+        patch("programmaticmemory.evolution.strategies._embed_texts") as mock_emb,
+    ):
+        mock_emb.return_value = np.random.randn(15, 8)
+        restored2 = SplitValidation.from_state(state, dataset, evolution_seed=7)
+    assert restored2._evolution_seed == 7
