@@ -54,7 +54,9 @@ class SplitValidation:
         train_val_ratio: int = -1,
         test_train_ratio: int = -1,
         embedding_model: str = "openrouter/baai/bge-m3",
+        evolution_seed: int = 42,
     ) -> None:
+        self._evolution_seed = evolution_seed
         self._test_train_ratio = test_train_ratio
         self._rotate_size = rotate_size
         self._embedding_model = embedding_model
@@ -95,12 +97,12 @@ class SplitValidation:
 
         # Fallback to random sampling when embeddings are unavailable
         if self._rotate_embs is None:
-            rng = random.Random(42 + iteration)
+            rng = random.Random(self._evolution_seed + iteration)
             selected = rng.sample(self._rotate_pool, k)
             return [dataset.val[i] for i in selected]
 
         # K-means with iteration-varying seed for diverse samples
-        labels = _kmeans(self._rotate_embs, k=k, seed=42 + iteration)
+        labels = _kmeans(self._rotate_embs, k=k, seed=self._evolution_seed + iteration)
         selected: list[int] = []
         for c in range(k):
             members = [j for j, label in enumerate(labels) if label == c]
@@ -141,10 +143,11 @@ class SplitValidation:
             "rotate_size": self._rotate_size,
             "test_train_ratio": self._test_train_ratio,
             "embedding_model": self._embedding_model,
+            "evolution_seed": self._evolution_seed,
         }
 
     @classmethod
-    def from_state(cls, state: dict, dataset: Dataset) -> SplitValidation:
+    def from_state(cls, state: dict, dataset: Dataset, evolution_seed: int | None = None) -> SplitValidation:
         """Reconstruct from saved indices, bypassing embedding API."""
         instance = object.__new__(cls)
         instance._static_indices = state["static_indices"]
@@ -153,6 +156,7 @@ class SplitValidation:
         instance._rotate_size = state["rotate_size"]
         instance._test_train_ratio = state["test_train_ratio"]
         instance._embedding_model = state.get("embedding_model", "openrouter/baai/bge-m3")
+        instance._evolution_seed = evolution_seed if evolution_seed is not None else state.get("evolution_seed", 42)
         # Re-embed rotate pool (will likely hit disk cache)
         if instance._rotate_pool:
             rotate_texts = [dataset.val[i].question for i in instance._rotate_pool]
