@@ -10,7 +10,7 @@ build/
 .worktrees/
 .claude/
 data/
-outputs/
+# outputs/ — tracked via LFS on HF remote
 wandb/
 .env
 CLAUDE.md
