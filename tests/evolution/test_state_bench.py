@@ -174,3 +174,40 @@ def test_load_state_bench_synth_supports_default_data_dir_override():
     # Same content via deterministic seed
     ids_train = [it.metadata["task_id"] for it in ds.train]
     assert all(tid.startswith("synth-") for tid in ids_train)
+
+
+def test_mstar_kb_agent_injects_kb_text_after_existing_system_messages():
+    """Agent inserts KB content after the last contiguous leading system message."""
+    import sys
+    sys.path.insert(0, "Data/STATE-Bench")
+
+    from agents.mstar_kb_agent import MstarKBAgent
+
+    agent = MstarKBAgent.__new__(MstarKBAgent)  # bypass __init__ which needs a client
+    agent._kb_text = "FACT: refunds use SAVE20 redistribution."
+
+    messages = [
+        {"role": "system", "content": "You are an agent."},
+        {"role": "user", "content": "Hi."},
+    ]
+    out = agent.prepare_conversation(messages)
+
+    # Persona stays first; KB sits between persona and user; user retained.
+    assert out[0] == messages[0]
+    assert out[1]["role"] == "system"
+    assert "SAVE20 redistribution" in out[1]["content"]
+    assert out[2] == messages[1]
+
+
+def test_mstar_kb_agent_no_kb_text_passes_through_unchanged():
+    import sys
+    sys.path.insert(0, "Data/STATE-Bench")
+
+    from agents.mstar_kb_agent import MstarKBAgent
+
+    agent = MstarKBAgent.__new__(MstarKBAgent)
+    agent._kb_text = ""
+
+    messages = [{"role": "system", "content": "Sys."}, {"role": "user", "content": "Hi."}]
+    out = agent.prepare_conversation(messages)
+    assert out == messages
