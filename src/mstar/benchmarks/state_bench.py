@@ -282,6 +282,70 @@ def _extract_tool_calls(conversation: list[dict[str, Any]]) -> list[dict[str, An
     return out
 
 
+def _last_assistant_text(conversation: list[dict[str, Any]], max_chars: int = 400) -> str:
+    """Return the final assistant message content, truncated."""
+    for msg in reversed(conversation):
+        if isinstance(msg, dict) and msg.get("role") == "assistant":
+            content = msg.get("content") or ""
+            if isinstance(content, str) and content.strip():
+                return content.strip()[:max_chars]
+    return ""
+
+
+def _build_rationale(task: Any, trajectory: Any) -> str:
+    """Build a reflection-grade rationale string from a scored trajectory.
+
+    Includes: task summary (truncated), pass/fail per axis, efficiency,
+    judge reasoning, per-requirement failures with the judge's explanations,
+    and a snippet of the agent's final message. Designed so the mstar
+    reflector has enough signal to propose KB improvements.
+    """
+    state_score = trajectory.state_requirements_score
+    reqs_score = trajectory.task_requirements_score
+    completion = trajectory.task_completion_pass
+
+    state_pass = state_score.score if state_score else None
+    reqs_pass = reqs_score.score if reqs_score else None
+    eff = trajectory.efficiency
+    turns = eff.turns if eff else "?"
+    tool_calls = eff.tool_calls if eff else "?"
+
+    parts: list[str] = []
+    verdict = "PASS" if completion == 1 else "FAIL"
+    parts.append(
+        f"STATE-Bench task {task.task_id} ({verdict}): "
+        f"state_pass={state_pass} task_reqs_pass={reqs_pass} "
+        f"completion={completion} turns={turns} tool_calls={tool_calls}"
+    )
+
+    summary = (task.task_summary or "").strip()
+    if summary:
+        parts.append(f"Task: {summary[:400]}")
+
+    if state_score and state_score.reasoning:
+        marker = "OK" if state_pass == 1 else "FAIL"
+        parts.append(f"State [{marker}]: {state_score.reasoning.strip()[:400]}")
+
+    if reqs_score:
+        marker = "OK" if reqs_pass == 1 else "FAIL"
+        if reqs_score.reasoning:
+            parts.append(f"Task-requirements [{marker}]: {reqs_score.reasoning.strip()[:400]}")
+        # Surface failed per-requirement details (most useful signal for the reflector)
+        failed_details = [d for d in (reqs_score.details or []) if not d.get("passed", False)]
+        if failed_details:
+            parts.append("Failed requirements:")
+            for d in failed_details[:5]:
+                rid = d.get("id", "<no-id>")
+                reason = (d.get("reasoning") or "").strip()[:300]
+                parts.append(f"  - {rid}: {reason}")
+
+    last_msg = _last_assistant_text(trajectory.conversation, max_chars=300)
+    if last_msg:
+        parts.append(f"Final agent turn: {last_msg}")
+
+    return "\n".join(parts)
+
+
 def _run_single_task(
     item: DataItem,
     kb_text: str,
@@ -380,20 +444,7 @@ def _run_single_task(
 
         score = 1.0 if trajectory.task_completion_pass == 1 else 0.0
         transcript = json.dumps(trajectory.conversation, indent=2, default=str)
-        state_pass = (
-            trajectory.state_requirements_score.score
-            if trajectory.state_requirements_score
-            else None
-        )
-        reqs_pass = (
-            trajectory.task_requirements_score.score
-            if trajectory.task_requirements_score
-            else None
-        )
-        rationale = (
-            f"state_pass={state_pass} task_reqs_pass={reqs_pass} "
-            f"completion={trajectory.task_completion_pass}"
-        )
+        rationale = _build_rationale(task, trajectory)
         return (transcript, score, rationale)
     except StateBenchInfraError:
         raise

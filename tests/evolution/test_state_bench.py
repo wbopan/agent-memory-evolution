@@ -330,6 +330,79 @@ def test_looks_like_infra_error_classifies_openai_exceptions():
     assert _looks_like_infra_error(KeyError("not infra")) is False
 
 
+def test_build_rationale_includes_task_summary_state_reasoning_and_failed_requirements():
+    """Rationale must carry enough signal to drive evolution: per-axis verdict,
+    judge reasoning, per-requirement failures, and the agent's final turn."""
+    from types import SimpleNamespace
+
+    from mstar.benchmarks.state_bench import _build_rationale
+
+    task = SimpleNamespace(
+        task_id="1-return_partial_order",
+        task_summary="**Task:** Refund only the headphones, redistribute SAVE20.",
+    )
+    trajectory = SimpleNamespace(
+        task_completion_pass=0,
+        state_requirements_score=SimpleNamespace(
+            score=0,
+            reasoning="orders.ORD-6001.refund_amount expected 141 but was 249.",
+        ),
+        task_requirements_score=SimpleNamespace(
+            score=0,
+            reasoning="Agent skipped the preview step.",
+            details=[
+                {
+                    "id": "preview_then_confirm",
+                    "passed": False,
+                    "reasoning": "process_return called with confirm=True without prior preview.",
+                },
+                {"id": "no_full_cancel", "passed": True, "reasoning": "n/a"},
+            ],
+        ),
+        efficiency=SimpleNamespace(turns=3, tool_calls=4),
+        conversation=[
+            {"role": "user", "content": "Hi"},
+            {"role": "assistant", "content": "I've processed your return for $249."},
+        ],
+    )
+
+    out = _build_rationale(task, trajectory)
+    # Verdict + axis breakdown
+    assert "FAIL" in out
+    assert "state_pass=0" in out and "task_reqs_pass=0" in out and "completion=0" in out
+    assert "turns=3" in out and "tool_calls=4" in out
+    # Task summary
+    assert "redistribute SAVE20" in out
+    # State reasoning
+    assert "expected 141 but was 249" in out
+    # Task-requirements reasoning + per-requirement failure (with explanation)
+    assert "skipped the preview step" in out
+    assert "preview_then_confirm" in out
+    assert "without prior preview" in out
+    # Passed requirements should NOT pollute the failed-requirements section
+    assert "no_full_cancel" not in out.split("Failed requirements:")[1] if "Failed requirements:" in out else True
+    # Final agent turn
+    assert "I've processed your return" in out
+
+
+def test_build_rationale_handles_pass_case_without_failed_requirements_block():
+    from types import SimpleNamespace
+
+    from mstar.benchmarks.state_bench import _build_rationale
+
+    task = SimpleNamespace(task_id="ok", task_summary="**Task:** Easy.")
+    trajectory = SimpleNamespace(
+        task_completion_pass=1,
+        state_requirements_score=SimpleNamespace(score=1, reasoning="all matched"),
+        task_requirements_score=SimpleNamespace(score=1, reasoning="agent did right", details=[]),
+        efficiency=SimpleNamespace(turns=2, tool_calls=1),
+        conversation=[{"role": "assistant", "content": "Done."}],
+    )
+    out = _build_rationale(task, trajectory)
+    assert "PASS" in out
+    assert "Failed requirements:" not in out
+
+
 @pytest.mark.llm
 def test_state_bench_real_task_passes_or_scores_zero():
     """Real LLM smoke test: run one customer_support task via Azure proxy.
