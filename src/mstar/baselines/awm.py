@@ -51,6 +51,7 @@ import litellm
 
 from mstar.benchmarks.agentboard import _parse_action_response
 from mstar.datasets import load_dataset
+from mstar.evolution.azure_config import apply_azure_kwargs
 from mstar.evolution.types import DataItem
 
 # ---------------------------------------------------------------------------
@@ -205,9 +206,14 @@ def _select_action_with_reasoning(
     Returns (reasoning, action) matching AWM's trajectory step structure.
     """
     prompt = _build_action_prompt(env_type, objective, trajectory_text, valid_actions, workflow_tips)
-    resp = litellm.completion(
-        model=task_model, messages=[{"role": "user", "content": prompt}], max_tokens=256, caching=True
-    )
+    call_kwargs: dict = {
+        "model": task_model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 256,
+        "caching": True,
+    }
+    apply_azure_kwargs(task_model, call_kwargs)
+    resp = litellm.completion(**call_kwargs)
     raw = resp.choices[0].message.content.strip()
     return _parse_reasoning_and_action(raw, valid_actions)
 
@@ -438,13 +444,15 @@ def induce_workflows_from_trajectory(
         composition_guideline=composition_guideline,
     )
 
-    resp = litellm.completion(
-        model=model,
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=2048,
-        temperature=0.0,
-        caching=True,
-    )
+    call_kwargs: dict = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 2048,
+        "temperature": 0.0,
+        "caching": True,
+    }
+    apply_azure_kwargs(model, call_kwargs)
+    resp = litellm.completion(**call_kwargs)
     raw = resp.choices[0].message.content.strip()
 
     workflows_data = _parse_workflow_json(raw)
@@ -518,7 +526,9 @@ def embed_texts(texts: list[str], model: str = EMBEDDING_MODEL) -> list[list[flo
     """Get embeddings for a list of texts."""
     if not texts:
         return []
-    resp = litellm.embedding(model=model, input=texts)
+    embed_kwargs: dict = {"model": model, "input": texts}
+    apply_azure_kwargs(model, embed_kwargs)
+    resp = litellm.embedding(**embed_kwargs)
     return [item["embedding"] for item in resp.data]
 
 

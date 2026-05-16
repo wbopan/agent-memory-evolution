@@ -11,6 +11,8 @@ import chromadb
 import litellm
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 
+from mstar.evolution.azure_config import apply_azure_kwargs
+
 logger = logging.getLogger(__name__)
 
 _NON_RETRYABLE = (
@@ -50,7 +52,13 @@ def _log_retry(retry_state):
     before_sleep=_log_retry,
 )
 def completion_with_retry(**kwargs: object) -> litellm.ModelResponse:
-    """litellm.completion with tenacity retry on transient API errors."""
+    """litellm.completion with tenacity retry on transient API errors.
+
+    For ``azure/`` models, the Azure endpoint + AAD token provider are injected
+    here (see ``azure_config.apply_azure_kwargs``) — litellm has no global hook
+    for ``azure_ad_token_provider``, so it must travel as a per-call kwarg.
+    """
+    apply_azure_kwargs(kwargs.get("model"), kwargs)
     return litellm.completion(**kwargs)
 
 

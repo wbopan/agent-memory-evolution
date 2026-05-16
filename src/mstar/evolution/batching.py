@@ -8,6 +8,7 @@ import time
 import litellm
 import numpy as np
 
+from mstar.evolution.azure_config import apply_azure_kwargs
 from mstar.evolution.types import DataItem
 from mstar.logging.logger import get_logger
 
@@ -49,7 +50,9 @@ def _embed_texts(texts: list[str], model: str) -> np.ndarray:
     def _embed_chunk(chunk: list[str]) -> list[list[float]]:
         for attempt in range(_EMBED_MAX_RETRIES):
             try:
-                response = litellm.embedding(model=model, input=chunk, caching=True)
+                embed_kwargs: dict = {"model": model, "input": chunk, "caching": True}
+                apply_azure_kwargs(model, embed_kwargs)
+                response = litellm.embedding(**embed_kwargs)
                 return [d["embedding"] for d in response.data]
             except Exception:
                 if attempt == _EMBED_MAX_RETRIES - 1:

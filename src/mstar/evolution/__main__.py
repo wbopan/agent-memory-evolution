@@ -159,8 +159,10 @@ def main() -> None:
     parser.add_argument(
         "--azure-api-base",
         default=os.environ.get("AZURE_API_BASE"),
-        help="Azure OpenAI endpoint URL (e.g. https://myresource.openai.azure.com/). "
-        "Also reads AZURE_API_BASE env var.",
+        help="Azure OpenAI / AI Services endpoint URL, called directly via "
+        "AzureCliCredential (no proxy). E.g. "
+        "https://myresource.services.ai.azure.com or "
+        "https://myresource.openai.azure.com. Also reads AZURE_API_BASE env var.",
     )
     parser.add_argument(
         "--azure-api-version",

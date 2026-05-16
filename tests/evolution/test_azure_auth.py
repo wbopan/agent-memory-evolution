@@ -1,15 +1,28 @@
-"""Tests for Azure OpenAI authentication configuration."""
+"""Tests for direct Azure OpenAI authentication configuration.
+
+mstar talks to Azure directly (no reverse proxy): configure_azure_auth() builds
+an AzureCliCredential token provider and stashes it; apply_azure_kwargs() injects
+the endpoint + provider into each litellm call.
+"""
 
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
 
+import mstar.evolution.azure_config as azure_config
 from mstar.evolution.azure_config import (
     _has_azure_prefix,
+    apply_azure_kwargs,
     configure_azure_auth,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_azure_config():
+    """Each test starts and ends with a clean module-global config."""
+    azure_config._CONFIG = None
+    yield
+    azure_config._CONFIG = None
 
 
 class TestHasAzurePrefix:
@@ -37,73 +50,101 @@ class TestHasAzurePrefix:
 
 class TestConfigureAzureAuth:
     def test_no_op_when_no_azure_models(self):
-        """configure_azure_auth should do nothing when no azure/ models."""
-        with patch("mstar.evolution.azure_config.litellm") as mock_litellm:
-            configure_azure_auth(["openai/gpt-4"])
-            # No attributes should be set on litellm
-            assert not mock_litellm.api_base.called
-            mock_litellm.assert_not_called()
+        """configure_azure_auth should leave config unset when no azure/ models."""
+        configure_azure_auth(["openai/gpt-4"], azure_api_base="https://x.azure.com")
+        assert azure_config._CONFIG is None
+
+    def test_clears_stale_config_when_no_azure_models(self):
+        """A non-azure reconfigure must clear any previously stored config."""
+        configure_azure_auth(["azure/gpt-4o"], azure_api_base="https://x.azure.com")
+        assert azure_config._CONFIG is not None
+        configure_azure_auth(["openai/gpt-4"])
+        assert azure_config._CONFIG is None
 
     def test_raises_when_azure_model_but_no_api_base(self):
         """Should raise ValueError if azure/ model present but no azure_api_base."""
         with pytest.raises(ValueError, match="--azure-api-base is required"):
             configure_azure_auth(["azure/gpt-4o"], azure_api_base=None)
 
-    def test_sets_api_base_when_azure_model_present(self):
-        """litellm.api_base should be set to the provided azure_api_base."""
-        with patch("mstar.evolution.azure_config.litellm") as mock_litellm:
-            with patch.dict("os.environ", {"AZURE_API_KEY": "test-key"}):
-                configure_azure_auth(
-                    ["azure/gpt-4o"],
-                    azure_api_base="https://myresource.openai.azure.com/",
-                )
-            assert mock_litellm.api_base == "https://myresource.openai.azure.com/"
-
-    def test_sets_api_version_when_azure_model_present(self):
-        """litellm.api_version should be set to the provided version."""
-        with patch("mstar.evolution.azure_config.litellm") as mock_litellm:
-            with patch.dict("os.environ", {"AZURE_API_KEY": "test-key"}):
-                configure_azure_auth(
-                    ["azure/gpt-4o"],
-                    azure_api_base="https://myresource.openai.azure.com/",
-                    azure_api_version="2024-06-01",
-                )
-            assert mock_litellm.api_version == "2024-06-01"
-
-    def test_enables_token_refresh_when_no_api_key(self):
-        """enable_azure_ad_token_refresh should be True when AZURE_API_KEY not set."""
-        with patch("mstar.evolution.azure_config.litellm") as mock_litellm:
-            with patch.dict("os.environ", {}, clear=True):
-                # Ensure AZURE_API_KEY is not present
-                import os
-
-                os.environ.pop("AZURE_API_KEY", None)
-                configure_azure_auth(
-                    ["azure/gpt-4o"],
-                    azure_api_base="https://myresource.openai.azure.com/",
-                )
-            assert mock_litellm.enable_azure_ad_token_refresh is True
-
-    def test_skips_token_refresh_when_api_key_set(self):
-        """enable_azure_ad_token_refresh should NOT be set when AZURE_API_KEY is present."""
-        with patch("mstar.evolution.azure_config.litellm") as mock_litellm:
-            with patch.dict("os.environ", {"AZURE_API_KEY": "my-secret-key"}):
-                configure_azure_auth(
-                    ["azure/gpt-4o"],
-                    azure_api_base="https://myresource.openai.azure.com/",
-                )
-            # enable_azure_ad_token_refresh should not have been set
-            assert (
-                not hasattr(mock_litellm, "enable_azure_ad_token_refresh")
-                or mock_litellm.enable_azure_ad_token_refresh != True
-            )
+    def test_stores_config_when_azure_model_present(self):
+        """Endpoint, version, and a callable token provider should be stored."""
+        configure_azure_auth(
+            ["azure/gpt-4o"],
+            azure_api_base="https://myresource.services.ai.azure.com",
+            azure_api_version="2025-03-01-preview",
+        )
+        cfg = azure_config._CONFIG
+        assert cfg is not None
+        assert cfg.api_base == "https://myresource.services.ai.azure.com"
+        assert cfg.api_version == "2025-03-01-preview"
+        assert callable(cfg.token_provider)
 
     def test_uses_default_api_version(self):
         """Default api_version should be '2024-12-01-preview'."""
-        with patch("mstar.evolution.azure_config.litellm") as mock_litellm:
-            with patch.dict("os.environ", {"AZURE_API_KEY": "test-key"}):
-                configure_azure_auth(
-                    ["azure/gpt-4o"],
-                    azure_api_base="https://myresource.openai.azure.com/",
-                )
-            assert mock_litellm.api_version == "2024-12-01-preview"
+        configure_azure_auth(
+            ["azure/gpt-4o"],
+            azure_api_base="https://myresource.services.ai.azure.com",
+        )
+        assert azure_config._CONFIG is not None
+        assert azure_config._CONFIG.api_version == "2024-12-01-preview"
+
+
+class TestApplyAzureKwargs:
+    def test_injects_endpoint_and_provider_for_azure_model(self):
+        """azure/ models get api_base, api_version, and azure_ad_token_provider."""
+        configure_azure_auth(
+            ["azure/gpt-4o"],
+            azure_api_base="https://myresource.services.ai.azure.com",
+            azure_api_version="2025-03-01-preview",
+        )
+        kwargs: dict = {"model": "azure/gpt-4o", "messages": []}
+        apply_azure_kwargs("azure/gpt-4o", kwargs)
+        assert kwargs["api_base"] == "https://myresource.services.ai.azure.com"
+        assert kwargs["api_version"] == "2025-03-01-preview"
+        assert callable(kwargs["azure_ad_token_provider"])
+
+    def test_noop_for_non_azure_model(self):
+        """openrouter/ or openai/ models must not get Azure kwargs injected."""
+        configure_azure_auth(
+            ["azure/gpt-4o"],
+            azure_api_base="https://myresource.services.ai.azure.com",
+        )
+        kwargs: dict = {"model": "openrouter/baai/bge-m3", "input": ["x"]}
+        apply_azure_kwargs("openrouter/baai/bge-m3", kwargs)
+        assert "api_base" not in kwargs
+        assert "api_version" not in kwargs
+        assert "azure_ad_token_provider" not in kwargs
+
+    def test_noop_when_not_configured(self):
+        """With no config (no azure run), apply_azure_kwargs is a no-op."""
+        kwargs: dict = {"model": "azure/gpt-4o", "messages": []}
+        apply_azure_kwargs("azure/gpt-4o", kwargs)
+        assert kwargs == {"model": "azure/gpt-4o", "messages": []}
+
+    def test_explicit_overrides_win(self):
+        """setdefault semantics: caller-supplied kwargs are never overwritten."""
+        configure_azure_auth(
+            ["azure/gpt-4o"],
+            azure_api_base="https://default.services.ai.azure.com",
+            azure_api_version="2025-03-01-preview",
+        )
+        kwargs: dict = {
+            "model": "azure/gpt-4o",
+            "api_base": "https://override.services.ai.azure.com",
+            "api_version": "2099-01-01",
+        }
+        apply_azure_kwargs("azure/gpt-4o", kwargs)
+        assert kwargs["api_base"] == "https://override.services.ai.azure.com"
+        assert kwargs["api_version"] == "2099-01-01"
+        # provider still injected since the caller did not supply one
+        assert callable(kwargs["azure_ad_token_provider"])
+
+    def test_noop_for_non_string_model(self):
+        """A missing/None model must not raise."""
+        configure_azure_auth(
+            ["azure/gpt-4o"],
+            azure_api_base="https://myresource.services.ai.azure.com",
+        )
+        kwargs: dict = {"messages": []}
+        apply_azure_kwargs(None, kwargs)
+        assert kwargs == {"messages": []}
