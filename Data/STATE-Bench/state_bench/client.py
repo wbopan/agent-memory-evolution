@@ -25,13 +25,12 @@ Usage:
 import json
 import os
 import pprint
-import subprocess
 import threading
 from pathlib import Path
 from typing import Any
 
 import yaml
-from azure.identity import DefaultAzureCredential, get_bearer_token_provider
+from azure.identity import AzureCliCredential, get_bearer_token_provider
 from dotenv import load_dotenv
 from openai import APIStatusError, AuthenticationError, AzureOpenAI
 from tenacity import (
@@ -130,35 +129,39 @@ def _get_env_with_numbered_fallback(var_name: str) -> str:
     return os.environ.get(var_name) or os.environ.get(f"{var_name}_1", "")
 
 
-def _get_cli_access_token() -> str | None:
-    """Get a fresh Cognitive Services token from local CLI auth if available."""
-    commands = [
-        [
-            "az",
-            "account",
-            "get-access-token",
-            "--resource",
-            "https://cognitiveservices.azure.com/",
-            "--query",
-            "accessToken",
-            "-o",
-            "tsv",
-        ],
-        ["azd", "auth", "token", "--scope", "https://cognitiveservices.azure.com/.default"],
-    ]
-    for cmd in commands:
-        try:
-            proc = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=20)
-        except Exception:
-            continue
-        token = proc.stdout.strip()
-        if token:
-            return token
-    return None
+_COGNITIVE_SERVICES_SCOPE = "https://cognitiveservices.azure.com/.default"
+
+# Process-wide, lazily built AzureCliCredential token provider. One credential
+# for the whole run: azure-identity caches the bearer token and refreshes it
+# before expiry, so we shell out to `az` roughly once per token lifetime rather
+# than once per client. AzureCliCredential (not DefaultAzureCredential) is used
+# explicitly so the identity always matches the developer's `az login` session
+# instead of an Azure VM's Managed Identity.
+_cli_token_provider: Any = None
+_cli_token_provider_lock = threading.Lock()
+
+
+def _get_cli_token_provider() -> Any:
+    """Return the shared auto-refreshing AzureCliCredential bearer-token provider."""
+    global _cli_token_provider
+    if _cli_token_provider is None:
+        with _cli_token_provider_lock:
+            if _cli_token_provider is None:
+                _cli_token_provider = get_bearer_token_provider(
+                    AzureCliCredential(), _COGNITIVE_SERVICES_SCOPE
+                )
+    return _cli_token_provider
 
 
 def _build_azure_openai_client(endpoint: str, api_version: str) -> AzureOpenAI:
-    """Build an authenticated AzureOpenAI client with deterministic auth precedence."""
+    """Build an authenticated AzureOpenAI client.
+
+    Auth precedence:
+    1. ``AZURE_OPENAI_TOKEN`` env var — honored as an explicit static token if
+       set (e.g. when a token-injecting proxy fronts the endpoint).
+    2. Otherwise an auto-refreshing AzureCliCredential bearer-token provider,
+       so direct-to-Azure calls keep working across long runs without a proxy.
+    """
     static_token = os.environ.get("AZURE_OPENAI_TOKEN")
     if static_token:
         return AzureOpenAI(
@@ -167,19 +170,9 @@ def _build_azure_openai_client(endpoint: str, api_version: str) -> AzureOpenAI:
             api_version=api_version,
         )
 
-    cli_token = _get_cli_access_token()
-    if cli_token:
-        return AzureOpenAI(
-            azure_endpoint=endpoint,
-            azure_ad_token=cli_token,
-            api_version=api_version,
-        )
-
-    credential = DefaultAzureCredential()
-    token_provider = get_bearer_token_provider(credential, "https://cognitiveservices.azure.com/.default")
     return AzureOpenAI(
         azure_endpoint=endpoint,
-        azure_ad_token_provider=token_provider,
+        azure_ad_token_provider=_get_cli_token_provider(),
         api_version=api_version,
     )
 
