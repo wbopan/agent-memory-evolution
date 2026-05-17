@@ -128,18 +128,37 @@ def test_render_question_no_opening_message_falls_back_to_summary():
     assert "Help the user." in out
 
 
-def test_stratified_half_split_is_deterministic_and_balanced():
-    from mstar.benchmarks.state_bench import _stratified_half_split
+def test_split_train_val_is_deterministic_and_partitions():
+    from mstar.benchmarks.state_bench import _split_train_val
 
     items = list(range(100))
-    a, b = _stratified_half_split(items, seed=42)
-    assert len(a) == 50 and len(b) == 50
-    assert set(a) | set(b) == set(items)
-    assert set(a) & set(b) == set()
-    a2, b2 = _stratified_half_split(items, seed=42)
-    assert a == a2 and b == b2
-    a3, _ = _stratified_half_split(items, seed=43)
-    assert a != a3
+    train, val = _split_train_val(items, val_size=50, seed=42)
+    assert len(train) == 50 and len(val) == 50
+    assert set(train) | set(val) == set(items)
+    assert set(train) & set(val) == set()
+    train2, val2 = _split_train_val(items, val_size=50, seed=42)
+    assert train == train2 and val == val2
+    train3, _ = _split_train_val(items, val_size=50, seed=43)
+    assert train != train3
+
+
+def test_split_train_val_honors_val_size():
+    from mstar.benchmarks.state_bench import _split_train_val
+
+    items = list(range(100))
+    train, val = _split_train_val(items, val_size=70, seed=42)
+    assert len(val) == 70 and len(train) == 30
+    assert set(train) | set(val) == set(items)
+    assert set(train) & set(val) == set()
+
+
+def test_split_train_val_rejects_out_of_range():
+    from mstar.benchmarks.state_bench import _split_train_val
+
+    items = list(range(100))
+    for bad in (0, 100, 150, -1):
+        with pytest.raises(ValueError, match="val_size must be in"):
+            _split_train_val(items, val_size=bad, seed=0)
 
 
 def test_load_state_bench_synth_fixture():

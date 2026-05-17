@@ -111,15 +111,25 @@ def _render_question(task: dict[str, Any]) -> str:
     return f"[{task_id}] {opening}"
 
 
-def _stratified_half_split(items: list, seed: int = 0) -> tuple[list, list]:
-    """Deterministic 50/50 split. Returns (a, b) preserving original order within each half."""
+def _split_train_val(items: list, val_size: int, seed: int = 0) -> tuple[list, list]:
+    """Deterministic train/val split of the official-train pool.
+
+    ``val`` receives ``val_size`` items, ``train`` the rest; original order is
+    preserved within each side. Returns ``(train, val)``. ``val_size`` equal to
+    half the pool reproduces the legacy 50/50 split for a given seed.
+    """
+    if not 0 < val_size < len(items):
+        raise ValueError(
+            f"val_size must be in (1, {len(items) - 1}) for a pool of "
+            f"{len(items)} items; got {val_size}"
+        )
     rng = random.Random(seed)
     indices = list(range(len(items)))
     rng.shuffle(indices)
-    half = len(indices) // 2
-    a_idx = sorted(indices[:half])
-    b_idx = sorted(indices[half:])
-    return [items[i] for i in a_idx], [items[i] for i in b_idx]
+    train_size = len(items) - val_size
+    train_idx = sorted(indices[:train_size])
+    val_idx = sorted(indices[train_size:])
+    return [items[i] for i in train_idx], [items[i] for i in val_idx]
 
 
 def _load_task_dict(task_path: Path) -> dict[str, Any]:
@@ -157,11 +167,17 @@ def load_state_bench(
     domain: str | None = None,
     category: str | None = None,
     seed: int = 0,
+    val_size: int | None = None,
 ) -> Dataset:
     """Load STATE-Bench tasks as an mstar Dataset.
 
-    Splits: official 100 train -> 50 train + 50 val (deterministic by seed).
-            official 50 test  -> kept as-is.
+    Splits: official train pool -> (pool - val_size) train + val_size val
+            (deterministic by seed). official test -> kept as-is.
+
+    ``val_size`` defaults to ``None`` -> a 50/50 train/val split (legacy
+    behavior). A larger ``val_size`` makes evolution scoring less noisy but
+    leaves fewer train examples for the KB — pass e.g. ``val_size=70`` as a
+    benchmark kwarg.
 
     Restrict to a single STATE-Bench domain via ``domain=`` or ``category=``
     (mstar's CLI uses ``--category`` as the canonical knob; both forms accepted).
@@ -183,7 +199,8 @@ def load_state_bench(
                 f"Did Task 0 (vendor + extract) complete?"
             )
         official_train, official_test = _read_split_ids(splits_path)
-        train_ids, val_ids = _stratified_half_split(official_train, seed=seed)
+        n_val = int(val_size) if val_size is not None else len(official_train) // 2
+        train_ids, val_ids = _split_train_val(official_train, val_size=n_val, seed=seed)
 
         for tid in train_ids:
             tp = dom_root / "tasks" / f"{tid}.json"
