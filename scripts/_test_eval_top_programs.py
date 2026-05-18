@@ -1,16 +1,17 @@
-"""Evaluate the top-N val-scoring programs of a finished evolution run on the
-held-out official test set.
+"""Evaluate the top-N val-scoring programs of a finished evolution run, plus
+every seed program, on the held-out official test set.
 
 Experiment question: does a fully-evolved memory (KB) program actually improve
 held-out test performance, or does it merely track val noise? The top-N pool
-programs (by evolution score) are each re-evaluated on dataset.test with the
-exact train set they were evolved against.
+programs (by evolution score) and all seeds are each re-evaluated on
+dataset.test with the exact train set they were evolved against — including all
+seeds lets the seed test average be compared against the evolved programs.
 
 Usage:
     uv run python scripts/_test_eval_top_programs.py <output_dir> [top_n]
 
 <output_dir> is a state_bench run dir containing config.json, state.json and
-programs/. top_n defaults to 3.
+programs/. top_n defaults to 3 (seeds are always added on top).
 """
 
 from __future__ import annotations
@@ -71,9 +72,15 @@ def main() -> None:
         key=lambda e: (e.get("eval_result") or {}).get("score") or 0.0,
         reverse=True,
     )
-    top = ranked[:top_n]
-    print(f"top-{top_n} by evolution score:")
-    for e in top:
+    selected: list[dict] = list(ranked[:top_n])
+    selected_names = {e["name"] for e in selected}
+    # Always also include every seed program, so the seed test average is known.
+    for e in pool:
+        if e["name"].startswith("seed_") and e["name"] not in selected_names:
+            selected.append(e)
+            selected_names.add(e["name"])
+    print(f"selecting top-{top_n} by evolution score + all seeds ({len(selected)} programs):")
+    for e in selected:
         print(f"  {e['name']:14s} evo_score={(e.get('eval_result') or {}).get('score')}  gen={e.get('program_generation')}")
 
     evaluator = MemoryEvaluator(
@@ -89,7 +96,7 @@ def main() -> None:
     )
 
     results: list[tuple[str, int, float, float]] = []
-    for entry in top:
+    for entry in selected:
         name = entry["name"]
         gen = entry.get("program_generation", -1)
         evo_score = (entry.get("eval_result") or {}).get("score") or 0.0
