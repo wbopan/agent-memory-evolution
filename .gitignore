@@ -11,11 +11,9 @@ build/
 .worktrees/
 .claude/
 data/
-# outputs/ — tracked via LFS on HF remote
 wandb/
 .env
 CLAUDE.md
-TASKS.md
 knowledge/
 exps/
 .pre-commit-config.yaml

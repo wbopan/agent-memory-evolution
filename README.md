@@ -27,7 +27,7 @@ Both emerge from the same three simple seeds.
 
 A memory system is expressed as a *memory program* — a Python module with three jointly-optimized dimensions: Schema (dataclasses defining what to store and how to query), Logic (`write()`/`read()` backend), and Instruction (prompt constants that steer the task agent).
 In the code, this is the `KBProgram` (defining `KnowledgeItem`, `Query`, and `KnowledgeBase`); in the paper it is called the *memory program* or *memory harness* — they are the same thing.
-The evolution loop starts from 3 seeds, evaluates programs on a benchmark (scoring against a static validation set and using a rotating set for reflection), asks an LLM reflector to mutate the code (V4A patch), compiles and fixes errors, then adds the child to the population pool.
+The evolution loop starts from 3 seeds, evaluates programs on a benchmark (scoring against a static validation set and using a rotating set for reflection), asks an LLM reflector to mutate the program's code, compiles and fixes any errors, then adds the child to the population pool.
 After 20 iterations, the best program is evaluated on the held-out test set.
 
 The task agent that *uses* the memory is completely fixed.
@@ -90,7 +90,7 @@ uv run python -m mstar.evolution \
   --iterations 0 --no-weave
 ```
 
-ALFWorld is included as a core dependency — no extra install step needed. Use `--dataset alfworld` directly.
+ALFWorld works out of the box — run `--dataset alfworld` directly.
 
 ### Reproducing the paper
 
@@ -150,11 +150,11 @@ tests/              test suite (disk-cached, runs without API keys)
 ## Citation
 
 ```bibtex
-@misc{pan2025mstar,
+@misc{pan2026mstar,
   title        = {M{\ensuremath{\star}}: Every Task Deserves Its Own Memory Harness},
   author       = {Wenbo Pan and Shujie Liu and Xiangyang Zhou and Shiwei Zhang and
                   Wanlu Shi and Mirror Xu and Xiaohua Jia},
-  year         = {2025},
+  year         = {2026},
   eprint       = {2604.11811},
   archivePrefix= {arXiv},
   primaryClass = {cs.AI},

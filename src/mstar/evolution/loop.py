@@ -1,4 +1,4 @@
-"""Evolution loop — the main GEPA cycle for Knowledge Base Program optimization.
+"""Evolution loop — the main optimization loop for Knowledge Base Programs.
 
 Determinism: given a fixed random seed (set via ``random.seed()`` in __main__)
 and LLM cache hits (``caching=True`` on all litellm calls), the evolution
@@ -408,7 +408,7 @@ class EvolutionLoop:
                     parent_hash=child.parent_hash,
                 )
 
-            # Freeze code structure if requested (GEPA baseline: only instructions evolve)
+            # Freeze code structure if requested (prompt-only ablation: only instructions evolve)
             if self.freeze_code:
                 # Swap args: extract instructions from child, graft onto parent's code
                 frozen_source = freeze_instruction_constants(child.source_code, parent.source_code)

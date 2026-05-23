@@ -88,7 +88,7 @@ def _puzzle_to_dataitem(puzzle: dict) -> DataItem:
     words = list(puzzle["words"])
     date_str = str(puzzle.get("date") or "")
 
-    # Deterministic shuffle using date hash (same as GEPA)
+    # Deterministic shuffle seeded by a date hash
     date_hash = int(hashlib.md5(date_str.encode()).hexdigest(), 16) % (2**32)
     rng = random.Random(date_hash)
     rng.shuffle(words)

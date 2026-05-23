@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Smoke test for run_experiments.sh — covers all paths with minimal data.
-# Validates the full pipeline before handing off to collaborators.
+# Validates the full pipeline end-to-end on minimal data.
 #
 # Usage:
 #   bash scripts/run_smoke_experiments.sh              # all (table1 + baselines)
 #   bash scripts/run_smoke_experiments.sh table1       # main results only
-#   bash scripts/run_smoke_experiments.sh baselines    # ALMA baselines only
+#   bash scripts/run_smoke_experiments.sh baselines    # baselines only
 
 set -euo pipefail
 
@@ -96,7 +96,7 @@ run_table1() {
     done
 }
 
-# ALMA baselines: 5 baselines × 7 benchmark settings = 35 runs
+# Baselines: 5 baselines × 7 benchmark settings = 35 runs
 BASELINES=(
     "trajectory_retrieval:Trajectory Retrieval:"
     "reasoning_bank:ReasoningBank:"
@@ -107,7 +107,7 @@ BASELINES=(
 
 run_baselines() {
     echo "=============================================================="
-    echo "  SMOKE TABLE 1 — ALMA BASELINES"
+    echo "  SMOKE TABLE 1 — BASELINES"
     echo "=============================================================="
 
     for entry in "${BASELINES[@]}"; do

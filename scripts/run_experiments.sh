@@ -5,11 +5,11 @@
 # Usage:
 #   bash scripts/run_experiments.sh              # all (table1 + baselines + ablation)
 #   bash scripts/run_experiments.sh table1       # main results only
-#   bash scripts/run_experiments.sh baselines    # ALMA baselines only
+#   bash scripts/run_experiments.sh baselines    # baselines only
 #   bash scripts/run_experiments.sh ablation     # ablation study only (Table 2)
 #
 # Override models via environment variables:
-#   TASK_MODEL=deepseek/deepseek-v3.2 REFLECT_MODEL=openai/gpt-5.3-codex TOOLKIT_MODEL=deepseek/deepseek-v3.2 bash scripts/run_experiments.sh
+#   TASK_MODEL=azure/gpt-5.4-mini REFLECT_MODEL=azure/gpt-5.3-codex TOOLKIT_MODEL=azure/gpt-5.4-mini bash scripts/run_experiments.sh
 #
 # Results: jq '.test_evaluation' outputs/t1-*/summary.json outputs/bl-*/summary.json outputs/t2-*/summary.json
 
@@ -140,7 +140,7 @@ run_table1() {
     _run_ds_group "$COMMON_PR_FIN"   "pr-finance"     "$EVOL_PR_FIN"
 }
 
-# ALMA baselines: 5 baselines × 7 benchmark settings = 35 runs.
+# Baselines: 5 baselines × 7 benchmark settings = 35 runs.
 BASELINES=(
     "trajectory_retrieval:traj-retr:"
     "reasoning_bank:reason-bank:"
@@ -151,7 +151,7 @@ BASELINES=(
 
 run_baselines() {
     echo "=============================================================="
-    echo "  TABLE 1 — ALMA BASELINES"
+    echo "  TABLE 1 — BASELINES"
     echo "=============================================================="
 
     for entry in "${BASELINES[@]}"; do
@@ -193,7 +193,7 @@ run_baselines() {
 }
 
 # Table 2 — Ablation study: 4 variants × LoCoMo only.
-# Full system scores come from Table 1 (t1-locomo-ours) — not re-run here.
+# The full-system column is produced by the Table 1 run above and is not duplicated here.
 #
 # Variants:
 #   freeze-inst   — freeze instruction constants (only code evolves)

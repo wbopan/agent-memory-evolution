@@ -49,13 +49,13 @@ class TestBaselineBehavior:
         toolkit.close()
 
 
-_ALMA_BASELINES_DIR = Path(__file__).resolve().parents[2] / "src" / "mstar" / "baselines"
+_BASELINES_DIR = Path(__file__).resolve().parents[2] / "src" / "mstar" / "baselines"
 
 
 class TestTrajectoryRetrieval:
     @pytest.mark.uses_chroma
     def test_write_and_read(self):
-        source = (_ALMA_BASELINES_DIR / "trajectory_retrieval.py").read_text()
+        source = (_BASELINES_DIR / "trajectory_retrieval.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError), f"Compile failed: {compiled}"
 
@@ -77,7 +77,7 @@ class TestTrajectoryRetrieval:
 
     @pytest.mark.uses_chroma
     def test_read_empty(self):
-        source = (_ALMA_BASELINES_DIR / "trajectory_retrieval.py").read_text()
+        source = (_BASELINES_DIR / "trajectory_retrieval.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -92,7 +92,7 @@ class TestTrajectoryRetrieval:
 class TestReasoningBank:
     @pytest.mark.uses_chroma
     def test_compile_and_smoke(self):
-        source = (_ALMA_BASELINES_DIR / "reasoning_bank.py").read_text()
+        source = (_BASELINES_DIR / "reasoning_bank.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError), f"Compile failed: {compiled}"
 
@@ -105,7 +105,7 @@ class TestReasoningBank:
 
     @pytest.mark.uses_chroma
     def test_read_empty(self):
-        source = (_ALMA_BASELINES_DIR / "reasoning_bank.py").read_text()
+        source = (_BASELINES_DIR / "reasoning_bank.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -119,7 +119,7 @@ class TestReasoningBank:
 
 class TestDynamicCheatsheet:
     def test_compile_and_smoke(self):
-        source = (_ALMA_BASELINES_DIR / "dynamic_cheatsheet.py").read_text()
+        source = (_BASELINES_DIR / "dynamic_cheatsheet.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError), f"Compile failed: {compiled}"
 
@@ -129,7 +129,7 @@ class TestDynamicCheatsheet:
         assert hasattr(kb, "read")
 
     def test_read_empty_returns_empty(self):
-        source = (_ALMA_BASELINES_DIR / "dynamic_cheatsheet.py").read_text()
+        source = (_BASELINES_DIR / "dynamic_cheatsheet.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -144,7 +144,7 @@ class TestDynamicCheatsheet:
 class TestGMemory:
     @pytest.mark.uses_chroma
     def test_compile_and_smoke(self):
-        source = (_ALMA_BASELINES_DIR / "g_memory.py").read_text()
+        source = (_BASELINES_DIR / "g_memory.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError), f"Compile failed: {compiled}"
 
@@ -156,7 +156,7 @@ class TestGMemory:
 
     @pytest.mark.uses_chroma
     def test_read_empty(self):
-        source = (_ALMA_BASELINES_DIR / "g_memory.py").read_text()
+        source = (_BASELINES_DIR / "g_memory.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -172,7 +172,7 @@ class TestGMemory:
 class TestMem0:
     @pytest.mark.uses_chroma
     def test_compile_and_smoke(self):
-        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        source = (_BASELINES_DIR / "mem0.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError), f"Compile failed: {compiled}"
 
@@ -184,7 +184,7 @@ class TestMem0:
 
     @pytest.mark.uses_chroma
     def test_read_empty(self):
-        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        source = (_BASELINES_DIR / "mem0.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -199,7 +199,7 @@ class TestMem0:
     @pytest.mark.uses_chroma
     def test_write_and_read_without_dedup(self):
         """Write distinct facts (no dedup triggered), verify retrieval."""
-        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        source = (_BASELINES_DIR / "mem0.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -217,7 +217,7 @@ class TestMem0:
     @pytest.mark.uses_chroma
     def test_history_table_populated(self):
         """Verify SQLite history is written on add."""
-        source = (_ALMA_BASELINES_DIR / "mem0.py").read_text()
+        source = (_BASELINES_DIR / "mem0.py").read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError)
 
@@ -233,7 +233,7 @@ class TestMem0:
         toolkit.close()
 
 
-ALMA_BASELINES = [
+BASELINES = [
     "trajectory_retrieval.py",
     "reasoning_bank.py",
     "dynamic_cheatsheet.py",
@@ -242,11 +242,11 @@ ALMA_BASELINES = [
 ]
 
 
-class TestAllAlmaBaselinesCompile:
-    @pytest.mark.parametrize("filename", ALMA_BASELINES)
+class TestAllBaselinesCompile:
+    @pytest.mark.parametrize("filename", BASELINES)
     @pytest.mark.uses_chroma
     def test_compile_and_smoke(self, filename):
-        source = (_ALMA_BASELINES_DIR / filename).read_text()
+        source = (_BASELINES_DIR / filename).read_text()
         compiled = compile_kb_program(source)
         assert not isinstance(compiled, CompileError), f"{filename} compile failed: {compiled}"
 

@@ -11,7 +11,6 @@ def _patch_cache_preset_key_bug(cache_cls: type[Any]) -> None:
 
     litellm passes **kwargs to _set_preset_cache_key_in_kwargs, but kwargs may already contain
     preset_cache_key from a prior call, causing a TypeError. We pop it before the call.
-    See: https://github.com/BerriAI/litellm/issues/XXXX
     """
     global _CACHE_PATCHED
 

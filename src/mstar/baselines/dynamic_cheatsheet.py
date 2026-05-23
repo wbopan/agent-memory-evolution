@@ -24,7 +24,7 @@ class Query:
 
 
 class KnowledgeBase:
-    """Dynamic Cheatsheet baseline (ALMA, 2602.07755; cf. Suzgun et al. 2025).
+    """Dynamic Cheatsheet baseline (cf. Suzgun et al. 2025).
 
     Maintains a single global cheatsheet. On each write, the LLM updates the
     cheatsheet by integrating new experience (cumulative mode). On read, returns

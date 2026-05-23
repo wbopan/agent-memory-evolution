@@ -25,7 +25,7 @@ class Query:
 
 
 class KnowledgeBase:
-    """ReasoningBank baseline (ALMA, 2602.07755; cf. ReasoningBank 2509.25140).
+    """ReasoningBank baseline (cf. ReasoningBank, arXiv:2509.25140).
 
     On write: uses LLM to extract key insights from the trajectory, stores
     task description + insights together in ChromaDB (keyed by task description).

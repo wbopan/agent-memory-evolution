@@ -23,7 +23,7 @@ class Query:
 
 
 class KnowledgeBase:
-    """Trajectory Retrieval baseline (ALMA, 2602.07755).
+    """Trajectory Retrieval baseline.
 
     Stores full raw trajectories in ChromaDB. On read, retrieves the most
     similar trajectory by embedding cosine similarity.

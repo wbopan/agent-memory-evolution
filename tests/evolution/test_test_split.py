@@ -100,7 +100,7 @@ class TestSplitValTest:
         assert ds.test == original_test
         assert ds.test is not test or all(a is b for a, b in zip(ds.test, original_test, strict=True))
         assert ds.val == original_val
-        # User-visible info line: behavior changed from prior versions
+        # User-visible info line confirming which test set is in use
         captured = capsys.readouterr()
         assert "[SPLIT]" in captured.err
         assert "loader-provided test set" in captured.err

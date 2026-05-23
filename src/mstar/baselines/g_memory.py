@@ -25,7 +25,7 @@ class Query:
 
 
 class KnowledgeBase:
-    """G-Memory baseline (ALMA, 2602.07755; cf. G-Memory 2025).
+    """G-Memory baseline (cf. G-Memory 2025).
 
     Three-layer hierarchical memory using SQLite (task graph) + ChromaDB (storage):
     - Task layer: tracks task descriptions and links similar tasks via SQLite

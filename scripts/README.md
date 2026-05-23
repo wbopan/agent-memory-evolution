@@ -1,15 +1,15 @@
-# 实验运行指南
+# Experiment Reproduction Guide
 
-本文档说明如何配置环境并运行 Mstar 论文的全部实验。
+This document explains how to configure the environment and run all experiments from the M★ paper.
 
-## 1. 环境配置
+## 1. Environment Setup
 
-### 前置依赖
+### Prerequisites
 
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/)
 
-### 安装
+### Installation
 
 ```bash
 git clone https://github.com/wbopan/mstar.git
@@ -17,37 +17,37 @@ cd mstar
 uv sync
 ```
 
-### 验证安装
+### Verify installation
 
 ```bash
-# 不需要 API key 的快速测试
+# Quick test — no API key required
 uv run pytest tests/evolution/ -m "not llm" -v
 ```
 
-## 2. 模型配置
+## 2. Model Configuration
 
-系统使用 4 个 LLM 角色，通过 [LiteLLM](https://docs.litellm.ai/docs/providers) 路由到不同供应商。
+The system uses 4 LLM roles, routed to different providers via [LiteLLM](https://docs.litellm.ai/docs/providers).
 
-| 角色 | CLI 参数 | 默认模型 ID | 用途 |
-|------|---------|-----------|------|
-| Task Agent | `--task-model` | `openrouter/deepseek/deepseek-v3.2` | 知识提取、查询生成、回答问题 |
-| Reflect Agent | `--reflect-model` | `openrouter/openai/gpt-5.3-codex` | 生成/变异 Python 代码 |
-| Toolkit LLM | `--toolkit-model` | `openrouter/deepseek/deepseek-v3.2` | KB 程序内部的 LLM 合成调用 |
-| Judge（可选） | `--judge-model` | 默认同 task-model | HealthBench/PRBench 的 rubric 评分 |
+| Role | CLI flag | Default model ID | Purpose |
+|------|---------|-----------------|---------|
+| Task Agent | `--task-model` | `openrouter/deepseek/deepseek-v3.2` | Knowledge extraction, query generation, answer generation |
+| Reflect Agent | `--reflect-model` | `openrouter/openai/gpt-5.3-codex` | Generate/mutate Python programs |
+| Toolkit LLM | `--toolkit-model` | `openrouter/deepseek/deepseek-v3.2` | LLM calls inside KB programs |
+| Judge (optional) | `--judge-model` | defaults to task-model | Rubric scoring for HealthBench/PRBench |
 
-### 切换供应商
+### Switching providers
 
-模型 ID 遵循 LiteLLM 的 `provider/model` 格式。默认值使用 `openrouter/` 前缀（通过 OpenRouter 中转）。如果你使用其他供应商，需要修改前缀。参考 [LiteLLM Providers 文档](https://docs.litellm.ai/docs/providers) 查看所有支持的路由格式。
+Model IDs follow LiteLLM's `provider/model` format. The defaults use the `openrouter/` prefix (routed via OpenRouter). To use a different provider, change the prefix. See the [LiteLLM Providers documentation](https://docs.litellm.ai/docs/providers) for all supported routing formats.
 
-示例：
+Examples:
 - OpenRouter: `openrouter/deepseek/deepseek-v3.2`
-- 直连 DeepSeek: `deepseek/deepseek-chat`
-- 直连 OpenAI: `gpt-4o`
+- Direct DeepSeek: `deepseek/deepseek-chat`
+- Direct OpenAI: `gpt-4o`
 - Azure: `azure/gpt-4o`
 
-### 通过环境变量覆盖
+### Overriding via environment variables
 
-运行脚本支持通过环境变量覆盖模型 ID，无需修改脚本本身：
+The run scripts support overriding model IDs via environment variables — no need to edit the scripts:
 
 ```bash
 export TASK_MODEL="deepseek/deepseek-chat"
@@ -56,105 +56,105 @@ export TOOLKIT_MODEL="deepseek/deepseek-chat"
 bash scripts/run_experiments.sh
 ```
 
-### API Key
+### API Keys
 
-根据你选择的供应商设置对应的环境变量即可：
+Set the environment variable for whichever provider you use:
 
 ```bash
 # OpenRouter
 export OPENROUTER_API_KEY="sk-or-v1-..."
 
-# 或 DeepSeek 直连
+# Or direct DeepSeek
 export DEEPSEEK_API_KEY="sk-..."
 
-# 或 OpenAI 直连
+# Or direct OpenAI
 export OPENAI_API_KEY="sk-..."
 
-# 或 Azure OpenAI（见下方完整示例）
+# Or Azure OpenAI (see full example below)
 export AZURE_API_KEY="your-azure-key"
 export AZURE_API_BASE="https://your-resource.openai.azure.com"
-export AZURE_API_VERSION="2025-04-01-preview"
+export AZURE_API_VERSION="2025-04-01-preview"  # optional; code default is 2024-12-01-preview
 ```
 
-#### Azure OpenAI 完整示例
+#### Azure OpenAI full example
 
-系统通过 `azure_config.py` 自动检测 `azure/` 前缀的模型，并配置 LiteLLM 的 Azure 认证。支持两种认证方式：
+The system auto-detects `azure/`-prefixed models via `azure_config.py` and configures LiteLLM's Azure authentication. Two authentication methods are supported:
 
-1. **API Key**（推荐）：设置 `AZURE_API_KEY` 环境变量
-2. **DefaultAzureCredential**（无密钥）：不设置 `AZURE_API_KEY` 时，系统自动启用 Azure AD token 刷新（需安装 `azure-identity`，已包含在项目依赖中）。适用于 Managed Identity、Azure CLI 登录等场景。
+1. **API Key** (recommended): set `AZURE_API_KEY`
+2. **DefaultAzureCredential** (keyless): when `AZURE_API_KEY` is not set, the system automatically enables Azure AD token refresh (requires `azure-identity`, already included in project dependencies). Works with Managed Identity, `az login`, etc.
 
-两种方式都需要提供 `AZURE_API_BASE`（通过环境变量或 `--azure-api-base` 参数）。
+Both methods require `AZURE_API_BASE` (via environment variable or `--azure-api-base` flag).
 
-Azure 端点不提供 embedding API，建议搭配本地 embedding 使用：
+Azure endpoints do not provide an embedding API; using a local embedding model is recommended:
 
 ```bash
-# Azure 认证（方式一：API Key）
+# Azure auth — method 1: API Key
 export AZURE_API_KEY="your-azure-key"
 export AZURE_API_BASE="https://your-resource.openai.azure.com"
-export AZURE_API_VERSION="2025-04-01-preview"  # 可选，有默认值
+export AZURE_API_VERSION="2025-04-01-preview"  # optional; overrides the code default
 
-# Azure 认证（方式二：无密钥，使用 DefaultAzureCredential）
-# 不设置 AZURE_API_KEY，确保已通过 az login 或 Managed Identity 认证
+# Azure auth — method 2: keyless (DefaultAzureCredential)
+# Leave AZURE_API_KEY unset; ensure you have authenticated via az login or Managed Identity
 export AZURE_API_BASE="https://your-resource.openai.azure.com"
 
-# 模型
+# Models
 export TASK_MODEL="azure/gpt-5.4-mini"
 export REFLECT_MODEL="azure/gpt-5.3-codex"
 export TOOLKIT_MODEL="azure/gpt-5.4-mini"
 
-# 本地 embedding（跳过 API，使用 FastEmbed）
+# Local embedding (skip API, use FastEmbed)
 export EMBEDDING_MODEL="local"
 
-# 运行
+# Run
 bash scripts/run_experiments.sh table1
 ```
 
-### Embedding 模型
+### Embedding model
 
-Embedding 仅用于 train/val 子集选择（k-means 聚类），**不影响核心实验逻辑**。
+Embeddings are used only for train/val subset selection (k-means clustering) and **do not affect the core experiment logic**.
 
-默认通过 API 调用 `openrouter/baai/bge-m3`。如果你的供应商不支持 embedding API，**完全不需要配置**——系统会自动降级为本地模型（FastEmbed BAAI/bge-small-en-v1.5，ONNX CPU，首次运行自动下载 ~50MB）。
+The default is to call `openrouter/baai/bge-m3` via API. If your provider does not support an embedding API, **no configuration is needed** — the system automatically falls back to a local model (FastEmbed BAAI/bge-small-en-v1.5, ONNX CPU; ~50 MB download on first run).
 
-也可以显式跳过 API 直接使用本地模型：
+You can also explicitly force the local model:
 
 ```bash
 export EMBEDDING_MODEL="local"
 ```
 
-## 3. 实验概览
+## 3. Experiment Overview
 
-共 3 个脚本，覆盖论文的 Table 1 和 Table 2：
+Three scripts cover Table 1 and Table 2 of the paper:
 
-| 脚本 | 对应表格 | 运行数 | 内容 |
-|------|---------|-------|------|
-| `run_experiments.sh table1` | Table 1 | 21 | No Memory / Vanilla RAG / Ours × 7 数据集 |
-| `run_experiments.sh baselines` | Table 1 | 35 | 5 个 ALMA baseline × 7 数据集 |
-| `run_ablation.sh` | Table 2 | 4 | 4 个消融变体 × LoCoMo |
+| Script | Table | Runs | Contents |
+|--------|-------|------|---------|
+| `run_experiments.sh table1` | Table 1 | 21 | No Memory / Vanilla RAG / Ours × 7 datasets |
+| `run_experiments.sh baselines` | Table 1 | 35 | 5 baselines × 7 datasets |
+| `run_ablation.sh` | Table 2 | 4 | 4 ablation variants × LoCoMo |
 
-**7 个数据集**: LoCoMo, ALFWorld unseen, ALFWorld seen, HealthBench data_tasks, HealthBench emergency_referrals, PRBench legal, PRBench finance
+**7 datasets**: LoCoMo, ALFWorld unseen, ALFWorld seen, HealthBench data_tasks, HealthBench emergency_referrals, PRBench legal, PRBench finance
 
-**总计 60 个运行。**
+**60 runs total.**
 
-## 4. 运行实验
+## 4. Running Experiments
 
-所有命令在仓库根目录执行：
+All commands are run from the repository root:
 
 ```bash
-# 全部运行
+# Run everything
 bash scripts/run_experiments.sh
 bash scripts/run_ablation.sh
 
-# 或分段运行
-bash scripts/run_experiments.sh table1      # Table 1 主实验（21 runs）
-bash scripts/run_experiments.sh baselines   # Table 1 baseline（35 runs）
-bash scripts/run_ablation.sh               # Table 2 消融（4 runs）
+# Or in parts
+bash scripts/run_experiments.sh table1      # Table 1 main results (21 runs)
+bash scripts/run_experiments.sh baselines   # Table 1 baselines (35 runs)
+bash scripts/run_ablation.sh               # Table 2 ablation (4 runs)
 ```
 
-### 自动断点续跑
+### Automatic resume
 
-每个运行有唯一的输出目录（如 `outputs/t1-locomo-ours/`）。**如果运行被中断，直接重新执行同一个脚本即可**——系统检测到输出目录中的 `state.json` 会自动从上次断点恢复。
+Each run has a unique output directory (e.g. `outputs/t1-locomo-ours/`). **If a run is interrupted, simply re-run the same script** — the system detects `state.json` in the output directory and resumes from the last checkpoint.
 
-### 输出目录
+### Output directories
 
 ```
 outputs/
@@ -163,43 +163,43 @@ outputs/
   t1-locomo-ours/            # Table 1: LoCoMo / Evolution
   t1-alfworld-unseen-ours/   # Table 1: ALFWorld unseen / Evolution
   bl-locomo-traj-retr/       # Baseline: LoCoMo / Trajectory Retrieval
-  t2-locomo-freeze-inst/     # Ablation: 冻结指令常量
+  t2-locomo-freeze-inst/     # Ablation: freeze instruction constants
   ...
 ```
 
-每个目录包含：
-- `summary.json` — 最终分数（**核心结果**）
-- `config.json` — 运行配置
-- `state.json` — 断点续跑的 checkpoint
-- `programs/` — 进化产生的程序
-- `run.log` — 完整执行日志
+Each directory contains:
+- `summary.json` — final scores (**primary results**)
+- `config.json` — run configuration
+- `state.json` — checkpoint for resume
+- `programs/` — programs produced by evolution
+- `run.log` — full execution log
 
-### 收集结果
+### Collecting results
 
 ```bash
-# Table 1 分数
+# Table 1 scores
 for d in outputs/t1-*/; do
   echo "$(basename $d): $(jq -r '.test_evaluation | to_entries[] | "\(.key): \(.value)"' $d/summary.json 2>/dev/null)"
 done
 
-# Baseline 分数
+# Baseline scores
 for d in outputs/bl-*/; do
   echo "$(basename $d): $(jq -r '.test_evaluation | to_entries[] | "\(.key): \(.value)"' $d/summary.json 2>/dev/null)"
 done
 
-# 消融分数
+# Ablation scores
 for d in outputs/t2-*/; do
   echo "$(basename $d): $(jq -r '.test_evaluation | to_entries[] | "\(.key): \(.value)"' $d/summary.json 2>/dev/null)"
 done
 ```
 
-## 5. 常见问题
+## 5. Troubleshooting
 
-| 问题 | 解决方案 |
-|------|---------|
-| Embedding API 报错 | 设置 `EMBEDDING_MODEL=local` 或添加 `--embedding-model local` |
-| Rate limit / 限速 | 降低 `--batch-concurrency`（默认 64，改为 2） |
-| ALFWorld 数据缺失 | `uv run python -c "from mstar.benchmarks.alfworld import ensure_data; ensure_data()"` |
-| HealthBench/PRBench 数据缺失 | 首次运行时自动从 HuggingFace 下载 |
-| 运行中断 | 直接重新执行同一脚本，自动恢复 |
-| 想换模型供应商 | 设置 `TASK_MODEL` / `REFLECT_MODEL` / `TOOLKIT_MODEL` 环境变量 |
+| Issue | Solution |
+|-------|---------|
+| Embedding API error | Set `EMBEDDING_MODEL=local` or add `--embedding-model local` |
+| Rate limit | Lower `--batch-concurrency` (default 64; try 2) |
+| ALFWorld data missing | `uv run python -c "from mstar.benchmarks.alfworld import ensure_data; ensure_data()"` |
+| HealthBench/PRBench data missing | Downloaded automatically from HuggingFace on first run |
+| Run interrupted | Re-run the same script; it resumes automatically |
+| Want to switch model provider | Set `TASK_MODEL` / `REFLECT_MODEL` / `TOOLKIT_MODEL` environment variables |

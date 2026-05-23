@@ -24,7 +24,7 @@ COMMON_LOCOMO="--dataset locomo --test-size 100 --test-train-ratio 3 --no-weave 
 COMMON_ALFWORLD="--dataset alfworld --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 COMMON_PR_LEGAL="--dataset prbench --category legal --test-size 50 --test-train-ratio 3 --no-weave $MODELS"
 
-# --- Best evolved programs ---
+# --- Best evolved programs (highest-scoring programs from the Table 1 runs) ---
 PROG_LOCOMO="outputs/t1-locomo-ours/programs/iter_2.py"
 PROG_ALFWORLD="outputs/t1-alfworld-seen-ours/programs/iter_2.py"
 PROG_PRLEGAL="outputs/t1-pr-legal-ours/programs/iter_4.py"

@@ -1,7 +1,7 @@
 """Evaluator — offline and online evaluation pipelines for Knowledge Base Programs.
 
-Both pipelines use multi-turn conversations where messages accumulate across steps,
-matching the design document's specified interaction pattern.
+Both pipelines use multi-turn conversations where messages accumulate across steps
+within each sample (write step, then read/answer step).
 """
 
 from __future__ import annotations
@@ -461,7 +461,7 @@ class MemoryEvaluator:
     """Evaluates a KBProgram on a dataset using offline or online pipeline.
 
     Both pipelines use multi-turn conversations where messages accumulate
-    across steps within each sample, as specified in the design document.
+    across steps within each sample (write step, then read/answer step).
     """
 
     def __init__(

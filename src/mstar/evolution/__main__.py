@@ -38,8 +38,7 @@ def split_val_test(dataset: Dataset, test_size: int, seed: int) -> None:
     1. **Loader provided test** (``dataset.test`` non-empty before this call):
        The loader is the source of truth. Default (``test_size == -1``) keeps
        the loader's test set unchanged and emits an info line so users know
-       which test set is in use (this used to be silently overwritten in
-       earlier mstar versions). Any explicit ``test_size`` is treated as a
+       which test set is in use. Any explicit ``test_size`` is treated as a
        config conflict and exits with a clear error.
 
     2. **Loader didn't provide test** (``dataset.test`` empty): CLI carves a
@@ -70,13 +69,12 @@ def split_val_test(dataset: Dataset, test_size: int, seed: int) -> None:
                 file=sys.stderr,
             )
             sys.exit(1)
-        # Default path with loader-provided test. Note: prior mstar versions
-        # would have overwritten this with a copy of dataset.val. Surface the
-        # change so old runners notice their test set may differ.
+        # Default path with loader-provided test. Surface which test set is in
+        # use so runners can verify they're evaluating on the intended split.
         print(
             f"[SPLIT] Using loader-provided test set ({len(dataset.test)} items). "
-            f"Note: behavior changed — earlier mstar versions overwrote loader-supplied "
-            f"test sets with dataset.val.",
+            f"Note: the loader-supplied test set is used as-is; "
+            f"pass --test-size to carve the test split from val instead.",
             file=sys.stderr,
         )
         return
@@ -272,7 +270,7 @@ def main() -> None:
         "--freeze-code",
         action="store_true",
         default=False,
-        help="Freeze code structure during evolution (GEPA baseline: only instruction constants evolve)",
+        help="Freeze code structure during evolution (prompt-only ablation: only instruction constants evolve)",
     )
     parser.add_argument(
         "--no-references",

@@ -1,6 +1,6 @@
 """Tests for evolution/evaluator.py — scorers, JSON parsing, evaluation pipelines.
 
-Key verification points from the design document:
+Key verification points for the evaluation pipeline:
 - Online train: messages accumulate across steps (multi-turn conversation)
 - Validation: only Step 1 + Step 2, memory.write NOT called
 - Memory lifecycle: re-instantiation → empty memory (state isolation)

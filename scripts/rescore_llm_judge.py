@@ -4,9 +4,8 @@
 Reads per-item eval results from failed_cases.json, calls LLMJudgeScorer on each
 (output, expected_answer) pair, and patches summary.json with the new metric.
 
-For runs with corrupted failed_cases.json (e.g. t1-locomo-ours where a second final
-eval overwrote the file), use --reeval to re-run the evaluation pipeline and get
-correct per-item outputs before LLM-judge scoring.
+For runs whose failed_cases.json is incomplete, use --reeval to regenerate per-item
+outputs before scoring.
 
 Usage:
     uv run python scripts/rescore_llm_judge.py                    # dry-run
@@ -188,8 +187,8 @@ def _reeval_run(
     print(f"  Re-evaluating {run_dir.name} with program from {program_file.name}...")
 
     # Patch _ThreadSafeSQLiteConnection to forward __setattr__ for row_factory etc.
-    # The original runs didn't have this wrapper; programs that set self.db.row_factory
-    # would silently set it on the proxy instead of the underlying connection.
+    # Without this, programs that set self.db.row_factory would silently set it on
+    # the proxy object instead of the underlying SQLite connection.
     from mstar.evolution.toolkit import _ThreadSafeSQLiteConnection
 
     if not hasattr(_ThreadSafeSQLiteConnection, "_patched_setattr"):
