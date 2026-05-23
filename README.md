@@ -63,7 +63,7 @@ A seed program starts at roughly 30 lines. After 20 iterations, the system disco
 ```
 src/mstar/seeds/        3 starting programs (vector search, LLM summarizer, experience learner)
 src/.../evolution/      evaluate → reflect → mutate → repeat
-src/.../benchmarks/     LoCoMo, ALFWorld, HealthBench, PRBench (+ auxiliary: mini_locomo, kv_memory, state_bench, …)
+src/.../benchmarks/     LoCoMo, ALFWorld, HealthBench, PRBench (+ auxiliary: mini_locomo, kv_memory, …)
 ```
 
 Each iteration: sample a parent from the pool (softmax on scores), reflect on its failures, produce a mutated child, evaluate, add to pool.

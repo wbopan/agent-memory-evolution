@@ -10,5 +10,4 @@ import mstar.benchmarks.locomo as locomo
 import mstar.benchmarks.mini_locomo as mini_locomo
 import mstar.benchmarks.nyt_connections as nyt_connections
 import mstar.benchmarks.prbench as prbench
-import mstar.benchmarks.state_bench as state_bench
 import mstar.benchmarks.tau_bench as tau_bench

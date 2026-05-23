@@ -7,9 +7,9 @@ Responses path (v1.81.x) only supports key auth — it ignores
 resource that means every codex call 403s.
 
 This module calls the Responses API directly through ``openai.AzureOpenAI``
-with the shared AzureCliCredential token provider (same pattern as the vendored
-STATE-Bench client), then adapts the result back into a ``litellm.ModelResponse``
-so callers of ``completion_with_retry`` need no changes.
+with the shared AzureCliCredential token provider, then adapts the result back
+into a ``litellm.ModelResponse`` so callers of ``completion_with_retry`` need no
+changes.
 
 A model is routed here when its name starts with ``azure/responses/`` — e.g.
 ``--reflect-model azure/responses/gpt-5.3-codex``.

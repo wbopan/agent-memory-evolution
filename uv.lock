@@ -1574,15 +1574,6 @@ wheels = [
 ]
 
 [[package]]
-name = "json-repair"
-version = "0.59.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b7/67/eba7fad54ff6f5cce6db4e01f596fc68156b5c7e864af0aa07ad48e880a1/json_repair-0.59.5.tar.gz", hash = "sha256:bb886ee054e99066be8a337b67a986b6a50d79be9a5ad37ae81966e698990784", size = 48632, upload-time = "2026-04-24T11:41:38.133Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/aa/0529dee460b745b93f6abc97b56b7527314c5167ba29ab7a5bd5c08de01f/json_repair-0.59.5-py3-none-any.whl", hash = "sha256:6869965bd1cc1aaaa04dc85865c26fbb76d9a2d83a20010f5eae2563b1567827", size = 47282, upload-time = "2026-04-24T11:41:36.653Z" },
-]
-
-[[package]]
 name = "jsonschema"
 version = "4.26.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2064,7 +2055,7 @@ wheels = [
 
 [[package]]
 name = "mstar"
-version = "1.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "alfworld" },
@@ -2102,53 +2093,35 @@ full = [
 gepa = [
     { name = "gepa" },
 ]
-state-bench = [
-    { name = "azure-identity" },
-    { name = "jinja2" },
-    { name = "json-repair" },
-    { name = "openai" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "tenacity" },
-    { name = "tiktoken" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "alfworld", specifier = ">=0.2.2" },
     { name = "azure-identity", specifier = ">=1.17.0" },
-    { name = "azure-identity", marker = "extra == 'state-bench'", specifier = ">=1.17" },
     { name = "chardet", specifier = "<6" },
     { name = "chromadb", specifier = ">=1.0.0" },
     { name = "codex-apply-patch", specifier = ">=0.4.0" },
     { name = "datasets", marker = "extra == 'full'", specifier = ">=2.14.6" },
     { name = "fastembed", specifier = ">=0.6.0" },
     { name = "gepa", marker = "extra == 'gepa'", specifier = ">=0.1.0" },
-    { name = "jinja2", marker = "extra == 'state-bench'", specifier = ">=3.1" },
-    { name = "json-repair", marker = "extra == 'state-bench'", specifier = ">=0.25" },
     { name = "litellm", specifier = ">=1.81.5,<1.82" },
     { name = "litellm", extras = ["caching"], marker = "extra == 'full'", specifier = ">=1.81.5,<1.82" },
     { name = "minigrid", marker = "extra == 'agentboard'", specifier = ">=2.3.0" },
-    { name = "openai", marker = "extra == 'state-bench'", specifier = ">=1.50" },
     { name = "pddlgym", marker = "extra == 'agentboard'" },
     { name = "pre-commit", marker = "extra == 'dev'" },
     { name = "pyright", marker = "extra == 'dev'" },
     { name = "pytest", marker = "extra == 'dev'" },
-    { name = "python-dotenv", marker = "extra == 'state-bench'", specifier = ">=1.0" },
-    { name = "pyyaml", marker = "extra == 'state-bench'", specifier = ">=6.0" },
     { name = "redis", specifier = ">=7.1.0" },
     { name = "rich", specifier = ">=13.0.0" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.3.0" },
     { name = "scienceworld", marker = "extra == 'agentboard'" },
     { name = "syrupy", marker = "extra == 'dev'", specifier = ">=4.0.0" },
     { name = "tenacity", specifier = ">=9.1.2" },
-    { name = "tenacity", marker = "extra == 'state-bench'", specifier = ">=8.5" },
     { name = "tiktoken", marker = "extra == 'full'", specifier = ">=0.12.0" },
-    { name = "tiktoken", marker = "extra == 'state-bench'", specifier = ">=0.7" },
     { name = "tqdm", marker = "extra == 'full'", specifier = ">=4.66.1" },
     { name = "weave", extras = ["litellm"], specifier = ">=0.51.0" },
 ]
-provides-extras = ["full", "agentboard", "gepa", "dev", "state-bench"]
+provides-extras = ["full", "agentboard", "gepa", "dev"]
 
 [[package]]
 name = "multidict"
