@@ -1,4 +1,4 @@
-window.TREE_DATA = {
+export const TREE_DATA = {
   "locomo": {
     "label": "LoCoMo",
     "metric": "Token F1",
@@ -365,7 +365,7 @@ window.TREE_DATA = {
   }
 };
 
-window.CODE_MAP = {
+export const CODE_MAP = {
   "aw-1": `from dataclasses import dataclass, field
 from typing import Optional
 import json

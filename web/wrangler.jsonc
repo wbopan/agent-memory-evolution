@@ -1,0 +1,6 @@
+{
+  // Cloudflare Pages (static export) config for the M★ demo.
+  // Deploy with:  npx wrangler pages deploy   (run from web/)
+  "name": "mstar",
+  "pages_build_output_dir": "out"
+}
